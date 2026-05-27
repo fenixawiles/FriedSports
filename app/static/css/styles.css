@@ -349,6 +349,30 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .invite-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
 .invite-code { font-size: 0.85rem; color: var(--text-primary); font-family: monospace; letter-spacing: 0.03em; }
 
+/* Invite panel */
+.invite-panel {
+  display: none;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.75rem;
+}
+.invite-panel.invite-panel-open { display: block; }
+.invite-panel-inner { padding: 1rem 0; }
+.invite-panel-label {
+  font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.65rem;
+}
+.invite-panel-row {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+}
+.invite-url-input {
+  flex: 1; min-width: 200px;
+  background: var(--bg-surface); border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm); padding: 0.4rem 0.7rem;
+  font-size: 0.85rem; color: var(--text-primary); font-family: monospace;
+  outline: none; cursor: text;
+}
+.invite-url-input:focus { border-color: var(--border-mid); }
+
 /* Leaderboards — plain grid, no card boxes */
 .leaderboard-section { margin-bottom: 2.5rem; }
 .leaderboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem 2.5rem; }

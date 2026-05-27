@@ -17,19 +17,10 @@
     <div class="group-actions">
       {% if member %}
         <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Report Incident</a>
+        <button class="btn-secondary-small" onclick="toggleInvitePanel()">Invite Members</button>
         <div class="invite-box">
-          <span class="invite-label">Invite Link</span>
-          <code class="invite-code" id="invite-code" title="{{ group.invite_code }}">
-            /join/{{ group.invite_code }}
-          </code>
-          <button class="btn-icon copy-btn" id="copy-btn" onclick="copyInvite()" title="Copy link">⎘</button>
-          {% if member.role in ('owner', 'admin') %}
-          <form action="{{ url_for('groups.regenerate_invite', group_id=group.id) }}" method="post"
-                style="display:inline"
-                onsubmit="return confirm('Regenerate invite link? The current link will stop working.')">
-            <button type="submit" class="btn-icon" title="Regenerate link" style="font-size:0.8rem">↺</button>
-          </form>
-          {% endif %}
+          <span class="invite-label">Code</span>
+          <code class="invite-code" id="invite-code" title="{{ group.invite_code }}">{{ group.invite_code }}</code>
         </div>
         <form action="{{ url_for('groups.mute', group_id=group.id) }}" method="post" style="display:inline">
           <button type="submit" class="btn-secondary-small">
@@ -45,6 +36,29 @@
       {% endif %}
     </div>
   </div>
+
+  <!-- Invite panel (hidden until toggled) -->
+  {% if member %}
+  <div class="invite-panel" id="invite-panel">
+    <div class="invite-panel-inner">
+      <div class="invite-panel-label">Share this link — works for anyone, with or without an account</div>
+      <div class="invite-panel-row">
+        <input type="text" class="invite-url-input" id="invite-url-input" readonly
+               value="" placeholder="Loading...">
+        <button class="btn-secondary-small invite-copy-btn" id="invite-copy-btn" onclick="copyInvitePanel()">
+          Copy Link
+        </button>
+        {% if member.role in ('owner', 'admin') %}
+        <form action="{{ url_for('groups.regenerate_invite', group_id=group.id) }}" method="post"
+              style="display:inline"
+              onsubmit="return confirm('Regenerate invite link? The current link will stop working immediately.')">
+          <button type="submit" class="btn-danger-small">Regenerate</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Active Incidents -->
   <section class="group-section">
@@ -220,19 +234,31 @@
 </div>
 
 <script>
-function copyInvite() {
-  const code = document.getElementById('invite-code').title.trim();
-  const url = window.location.origin + '/groups/join/' + code;
-  const btn = document.getElementById('copy-btn');
-  navigator.clipboard.writeText(url).then(() => {
-    btn.textContent = '✓';
+const INVITE_CODE = document.getElementById('invite-code') ? document.getElementById('invite-code').textContent.trim() : '';
+const INVITE_URL = window.location.origin + '/groups/join/' + INVITE_CODE;
+
+// Populate the input once we have the origin
+const urlInput = document.getElementById('invite-url-input');
+if (urlInput) urlInput.value = INVITE_URL;
+
+function toggleInvitePanel() {
+  const panel = document.getElementById('invite-panel');
+  if (!panel) return;
+  const open = panel.classList.toggle('invite-panel-open');
+  if (open) urlInput && urlInput.select();
+}
+
+function copyInvitePanel() {
+  const btn = document.getElementById('invite-copy-btn');
+  navigator.clipboard.writeText(INVITE_URL).then(() => {
+    btn.textContent = 'Copied!';
     btn.style.color = 'var(--green)';
     setTimeout(() => {
-      btn.textContent = '⎘';
+      btn.textContent = 'Copy Link';
       btn.style.color = '';
     }, 2000);
   }).catch(() => {
-    prompt('Copy this invite link:', url);
+    prompt('Copy this invite link:', INVITE_URL);
   });
 }
 </script>
