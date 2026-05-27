@@ -612,7 +612,13 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .delete-btn:hover { color: var(--accent) !important; }
 
 /* Chat input */
-.chat-input-area { }
+.chat-input-area {
+  /* Safe-area clearance for home indicator — replaces the main-content bottom
+     padding that is suppressed on thread pages. Background ensures messages
+     don't bleed through as the user scrolls. */
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--bg-primary);
+}
 .chat-form {
   display: flex; gap: 0.6rem; align-items: flex-end;
   background: var(--bg-surface); border: 1px solid var(--border);
