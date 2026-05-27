@@ -349,6 +349,12 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .invite-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
 .invite-code { font-size: 0.85rem; color: var(--text-primary); font-family: monospace; letter-spacing: 0.03em; }
 
+/* Thread tagline — rotates per page load */
+.thread-tagline {
+  font-size: 0.78rem; color: var(--text-muted);
+  font-style: italic; margin-top: 0.2rem;
+}
+
 /* Invite panel */
 .invite-panel {
   display: none;

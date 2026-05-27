@@ -16,7 +16,6 @@
     </div>
     <div class="group-actions">
       {% if member %}
-        <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Report Incident</a>
         <button class="btn-secondary-small" onclick="toggleInvitePanel()">Invite Members</button>
         <div class="invite-box">
           <span class="invite-label">Code</span>
@@ -63,7 +62,15 @@
   <!-- Active Incidents -->
   <section class="group-section">
     <div class="section-header" style="margin-bottom:0.85rem">
-      <span class="section-title">Active Incidents</span>
+      <div>
+        <span class="section-title">Active Incidents</span>
+        {% if member %}
+        <div class="thread-tagline" id="thread-tagline"></div>
+        {% endif %}
+      </div>
+      {% if member %}
+      <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Start A Thread</a>
+      {% endif %}
     </div>
     {% if threads %}
     <div class="thread-list">
@@ -89,9 +96,8 @@
     </div>
     {% else %}
     <div class="empty-state">
-      <p>No active incidents. Stay vigilant.</p>
       {% if member %}
-      <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Report Incident</a>
+      <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Start A Thread</a>
       {% endif %}
     </div>
     {% endif %}
@@ -234,6 +240,24 @@
 </div>
 
 <script>
+// Rotating tagline
+const TAGLINES = [
+  "Trash talk is one click away.",
+  "Rumors lie behind this button.",
+  "The group deserves to know.",
+  "Somebody's team needs answering for this.",
+  "Start the allegations.",
+  "Permanent receipts begin here.",
+  "Open a case against a friend.",
+  "This is where narratives are manufactured.",
+  "Formal accusations encouraged.",
+  "Justice is subjective.",
+];
+const taglineEl = document.getElementById('thread-tagline');
+if (taglineEl) {
+  taglineEl.textContent = TAGLINES[Math.floor(Math.random() * TAGLINES.length)];
+}
+
 const INVITE_CODE = document.getElementById('invite-code') ? document.getElementById('invite-code').textContent.trim() : '';
 const INVITE_URL = window.location.origin + '/groups/join/' + INVITE_CODE;
 

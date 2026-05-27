@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Report Incident — {{ group.name }}{% endblock %}
+{% block title %}Start A Thread — {{ group.name }}{% endblock %}
 {% block content %}
 <div class="report-container">
 
   <div class="report-header">
     <a href="{{ url_for('groups.show', group_id=group.id) }}" class="back-link">← {{ group.name }}</a>
-    <h1>Report an Incident</h1>
+    <h1>Start A Thread</h1>
     <p class="report-sub">File a report. The group will be notified. The target will be shamed.</p>
   </div>
 
