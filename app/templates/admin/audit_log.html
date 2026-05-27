@@ -1,0 +1,81 @@
+{% extends "admin/base.html" %}
+{% block title %}Audit Log — FriedSports Lab{% endblock %}
+{% block admin_content %}
+<div class="admin-container">
+
+  <div class="admin-page-header">
+    <h1 class="admin-page-title">Audit Log</h1>
+    <p class="admin-page-sub">All admin-initiated account changes, newest first.</p>
+  </div>
+
+  {% if logs %}
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Admin</th>
+          <th>Action</th>
+          <th>Target</th>
+          <th>Details</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="audit-time" title="{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') if log.created_at else '' }}">
+            {{ log.created_at.strftime('%b %d, %Y %H:%M') if log.created_at else '—' }}
+          </td>
+          <td>
+            {% if log.admin %}
+            <a href="{{ url_for('admin.user_detail', user_id=log.admin_id) }}" class="admin-link">
+              {{ log.admin.display_name }}
+            </a>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td><span class="audit-action audit-action-{{ log.action.replace('_', '-') }}">{{ log.action.replace('_', ' ') }}</span></td>
+          <td>
+            {% if log.target_user %}
+            <a href="{{ url_for('admin.user_detail', user_id=log.target_user_id) }}" class="admin-link">
+              {{ log.target_user.display_name }}
+            </a>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="audit-details">{{ log.details or '—' }}</td>
+          <td class="audit-ip">{{ log.ip_address or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <p>No audit log entries yet.</p>
+    <p>Admin actions like email changes, password resets, role changes, and account deletions will appear here.</p>
+  </div>
+  {% endif %}
+
+</div>
+
+<style>
+.audit-time { color: var(--text-muted); font-size: 0.82rem; white-space: nowrap; }
+.audit-action {
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; padding: 0.15rem 0.5rem;
+  border-radius: 3px; white-space: nowrap;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.audit-action-delete-user { color: var(--accent); border-color: rgba(255,80,80,0.2); background: rgba(255,80,80,0.06); }
+.audit-action-change-role { color: rgba(220,180,60,0.9); border-color: rgba(220,180,60,0.2); background: rgba(220,180,60,0.06); }
+.audit-details { color: var(--text-secondary); font-size: 0.85rem; max-width: 260px; }
+.audit-ip { color: var(--text-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.admin-link { color: var(--text-primary); text-decoration: none; }
+.admin-link:hover { text-decoration: underline; }
+</style>
+{% endblock %}

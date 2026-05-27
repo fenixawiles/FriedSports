@@ -2,30 +2,64 @@
 {% block title %}Sign Up — FriedSports{% endblock %}
 {% block content %}
 <div class="auth-container">
-  <div class="auth-card">
+  <div class="auth-card" style="max-width:520px">
     <h1 class="auth-title">Create Account</h1>
     <p class="auth-sub">Join the group. Pick your teams. Await the slander.</p>
     <form method="post" action="{{ url_for('auth.signup') }}" class="auth-form">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+        <div class="form-group">
+          <label for="first_name">First Name</label>
+          <input type="text" id="first_name" name="first_name" required maxlength="64"
+                 placeholder="First" value="{{ request.form.get('first_name', '') }}">
+        </div>
+        <div class="form-group">
+          <label for="last_name">Last Name</label>
+          <input type="text" id="last_name" name="last_name" required maxlength="64"
+                 placeholder="Last" value="{{ request.form.get('last_name', '') }}">
+        </div>
+      </div>
+
       <div class="form-group">
-        <label for="display_name">Display Name</label>
+        <label for="display_name">Username</label>
         <input type="text" id="display_name" name="display_name" required maxlength="64"
                placeholder="How the group will know you" value="{{ request.form.get('display_name', '') }}">
       </div>
+
+      <div class="form-group">
+        <label>Display As</label>
+        <div style="display:flex;gap:1rem;margin-top:0.35rem">
+          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.87rem">
+            <input type="radio" name="display_preference" value="username"
+                   {% if request.form.get('display_preference','username') == 'username' %}checked{% endif %}>
+            Username
+          </label>
+          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.87rem">
+            <input type="radio" name="display_preference" value="real_name"
+                   {% if request.form.get('display_preference') == 'real_name' %}checked{% endif %}>
+            Real Name
+          </label>
+        </div>
+      </div>
+
       <div class="form-group">
         <label for="email">Email</label>
         <input type="email" id="email" name="email" required
                placeholder="your@email.com" value="{{ request.form.get('email', '') }}">
       </div>
+
       <div class="form-group">
         <label for="password">Password</label>
         <input type="password" id="password" name="password" required minlength="6"
                placeholder="At least 6 characters">
       </div>
+
       <div class="form-group">
         <label for="confirm_password">Confirm Password</label>
         <input type="password" id="confirm_password" name="confirm_password" required
                placeholder="Same password again">
       </div>
+
       <button type="submit" class="btn-primary btn-full">Create Account</button>
     </form>
     <p class="auth-switch">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>

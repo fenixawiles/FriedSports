@@ -18,10 +18,13 @@
       <div class="nav-links">
         <a href="{{ url_for('dashboard.dashboard') }}" class="nav-link">Dashboard</a>
         <a href="{{ url_for('groups.new') }}" class="nav-link">New Group</a>
-        <a href="{{ url_for('dashboard.settings') }}" class="nav-link">Settings</a>
+        <a href="{{ url_for('groups.join_prompt') }}" class="nav-link">Join Group</a>
         {% if current_user.is_admin %}
         <a href="{{ url_for('admin.dashboard') }}" class="nav-link nav-link-admin">Lab</a>
         {% endif %}
+        <a href="{{ url_for('dashboard.settings') }}" class="nav-link nav-link-account">
+          {{ current_user.shown_name }}
+        </a>
         <form action="{{ url_for('auth.logout') }}" method="post" style="display:inline">
           <button type="submit" class="nav-link btn-link">Log out</button>
         </form>

@@ -1,6 +1,6 @@
 from flask import Blueprint, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
-from app.models import db, IncidentReport, GroupMember, GameThreadMessage
+from app.models import db, IncidentReport, GroupMember, GameEvent, GameThreadMessage
 
 reports_bp = Blueprint("reports", __name__)
 
@@ -8,7 +8,8 @@ reports_bp = Blueprint("reports", __name__)
 def _get_report_and_thread(report_id):
     """Return (report, thread) or abort 404."""
     report = IncidentReport.query.get_or_404(report_id)
-    event = report.game_event
+    # GameEvent → IncidentReport is defined on GameEvent; query via GameEvent
+    event = GameEvent.query.filter_by(incident_report_id=report_id).first()
     if not event:
         abort(404)
     trigger = event.group_triggers.first()
@@ -55,7 +56,7 @@ def dismiss(report_id):
     report.status = "dismissed"
     apply_dismiss_penalty(report.group_id, report.reporter_user_id)
     db.session.commit()
-    flash("Report dismissed. Reporter has been penalized.", "info")
+    flash("Report dismissed. Reporter penalized.", "info")
     return redirect(url_for("threads.show", thread_id=thread.id))
 
 
@@ -98,5 +99,5 @@ def redeem(report_id):
 
     apply_redemption_win(thread)
     db.session.commit()
-    flash("Redemption logged. The attackers have been notified via shame points.", "success")
+    flash("Redemption logged. The attackers have been notified.", "success")
     return redirect(url_for("threads.show", thread_id=thread.id))

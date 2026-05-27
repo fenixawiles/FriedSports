@@ -1,10 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — FraudWatch{% endblock %}
+{% block title %}Dashboard — FriedSports{% endblock %}
 {% block content %}
 <div class="dashboard-container">
 
+  <!-- Profile completion prompt for existing users -->
+  {% if show_profile_prompt %}
+  <div class="profile-prompt" id="profile-prompt">
+    <div class="profile-prompt-inner">
+      <div class="profile-prompt-text">
+        <strong>Finish setting up your account</strong>
+        <span>Add your name and choose how you appear to the group.</span>
+      </div>
+      <form method="post" action="{{ url_for('dashboard.complete_profile') }}" class="profile-prompt-form">
+        <input type="text" name="first_name" placeholder="First name" maxlength="64" required
+               style="width:120px">
+        <input type="text" name="last_name" placeholder="Last name" maxlength="64" required
+               style="width:120px">
+        <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;cursor:pointer">
+          <input type="radio" name="display_preference" value="username" checked> Username
+        </label>
+        <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;cursor:pointer">
+          <input type="radio" name="display_preference" value="real_name"> Real name
+        </label>
+        <button type="submit" class="btn-secondary-small">Save</button>
+      </form>
+      <button class="profile-prompt-dismiss" onclick="document.getElementById('profile-prompt').remove()" title="Dismiss">✕</button>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="dashboard-header">
-    <h1>{{ current_user.display_name }}</h1>
+    <h1>{{ current_user.shown_name }}</h1>
     {% if groups %}
     <div class="stats-bar">
       <div class="stat-block">
@@ -20,25 +46,19 @@
         <div class="stat-value">{{ total_trash }}</div>
       </div>
     </div>
+    {% if fav_teams %}
     <div class="dashboard-teams">
-      {% if fav_nba %}
+      {% for league, team in fav_teams.items() %}
       <div class="fav-team-card">
-        <div class="fav-league">NBA</div>
-        <div class="fav-abbr" style="color: {{ fav_nba.primary_color }}">{{ fav_nba.abbreviation }}</div>
-        <div class="fav-name">{{ fav_nba.city }} {{ fav_nba.name }}</div>
+        <div class="fav-league">{{ league }}</div>
+        <div class="fav-abbr" style="color: {{ team.primary_color }}">{{ team.abbreviation }}</div>
+        <div class="fav-name">{{ team.city }} {{ team.name }}</div>
       </div>
-      {% endif %}
-      {% if fav_nfl %}
-      <div class="fav-team-card">
-        <div class="fav-league">NFL</div>
-        <div class="fav-abbr" style="color: {{ fav_nfl.primary_color }}">{{ fav_nfl.abbreviation }}</div>
-        <div class="fav-name">{{ fav_nfl.city }} {{ fav_nfl.name }}</div>
-      </div>
-      {% endif %}
-      {% if not fav_nba and not fav_nfl %}
-      <a href="{{ url_for('dashboard.onboarding') }}" class="fav-team-card fav-empty">+ Pick your teams</a>
-      {% endif %}
+      {% endfor %}
     </div>
+    {% else %}
+    <a href="{{ url_for('dashboard.onboarding') }}" class="fav-team-card fav-empty">+ Pick your teams</a>
+    {% endif %}
     {% endif %}
   </div>
 
@@ -62,7 +82,7 @@
       <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="alert-banner">
         <div class="alert-body">
           <div class="alert-title">{{ thread.title }}</div>
-          <div class="alert-meta">{{ thread.messages.count() }} messages &middot; {{ thread.group.name }}</div>
+          <div class="alert-meta">{{ msg_counts.get(thread.id, 0) }} messages &middot; {{ thread.group.name }}</div>
         </div>
         <div class="alert-arrow">→</div>
       </a>
@@ -74,7 +94,10 @@
   <section class="dashboard-section">
     <div class="section-header">
       <span class="section-title">Groups</span>
-      <a href="{{ url_for('groups.new') }}" class="btn-secondary-small">New Group</a>
+      <div style="display:flex;gap:0.5rem">
+        <a href="{{ url_for('groups.new') }}" class="btn-secondary-small">New Group</a>
+        <a href="{{ url_for('groups.join_prompt') }}" class="btn-secondary-small">Join Group</a>
+      </div>
     </div>
     <div class="group-list">
       {% for item in groups %}

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
@@ -10,11 +11,21 @@ def now_utc():
     return datetime.now(timezone.utc)
 
 
+def generate_uid():
+    return str(uuid.uuid4())
+
+
 class User(UserMixin, db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
-    display_name = db.Column(db.String(64), nullable=False)
+    uid = db.Column(db.String(36), unique=True, nullable=False, default=generate_uid, index=True)
+    display_name = db.Column(db.String(64), nullable=False)       # username
+    first_name = db.Column(db.String(64), nullable=True)
+    last_name = db.Column(db.String(64), nullable=True)
+    # "username" → show display_name, "real_name" → show first + last
+    display_preference = db.Column(db.String(16), nullable=False, default="username")
+    has_completed_profile = db.Column(db.Boolean, nullable=False, default=False)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
     avatar_url = db.Column(db.String(256))
@@ -29,6 +40,14 @@ class User(UserMixin, db.Model):
     def is_admin(self):
         return self.role == "admin"
 
+    @property
+    def shown_name(self):
+        """The name to display publicly — respects display_preference."""
+        if (self.display_preference == "real_name"
+                and self.first_name and self.last_name):
+            return f"{self.first_name} {self.last_name}"
+        return self.display_name
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -41,6 +60,21 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f"<User {self.display_name}>"
+
+
+class AdminAuditLog(db.Model):
+    __tablename__ = "admin_audit_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    target_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    action = db.Column(db.String(64), nullable=False)   # e.g. "change_email"
+    details = db.Column(db.Text, nullable=True)          # human-readable summary
+    ip_address = db.Column(db.String(45), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
+
+    admin = db.relationship("User", foreign_keys=[admin_id])
+    target_user = db.relationship("User", foreign_keys=[target_user_id])
 
 
 class Team(db.Model):

@@ -24,31 +24,53 @@ def signup():
         return redirect(url_for("dashboard.dashboard"))
 
     if request.method == "POST":
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
         display_name = request.form.get("display_name", "").strip()
+        display_preference = request.form.get("display_preference", "username")
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
 
-        if not display_name or not email or not password:
-            flash("All fields are required.", "error")
-            return render_template("auth/signup.html")
-        if password != confirm:
-            flash("Passwords do not match.", "error")
-            return render_template("auth/signup.html")
-        if len(password) < 6:
-            flash("Password must be at least 6 characters.", "error")
-            return render_template("auth/signup.html")
-        if User.query.filter_by(email=email).first():
-            flash("An account with that email already exists.", "error")
+        errors = []
+        if not first_name:
+            errors.append("First name is required.")
+        if not last_name:
+            errors.append("Last name is required.")
+        if not display_name:
+            errors.append("Username is required.")
+        if not email:
+            errors.append("Email is required.")
+        if not password:
+            errors.append("Password is required.")
+        if password and len(password) < 6:
+            errors.append("Password must be at least 6 characters.")
+        if password and password != confirm:
+            errors.append("Passwords do not match.")
+        if email and User.query.filter_by(email=email).first():
+            errors.append("An account with that email already exists.")
+        if display_preference not in ("username", "real_name"):
+            display_preference = "username"
+
+        if errors:
+            for e in errors:
+                flash(e, "error")
             return render_template("auth/signup.html")
 
-        user = User(display_name=display_name, email=email)
+        user = User(
+            first_name=first_name,
+            last_name=last_name,
+            display_name=display_name,
+            display_preference=display_preference,
+            email=email,
+            has_completed_profile=True,
+        )
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
         _maybe_elevate_admin(user)
         login_user(user)
-        flash(f"Welcome to FriedSports, {display_name}!", "success")
+        flash(f"Welcome to FriedSports, {user.shown_name}!", "success")
         return redirect(url_for("dashboard.onboarding"))
 
     return render_template("auth/signup.html")

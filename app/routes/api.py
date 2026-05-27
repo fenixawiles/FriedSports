@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, abort
 from flask_login import login_required, current_user
+from sqlalchemy.orm import joinedload
 from app.models import db, GameThread, GameThreadMessage, MessageReaction, MessageReport, Group, GroupMember, GameEvent, GroupTrigger
 from app.services.scoring import apply_reaction_points
 
@@ -15,26 +16,34 @@ def thread_messages(thread_id):
         abort(403)
 
     after_id = request.args.get("after", 0, type=int)
-    messages = GameThreadMessage.query.filter(
-        GameThreadMessage.thread_id == thread_id,
-        GameThreadMessage.id > after_id,
-        GameThreadMessage.is_deleted == False,
-    ).order_by(GameThreadMessage.created_at).all()
+    # Eager-load author + reactions to eliminate N+1
+    messages = (
+        GameThreadMessage.query
+        .filter(
+            GameThreadMessage.thread_id == thread_id,
+            GameThreadMessage.id > after_id,
+            GameThreadMessage.is_deleted == False,
+        )
+        .options(
+            joinedload(GameThreadMessage.author),
+            joinedload(GameThreadMessage.reactions),
+        )
+        .order_by(GameThreadMessage.created_at)
+        .all()
+    )
 
+    user_is_admin = _is_admin(current_user.id, thread.group_id)
     result = []
     for m in messages:
         result.append({
             "id": m.id,
             "type": m.message_type,
             "body": m.body,
-            "author": m.author.display_name if m.author else "FraudWatch",
+            "author": m.author.shown_name if m.author else "FriedSports",
             "created_at": m.created_at.isoformat() if m.created_at else None,
             "reactions": m.reaction_counts(),
             "user_reactions": m.user_reaction(current_user.id),
-            "can_delete": (
-                m.user_id == current_user.id or
-                _is_admin(current_user.id, thread.group_id)
-            ),
+            "can_delete": m.user_id == current_user.id or user_is_admin,
         })
     return jsonify(result)
 

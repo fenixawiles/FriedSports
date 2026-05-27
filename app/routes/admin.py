@@ -6,9 +6,9 @@ URL prefix: /admin
 """
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.utils import admin_required
-from app.models import db, Team, User, UserFavoriteTeam, GroupMember
+from app.models import db, Team, User, UserFavoriteTeam, GroupMember, AdminAuditLog
 from app.analytics.models import (
     LabLeague, LabSeason, LabGame, LabPlayer,
     TeamGameStats, PlayerGameStats, DerivedGameMetrics, MetricDefinition,
@@ -384,7 +384,9 @@ def users_change_email(user_id):
     elif User.query.filter(User.email == new_email, User.id != user_id).first():
         flash("Email already in use.", "error")
     else:
+        old_email = user.email
         user.email = new_email
+        _audit("change_email", user, f"{old_email} → {new_email}")
         db.session.commit()
         flash(f"Email updated to {new_email}.", "success")
     return redirect(url_for("admin.users_detail", user_id=user_id))
@@ -400,6 +402,7 @@ def users_change_password(user_id):
         flash("Password must be at least 6 characters.", "error")
     else:
         user.set_password(new_pw)
+        _audit("change_password", user, "Admin reset password")
         db.session.commit()
         flash("Password updated.", "success")
     return redirect(url_for("admin.users_detail", user_id=user_id))
@@ -417,7 +420,9 @@ def users_change_role(user_id):
     if new_role not in ("user", "admin"):
         flash("Invalid role.", "error")
     else:
+        old_role = user.role
         user.role = new_role
+        _audit("change_role", user, f"{old_role} → {new_role}")
         db.session.commit()
         flash(f"Role updated to '{new_role}'.", "success")
     return redirect(url_for("admin.users_detail", user_id=user_id))
@@ -432,6 +437,7 @@ def users_delete(user_id):
         flash("You cannot delete your own account from here.", "error")
         return redirect(url_for("admin.users_detail", user_id=user_id))
     display_name = user.display_name
+    _audit("delete_user", user, f"Deleted account: {user.email}")
     db.session.delete(user)
     db.session.commit()
     flash(f"User '{display_name}' deleted.", "success")
@@ -479,9 +485,33 @@ def users_invite():
     return redirect(url_for("admin.users_list"))
 
 
+@admin_bp.route("/audit-log")
+@login_required
+@admin_required
+def audit_log():
+    page = request.args.get("page", 1, type=int)
+    logs = (
+        AdminAuditLog.query
+        .order_by(AdminAuditLog.created_at.desc())
+        .paginate(page=page, per_page=50, error_out=False)
+    )
+    return render_template("admin/audit_log.html", logs=logs)
+
+
 def _current_user_id():
-    from flask_login import current_user
     return current_user.id
+
+
+def _audit(action, target_user=None, details=None):
+    """Write an admin audit log entry."""
+    log = AdminAuditLog(
+        admin_id=current_user.id,
+        target_user_id=target_user.id if target_user else None,
+        action=action,
+        details=details,
+        ip_address=request.remote_addr,
+    )
+    db.session.add(log)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

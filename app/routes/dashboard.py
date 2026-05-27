@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from app.models import db, Team, UserFavoriteTeam, GroupMember, GameThread
+from sqlalchemy import func
+from app.models import db, Team, UserFavoriteTeam, GroupMember, GameThread, GameThreadMessage
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -19,7 +20,6 @@ LEAGUE_LABELS = {
 
 
 def _get_teams_by_league():
-    """Return {league: [team, ...]} for all leagues."""
     all_teams = Team.query.order_by(Team.league, Team.city, Team.name).all()
     by_league = {}
     for team in all_teams:
@@ -77,16 +77,37 @@ def dashboard():
     group_ids = [m.group_id for m in memberships]
 
     active_threads = []
+    msg_counts = {}
     if group_ids:
-        active_threads = GameThread.query.filter(
-            GameThread.group_id.in_(group_ids),
-            GameThread.status == "active",
-        ).order_by(GameThread.created_at.desc()).limit(10).all()
+        active_threads = (
+            GameThread.query
+            .filter(
+                GameThread.group_id.in_(group_ids),
+                GameThread.status == "active",
+            )
+            .order_by(GameThread.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        # Batch message counts — single query instead of N+1
+        if active_threads:
+            thread_ids = [t.id for t in active_threads]
+            counts = (
+                db.session.query(
+                    GameThreadMessage.thread_id,
+                    func.count(GameThreadMessage.id).label("cnt"),
+                )
+                .filter(
+                    GameThreadMessage.thread_id.in_(thread_ids),
+                    GameThreadMessage.is_deleted == False,
+                )
+                .group_by(GameThreadMessage.thread_id)
+                .all()
+            )
+            msg_counts = {tid: cnt for tid, cnt in counts}
 
-    # Build fav teams dict across all leagues
     fav_teams = {uft.league: uft.team for uft in current_user.favorite_teams.all()}
 
-    # User's scores across all groups
     total_shame = sum(m.shame_score or 0 for m in memberships)
     total_bragging = sum(m.bragging_rights_score or 0 for m in memberships)
     total_trash = sum(m.trash_talk_score or 0 for m in memberships)
@@ -97,18 +118,45 @@ def dashboard():
         for m in memberships
     ]
 
+    # Show profile completion prompt for existing users who haven't set names yet
+    show_profile_prompt = (
+        not current_user.has_completed_profile
+        and not (current_user.first_name and current_user.last_name)
+    )
+
     return render_template(
         "dashboard.html",
         groups=groups,
         active_threads=active_threads,
+        msg_counts=msg_counts,
         fav_teams=fav_teams,
-        # Legacy compat — keep these for templates that reference them
         fav_nba=fav_teams.get("NBA"),
         fav_nfl=fav_teams.get("NFL"),
         total_shame=total_shame,
         total_bragging=total_bragging,
         total_trash=total_trash,
+        show_profile_prompt=show_profile_prompt,
     )
+
+
+@dashboard_bp.route("/profile/complete", methods=["POST"])
+@login_required
+def complete_profile():
+    first_name = request.form.get("first_name", "").strip()
+    last_name = request.form.get("last_name", "").strip()
+    display_preference = request.form.get("display_preference", "username")
+
+    if first_name:
+        current_user.first_name = first_name
+    if last_name:
+        current_user.last_name = last_name
+    if display_preference in ("username", "real_name"):
+        current_user.display_preference = display_preference
+
+    current_user.has_completed_profile = True
+    db.session.commit()
+    flash("Profile updated.", "success")
+    return redirect(url_for("dashboard.dashboard"))
 
 
 @dashboard_bp.route("/settings", methods=["GET", "POST"])
@@ -119,12 +167,24 @@ def settings():
 
     if request.method == "POST":
         display_name = request.form.get("display_name", "").strip()
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
+        display_preference = request.form.get("display_preference", "username")
         avatar_url = request.form.get("avatar_url", "").strip()
 
         if display_name:
             current_user.display_name = display_name
+        if first_name:
+            current_user.first_name = first_name
+        if last_name:
+            current_user.last_name = last_name
+        if display_preference in ("username", "real_name"):
+            current_user.display_preference = display_preference
         if avatar_url:
             current_user.avatar_url = avatar_url
+
+        if first_name and last_name:
+            current_user.has_completed_profile = True
 
         for league in ALL_LEAGUES:
             team_id = request.form.get(f"{league.lower()}_team_id")
@@ -147,7 +207,7 @@ def settings():
                 flash("Password updated.", "success")
 
         db.session.commit()
-        flash("Settings updated.", "success")
+        flash("Account updated.", "success")
         return redirect(url_for("dashboard.settings"))
 
     return render_template(

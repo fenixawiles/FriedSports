@@ -1,15 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Settings — FriedSports{% endblock %}
+{% block title %}My Account — FriedSports{% endblock %}
 {% block content %}
 <div class="auth-container">
   <div class="auth-card" style="max-width: 560px">
-    <h1 class="auth-title">Settings</h1>
+    <h1 class="auth-title">My Account</h1>
+    <p class="auth-sub" style="font-size:0.8rem;color:var(--text-muted)">
+      UID: <code style="font-size:0.75rem">{{ current_user.uid }}</code>
+    </p>
+
     <form method="post" action="{{ url_for('dashboard.settings') }}" class="auth-form">
 
+      <div class="form-divider">Identity</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+        <div class="form-group">
+          <label for="first_name">First Name</label>
+          <input type="text" id="first_name" name="first_name" maxlength="64"
+                 value="{{ current_user.first_name or '' }}" placeholder="First">
+        </div>
+        <div class="form-group">
+          <label for="last_name">Last Name</label>
+          <input type="text" id="last_name" name="last_name" maxlength="64"
+                 value="{{ current_user.last_name or '' }}" placeholder="Last">
+        </div>
+      </div>
+
       <div class="form-group">
-        <label for="display_name">Display Name</label>
+        <label for="display_name">Username</label>
         <input type="text" id="display_name" name="display_name" maxlength="64"
-               value="{{ current_user.display_name }}" placeholder="Your display name">
+               value="{{ current_user.display_name }}" placeholder="Your username">
+      </div>
+
+      <div class="form-group">
+        <label>Display As</label>
+        <div style="display:flex;gap:1rem;margin-top:0.35rem">
+          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.87rem">
+            <input type="radio" name="display_preference" value="username"
+                   {% if current_user.display_preference == 'username' %}checked{% endif %}>
+            Username ({{ current_user.display_name }})
+          </label>
+          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.87rem">
+            <input type="radio" name="display_preference" value="real_name"
+                   {% if current_user.display_preference == 'real_name' %}checked{% endif %}>
+            Real Name{% if current_user.first_name %} ({{ current_user.first_name }} {{ current_user.last_name }}){% endif %}
+          </label>
+        </div>
       </div>
 
       <div class="form-group">
@@ -20,7 +55,7 @@
 
       <div class="form-divider">Team Preferences</div>
       <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1.2rem">
-        Pick one team per league. Leave blank to keep current selection.
+        One team per league. Leave blank to keep current selection.
       </p>
 
       {% for league in all_leagues %}
@@ -31,7 +66,7 @@
         <label for="{{ league.lower() }}_team_id">
           {{ league_labels[league] }}
           {% if current_fav %}
-          <span class="label-hint">— currently {{ current_fav.abbreviation }}</span>
+          <span class="label-hint">— {{ current_fav.abbreviation }}</span>
           {% endif %}
         </label>
         <div style="display:flex;align-items:center;gap:0.75rem">
@@ -80,7 +115,7 @@
                placeholder="Repeat new password">
       </div>
 
-      <button type="submit" class="btn-primary btn-full">Save Settings</button>
+      <button type="submit" class="btn-primary btn-full">Save Changes</button>
     </form>
   </div>
 </div>
@@ -91,12 +126,7 @@ function updateSettingsPreview(league, selectEl) {
   const swatch = document.getElementById('swatch-' + league);
   const abbr = document.getElementById('abbr-' + league);
   const opt = selectEl.options[selectEl.selectedIndex];
-
-  if (!selectEl.value) {
-    preview.style.display = 'none';
-    return;
-  }
-
+  if (!selectEl.value) { preview.style.display = 'none'; return; }
   const primary = opt.dataset.primary || '#333';
   const secondary = opt.dataset.secondary || '#fff';
   swatch.style.background = `linear-gradient(135deg, ${primary} 50%, ${secondary} 50%)`;

@@ -225,6 +225,36 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .team-city { font-size: 0.68rem; color: var(--text-muted); margin-top: 1px; }
 .onboarding-submit { margin-top: 2.5rem; }
 
+/* ── Profile completion prompt ── */
+.profile-prompt {
+  border-left: 3px solid var(--accent);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.75rem;
+  background: transparent;
+}
+.profile-prompt-inner {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+.profile-prompt-text { display: flex; flex-direction: column; gap: 2px; flex: 0 0 auto; }
+.profile-prompt-text strong { font-size: 0.87rem; color: var(--text-primary); }
+.profile-prompt-text span { font-size: 0.78rem; color: var(--text-muted); }
+.profile-prompt-form {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1;
+}
+.profile-prompt-form input[type="text"] {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.35rem 0.65rem;
+  font-size: 0.85rem; color: var(--text-primary);
+  outline: none; transition: border-color 0.15s;
+}
+.profile-prompt-form input[type="text"]:focus { border-color: var(--border-mid); }
+.profile-prompt-dismiss {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 0.85rem; padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-sm); transition: color 0.12s; flex-shrink: 0;
+}
+.profile-prompt-dismiss:hover { color: var(--text-primary); }
+
 /* ── Dashboard ── */
 .dashboard-container { max-width: 920px; margin: 0 auto; }
 .dashboard-header { margin-bottom: 2.5rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
