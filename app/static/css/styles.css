@@ -1,9 +1,9 @@
 /* ── Variables ── */
 :root {
-  --bg-primary: #07070e;
-  --bg-surface: #0c0c18;
-  --bg-elevated: #111120;
-  --bg-input: #0a0a16;
+  --bg-primary: #1a1a1a;
+  --bg-surface: #212121;
+  --bg-elevated: #282828;
+  --bg-input: #1d1d1d;
   --border: rgba(255,255,255,0.06);
   --border-mid: rgba(255,255,255,0.10);
   --accent: #d93348;
