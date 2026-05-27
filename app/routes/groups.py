@@ -244,15 +244,17 @@ def join_prompt():
 
 
 @groups_bp.route("/join/<invite_code>", methods=["GET", "POST"])
-@login_required
 def join(invite_code):
+    from flask_login import current_user
     group = Group.query.filter_by(invite_code=invite_code).first_or_404()
 
-    if group.is_member(current_user.id):
-        flash("You're already in this group.", "info")
-        return redirect(url_for("groups.show", group_id=group.id))
-
+    # POST — actually join (must be authenticated)
     if request.method == "POST":
+        if not current_user.is_authenticated:
+            return redirect(url_for("auth.login", next=url_for("groups.join", invite_code=invite_code)))
+        if group.is_member(current_user.id):
+            flash("You're already in this group.", "info")
+            return redirect(url_for("groups.show", group_id=group.id))
         member = GroupMember(
             group_id=group.id,
             user_id=current_user.id,
@@ -263,7 +265,26 @@ def join(invite_code):
         flash(f'Joined "{group.name}"!', "success")
         return redirect(url_for("groups.show", group_id=group.id))
 
-    return render_template("groups/join.html", group=group)
+    # GET — public landing page, works for logged-in and logged-out users
+    if current_user.is_authenticated and group.is_member(current_user.id):
+        flash("You're already in this group.", "info")
+        return redirect(url_for("groups.show", group_id=group.id))
+
+    member_count = group.members.count()
+    return render_template("groups/join.html", group=group, member_count=member_count)
+
+
+@groups_bp.route("/<int:group_id>/regenerate-invite", methods=["POST"])
+@login_required
+def regenerate_invite(group_id):
+    group = Group.query.get_or_404(group_id)
+    member = group.get_member(current_user.id)
+    if not member or member.role not in ("owner", "admin"):
+        abort(403)
+    group.invite_code = secrets.token_urlsafe(8)
+    db.session.commit()
+    flash("Invite link regenerated. The old link no longer works.", "success")
+    return redirect(url_for("groups.show", group_id=group.id))
 
 
 @groups_bp.route("/<int:group_id>/mute", methods=["POST"])

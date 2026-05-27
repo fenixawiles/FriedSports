@@ -1,21 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Join {{ group.name }} — FraudWatch{% endblock %}
+{% block title %}Join {{ group.name }} — FriedSports{% endblock %}
 {% block content %}
 <div class="auth-container">
-  <div class="auth-card">
-    <h1 class="auth-title">Join Group</h1>
-    <p class="auth-sub">You've been invited to <strong>{{ group.name }}</strong>.</p>
-    <div class="group-preview">
-      <div class="group-preview-name">{{ group.name }}</div>
-      <div class="group-preview-meta">
-        <span class="badge-scope">{{ group.league_scope }}</span>
-        <span>{{ group.members.count() }} members</span>
-      </div>
+  <div class="auth-card" style="max-width:480px">
+
+    <div class="join-invite-eyebrow">You've been invited</div>
+    <h1 class="auth-title" style="margin-bottom:0.4rem">{{ group.name }}</h1>
+
+    <div class="join-group-meta">
+      <span class="badge-scope">{{ group.league_scope }}</span>
+      <span class="join-member-count">{{ member_count }} {{ 'member' if member_count == 1 else 'members' }}</span>
     </div>
-    <form method="post" action="{{ url_for('groups.join', invite_code=group.invite_code) }}">
-      <button type="submit" class="btn-primary btn-full">Join "{{ group.name }}"</button>
-    </form>
-    <p class="auth-switch"><a href="{{ url_for('dashboard.dashboard') }}">← Back to dashboard</a></p>
+
+    {% if current_user.is_authenticated %}
+      <form method="post" action="{{ url_for('groups.join', invite_code=group.invite_code) }}" style="margin-top:1.75rem">
+        <button type="submit" class="btn-primary btn-full">Join "{{ group.name }}"</button>
+      </form>
+      <p class="auth-switch" style="margin-top:1rem">
+        <a href="{{ url_for('dashboard.dashboard') }}">← Back to dashboard</a>
+      </p>
+    {% else %}
+      <p style="font-size:0.85rem;color:var(--text-muted);margin-top:1.25rem;margin-bottom:1.5rem">
+        Log in or create a free account to join the group.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:0.6rem">
+        <a href="{{ url_for('auth.login', next=url_for('groups.join', invite_code=group.invite_code)) }}"
+           class="btn-primary btn-full">Log In to Join</a>
+        <a href="{{ url_for('auth.signup', next=url_for('groups.join', invite_code=group.invite_code)) }}"
+           class="btn-secondary btn-full">Create Account</a>
+      </div>
+    {% endif %}
+
   </div>
 </div>
 {% endblock %}

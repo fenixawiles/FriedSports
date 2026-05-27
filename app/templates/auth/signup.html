@@ -5,7 +5,7 @@
   <div class="auth-card" style="max-width:520px">
     <h1 class="auth-title">Create Account</h1>
     <p class="auth-sub">Join the group. Pick your teams. Await the slander.</p>
-    <form method="post" action="{{ url_for('auth.signup') }}" class="auth-form">
+    <form method="post" action="{{ url_for('auth.signup', next=request.args.get('next', '')) }}" class="auth-form">
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
         <div class="form-group">

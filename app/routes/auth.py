@@ -71,7 +71,8 @@ def signup():
         _maybe_elevate_admin(user)
         login_user(user)
         flash(f"Welcome to FriedSports, {user.shown_name}!", "success")
-        return redirect(url_for("dashboard.onboarding"))
+        next_page = request.form.get("next") or request.args.get("next")
+        return redirect(next_page or url_for("dashboard.onboarding"))
 
     return render_template("auth/signup.html")
 
