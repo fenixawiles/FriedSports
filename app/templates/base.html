@@ -66,6 +66,29 @@
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
   <script>
+  // iOS Safari: prevent viewport zoom when focusing any input/select/textarea.
+  // Temporarily sets maximum-scale=1 on focus, restores on blur.
+  (function() {
+    var meta = document.querySelector('meta[name=viewport]');
+    if (!meta) return;
+    var orig = meta.getAttribute('content');
+    function lockZoom() {
+      meta.setAttribute('content', orig.replace(/,?\s*maximum-scale=[^,]*/g, '') + ',maximum-scale=1');
+    }
+    function unlockZoom() {
+      meta.setAttribute('content', orig);
+    }
+    document.addEventListener('focusin', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        lockZoom();
+      }
+    });
+    document.addEventListener('focusout', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        unlockZoom();
+      }
+    });
+  })();
   // Global back button — show on every page except home/auth/dashboard
   (function() {
     var hide = ['/', '/login', '/signup', '/dashboard'];
