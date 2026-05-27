@@ -1,4 +1,4 @@
-# FraudWatch
+# FriedSports
 
 Private-group sports trash-talk website. FraudWatch monitors live games and auto-triggers snarky alerts when someone in your group's team is getting embarrassed. Group threads, shame scoring, leaderboards, and public receipts.
 
