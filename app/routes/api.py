@@ -40,6 +40,7 @@ def thread_messages(thread_id):
             "type": m.message_type,
             "body": m.body,
             "author": m.author.shown_name if m.author else "FriedSports",
+            "is_mine": m.user_id == current_user.id,
             "created_at": m.created_at.isoformat() if m.created_at else None,
             "reactions": m.reaction_counts(),
             "user_reactions": m.user_reaction(current_user.id),

@@ -573,10 +573,20 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
   line-height: 1.5;
 }
-.message-user { justify-content: flex-start; padding: 0 0.25rem; }
+.message-user { padding: 0 0.25rem; }
+.message-mine  { justify-content: flex-end; }
+.message-theirs { justify-content: flex-start; }
 .message-bubble {
+  border-radius: var(--radius-sm); padding: 0.45rem 0.65rem; max-width: 72%;
+}
+/* Own messages — subtle accent tint, right side */
+.message-mine .message-bubble {
+  background: rgba(217,51,72,0.13);
+  border: 1px solid rgba(217,51,72,0.2);
+}
+/* Others — slightly elevated dark, left side */
+.message-theirs .message-bubble {
   background: var(--bg-elevated);
-  border-radius: var(--radius-sm); padding: 0.55rem 0.8rem; max-width: 82%;
 }
 .message-author {
   font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);

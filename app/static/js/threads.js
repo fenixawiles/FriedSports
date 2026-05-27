@@ -18,7 +18,9 @@
 
   function buildMessageEl(msg) {
     const wrapper = document.createElement('div');
-    wrapper.className = 'message message-' + msg.type;
+    const isMine = msg.is_mine;
+    wrapper.className = 'message message-' + msg.type +
+      (msg.type !== 'system' ? (' ' + (isMine ? 'message-mine' : 'message-theirs')) : '');
     wrapper.setAttribute('data-id', msg.id);
     wrapper.id = 'msg-' + msg.id;
 
@@ -31,10 +33,12 @@
       const bubble = document.createElement('div');
       bubble.className = 'message-bubble';
 
-      const author = document.createElement('div');
-      author.className = 'message-author';
-      author.textContent = msg.author;
-      bubble.appendChild(author);
+      if (!isMine) {
+        const author = document.createElement('div');
+        author.className = 'message-author';
+        author.textContent = msg.author;
+        bubble.appendChild(author);
+      }
 
       const text = document.createElement('div');
       text.className = 'message-text';

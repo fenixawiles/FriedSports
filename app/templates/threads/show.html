@@ -60,17 +60,20 @@
 
   <div class="chat-window" id="chat-window">
     {% for msg in messages %}
-    <div class="message message-{{ msg.message_type }}" data-id="{{ msg.id }}" id="msg-{{ msg.id }}">
+    {% set mine = msg.message_type == 'user' and msg.user_id == current_user.id %}
+    <div class="message message-{{ msg.message_type }}{% if msg.message_type == 'user' %} {{ 'message-mine' if mine else 'message-theirs' }}{% endif %}" data-id="{{ msg.id }}" id="msg-{{ msg.id }}">
       {% if msg.message_type == 'system' %}
         <div class="message-system-body">{{ msg.body }}</div>
       {% else %}
         <div class="message-bubble">
+          {% if not mine %}
           <div class="message-author">
             {{ msg.author.display_name if msg.author else 'Unknown' }}
             {% if msg.author and msg.author.id == thread.target_user_id %}
             <span class="target-tag">target</span>
             {% endif %}
           </div>
+          {% endif %}
           <div class="message-text">{{ msg.body }}</div>
           <div class="message-footer">
             <div class="reaction-bar">
