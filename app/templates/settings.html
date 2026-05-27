@@ -117,6 +117,24 @@
 
       <button type="submit" class="btn-primary btn-full">Save Changes</button>
     </form>
+
+    <div class="danger-zone">
+      <div class="form-divider" style="color:var(--accent)">Delete Account</div>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1rem">
+        Permanently deletes your account, all your messages, and removes you from all groups. This cannot be undone.
+      </p>
+      <form method="post" action="{{ url_for('dashboard.delete_account') }}"
+            onsubmit="return confirm('This permanently deletes your account and all data. There is no undo.')">
+        <div class="form-group" style="max-width:320px">
+          <label for="confirm_password_delete">Confirm with your password</label>
+          <input type="password" id="confirm_password_delete" name="confirm_password"
+                 placeholder="Enter your current password" required>
+        </div>
+        <button type="submit" class="btn-danger-small" style="padding:0.5rem 1.25rem;font-size:0.87rem">
+          Delete My Account
+        </button>
+      </form>
+    </div>
   </div>
 </div>
 

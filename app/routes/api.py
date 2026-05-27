@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, abort
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload
-from app.models import db, GameThread, GameThreadMessage, MessageReaction, MessageReport, Group, GroupMember, GameEvent, GroupTrigger
+from app.models import db, GameThread, GameThreadMessage, MessageReaction, MessageReport, Group, GroupMember, GameEvent, GroupTrigger, DeviceToken
 from app.services.scoring import apply_reaction_points
 
 api_bp = Blueprint("api", __name__)
@@ -157,6 +157,29 @@ def report_message(message_id):
     db.session.add(report)
     db.session.commit()
     return jsonify({"success": True})
+
+
+@api_bp.route("/device-token", methods=["POST"])
+@login_required
+def register_device_token():
+    """Called by the iOS app on launch to register/refresh the APNs device token."""
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    if not token:
+        return jsonify({"error": "token required"}), 400
+
+    existing = DeviceToken.query.filter_by(token=token).first()
+    if existing:
+        # Re-associate with current user if token moved (e.g. reinstall)
+        existing.user_id = current_user.id
+    else:
+        db.session.add(DeviceToken(
+            user_id=current_user.id,
+            token=token,
+            platform="ios",
+        ))
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 def _is_admin(user_id, group_id):

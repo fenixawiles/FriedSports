@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy — FriedSports{% endblock %}
+{% block content %}
+<div class="legal-container">
+  <div class="legal-card">
+    <h1 class="legal-title">Privacy Policy</h1>
+    <p class="legal-effective">Effective: May 2025</p>
+
+    <p class="legal-intro">
+      FriedSports is a private social platform for sports trash talk between friends. This policy explains what data we collect, how we use it, and your rights.
+    </p>
+
+    <div class="legal-section">
+      <h2>What We Collect</h2>
+      <ul>
+        <li><strong>Account information</strong> — your email address, first name, last name, and username when you create an account.</li>
+        <li><strong>Profile preferences</strong> — your favorite sports teams and display name preference.</li>
+        <li><strong>Content you create</strong> — messages, reactions, and incident reports you post within groups.</li>
+        <li><strong>Usage data</strong> — standard server logs including IP addresses and timestamps when you access the service.</li>
+        <li><strong>Device tokens</strong> — if you use the iOS app and allow push notifications, your device's push token is stored to deliver notifications to you.</li>
+      </ul>
+    </div>
+
+    <div class="legal-section">
+      <h2>How We Use It</h2>
+      <ul>
+        <li>To authenticate you and maintain your session.</li>
+        <li>To display your name and content to other members of your groups.</li>
+        <li>To send push notifications when you are mentioned in a thread (iOS app only, if enabled).</li>
+        <li>To operate and improve the service.</li>
+      </ul>
+      <p>We do not sell your data. We do not share your data with third parties except as required to operate the service (our database is hosted on Neon; our app is hosted on Railway).</p>
+    </div>
+
+    <div class="legal-section">
+      <h2>Data Storage</h2>
+      <p>Your data is stored in a PostgreSQL database hosted by <a href="https://neon.tech" target="_blank" rel="noopener">Neon</a> and served via <a href="https://railway.app" target="_blank" rel="noopener">Railway</a>, both US-based cloud providers.</p>
+    </div>
+
+    <div class="legal-section">
+      <h2>Your Rights</h2>
+      <ul>
+        <li><strong>Access</strong> — you can view all data associated with your account in Settings.</li>
+        <li><strong>Correction</strong> — you can update your name, email, and preferences in Settings at any time.</li>
+        <li><strong>Deletion</strong> — you can permanently delete your account and all associated data from Settings → Delete Account. Deletion is immediate and irreversible.</li>
+      </ul>
+    </div>
+
+    <div class="legal-section">
+      <h2>Cookies</h2>
+      <p>We use a single session cookie to keep you logged in. No tracking cookies, no advertising cookies.</p>
+    </div>
+
+    <div class="legal-section">
+      <h2>Children</h2>
+      <p>FriedSports is intended for users 17 and older due to user-generated content. We do not knowingly collect data from anyone under 13.</p>
+    </div>
+
+    <div class="legal-section">
+      <h2>Contact</h2>
+      <p>Questions about this policy or requests regarding your data: <a href="mailto:privacy@friedsports.com">privacy@friedsports.com</a></p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -87,4 +87,16 @@ def create_incident_thread(report):
         report.target_team_id,
     )
 
+    # Send push notification to the target user (iOS app)
+    try:
+        from app.services.push_service import send_push
+        send_push(
+            user_id=report.target_user_id,
+            title="🚨 Incident Report Filed",
+            body=f"{report.reporter.shown_name} filed a report against your {report.target_team.name}.",
+            data={"thread_id": thread.id, "group_id": report.group_id},
+        )
+    except Exception:
+        pass  # Never let push failures block thread creation
+
     return thread

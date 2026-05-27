@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from flask_login import login_required, current_user
+from flask_login import login_required, current_user, logout_user
 from sqlalchemy import func
 from app.models import db, Team, UserFavoriteTeam, GroupMember, GameThread, GameThreadMessage
 
@@ -217,3 +217,39 @@ def settings():
         all_leagues=ALL_LEAGUES,
         fav_teams=fav_teams,
     )
+
+
+@dashboard_bp.route("/settings/delete-account", methods=["POST"])
+@login_required
+def delete_account():
+    password = request.form.get("confirm_password", "")
+    if not current_user.check_password(password):
+        flash("Incorrect password. Account not deleted.", "error")
+        return redirect(url_for("dashboard.settings"))
+
+    user = current_user._get_current_object()
+
+    # Soft-delete all messages
+    GameThreadMessage.query.filter_by(user_id=user.id).update({"is_deleted": True})
+
+    # Remove group memberships
+    GroupMember.query.filter_by(user_id=user.id).delete()
+
+    # Remove favorite teams
+    UserFavoriteTeam.query.filter_by(user_id=user.id).delete()
+
+    # Remove device tokens
+    from app.models import DeviceToken
+    DeviceToken.query.filter_by(user_id=user.id).delete()
+
+    db.session.flush()
+
+    # Log out before deleting
+    logout_user()
+
+    # Delete the user record
+    db.session.delete(user)
+    db.session.commit()
+
+    flash("Your account has been permanently deleted.", "info")
+    return redirect(url_for("auth.index"))

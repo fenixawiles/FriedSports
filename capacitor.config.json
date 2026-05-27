@@ -1,0 +1,37 @@
+{
+  "appId": "com.friedsports.app",
+  "appName": "FriedSports",
+  "webDir": ".",
+  "server": {
+    "url": "https://YOUR-RAILWAY-DOMAIN.railway.app",
+    "cleartext": false,
+    "allowNavigation": [
+      "YOUR-RAILWAY-DOMAIN.railway.app"
+    ]
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#1a1a1a",
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "backgroundColor": "#1a1a1a",
+      "iosSpinnerStyle": "small",
+      "spinnerColor": "#d93348",
+      "showSpinner": true,
+      "splashFullScreen": true,
+      "splashImmersive": false
+    },
+    "StatusBar": {
+      "style": "dark",
+      "backgroundColor": "#1a1a1a"
+    }
+  }
+}

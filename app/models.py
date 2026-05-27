@@ -363,3 +363,17 @@ class Receipt(db.Model):
     target_user = db.relationship("User", foreign_keys=[target_user_id])
     target_team = db.relationship("Team", foreign_keys=[target_team_id])
     top_hater = db.relationship("User", foreign_keys=[top_hater_user_id])
+
+
+class DeviceToken(db.Model):
+    """Push notification device tokens for iOS (APNs)."""
+    __tablename__ = "device_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    token = db.Column(db.String(256), unique=True, nullable=False)
+    platform = db.Column(db.String(8), nullable=False, default="ios")
+    created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
+    updated_at = db.Column(db.DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+    user = db.relationship("User", backref=db.backref("device_tokens", lazy="select"))

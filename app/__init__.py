@@ -41,6 +41,7 @@ def create_app(config=None):
     from app.routes.api import api_bp
     from app.routes.reports import reports_bp
     from app.routes.admin import admin_bp
+    from app.routes.legal import legal_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -50,6 +51,7 @@ def create_app(config=None):
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(reports_bp, url_prefix="/reports")
     app.register_blueprint(admin_bp, url_prefix="/admin")
+    app.register_blueprint(legal_bp)
 
     register_commands(app)
 
