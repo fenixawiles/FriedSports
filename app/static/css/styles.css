@@ -9,8 +9,8 @@
   --accent: #d93348;
   --accent-sub: rgba(217,51,72,0.12);
   --text-primary: #f0f0f6;
-  --text-secondary: #8888a4;
-  --text-muted: #42425a;
+  --text-secondary: #9898b4;
+  --text-muted: #72728a;
   --green: #34c77b;
   --font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
   --radius: 8px;
@@ -21,7 +21,13 @@
 
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; scroll-behavior: smooth; }
+/* iOS: remove gray tap flash; desktop: no effect */
+* { -webkit-tap-highlight-color: transparent; }
+html {
+  font-size: 16px; scroll-behavior: smooth;
+  /* Prevent iOS from adjusting font sizes after orientation change */
+  -webkit-text-size-adjustment: 100%;
+}
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -30,6 +36,8 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
+/* Kill double-tap zoom delay on interactive elements */
+button, a, label, [role="button"] { touch-action: manipulation; }
 a { color: var(--text-primary); text-decoration: none; }
 a:hover { color: var(--text-primary); }
 code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.875em; }
@@ -41,6 +49,8 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   position: sticky; top: 0; z-index: 100;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  /* Safe area: push content below Dynamic Island / notch */
+  padding-top: env(safe-area-inset-top);
 }
 .nav-inner {
   max-width: 1120px; margin: 0 auto;
@@ -60,6 +70,24 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   background: var(--accent); flex-shrink: 0;
 }
 .nav-links { display: flex; align-items: center; gap: 0.1rem; }
+
+/* ── Hamburger (hidden on desktop, shown on mobile) ── */
+.nav-hamburger {
+  display: none;
+  flex-direction: column; justify-content: center; align-items: center;
+  gap: 5px; width: 44px; height: 44px;
+  background: none; border: none; cursor: pointer;
+  flex-shrink: 0;
+}
+.nav-hamburger span {
+  display: block; width: 20px; height: 2px;
+  background: var(--text-secondary); border-radius: 1px;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+/* Hamburger → X animation when open */
+.nav-mobile-open .nav-hamburger span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-mobile-open .nav-hamburger span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.nav-mobile-open .nav-hamburger span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 .nav-link {
   color: var(--text-secondary); padding: 0.4rem 0.7rem;
   border-radius: var(--radius-sm); font-size: 0.875rem;
@@ -92,7 +120,12 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .flash-warning { border-left-color: #d4a017; color: var(--text-primary); }
 
 /* ── Main layout ── */
-.main-content { max-width: 1120px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+.main-content {
+  max-width: 1120px; margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+  /* Home indicator clearance */
+  padding-bottom: calc(2.5rem + env(safe-area-inset-bottom));
+}
 
 /* ── Buttons ── */
 .btn-primary {
@@ -132,6 +165,16 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .btn-full { width: 100%; display: block; text-align: center; }
 .btn-large { padding: 0.75rem 2.25rem; font-size: 1rem; }
 
+/* ── Apple HIG: 44pt minimum touch targets ── */
+.nav-link, .btn-secondary-small, .btn-danger-small, .btn-icon,
+.back-link, .incident-type-btn, .severity-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+/* Reaction buttons need both dimensions */
+.reaction-btn { min-height: 44px; min-width: 44px; padding: 0 0.5rem; }
+
 /* ── Forms ── */
 .form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
 .form-group label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -147,6 +190,20 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   outline: none; border-color: rgba(255,255,255,0.22);
 }
 .form-group select option { background: var(--bg-elevated); }
+
+/* ── Custom select chevron — dark theme, matches design system ── */
+.form-group select, select.team-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2372728a' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 12px 7px;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
 .form-divider { border-top: 1px solid var(--border); margin: 1.25rem 0; padding-top: 1rem; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* ── Auth pages ── */
@@ -703,20 +760,83 @@ body.receipt-page {
 
 /* ── Responsive ── */
 @media (max-width: 640px) {
+  /* Layout */
   .nav-inner { padding: 0 1rem; }
-  .main-content { padding: 1.5rem 1rem; }
-  .hero { padding: 3.5rem 0 2.5rem; }
+  .main-content { padding: 1.5rem 1rem calc(1.5rem + env(safe-area-inset-bottom)); }
+
+  /* iOS: prevent zoom on input focus (requires font-size >= 16px) */
+  input, select, textarea, .invite-url-input { font-size: 16px !important; }
+
+  /* Hamburger nav */
+  .nav-hamburger { display: flex; }
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: calc(52px + env(safe-area-inset-top));
+    left: 0; right: 0;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    z-index: 99;
+    flex-direction: column;
+    padding: 0.5rem 0;
+  }
+  .nav-mobile-open .nav-links { display: flex; }
+  .nav-links .nav-link,
+  .nav-links .btn-primary-small,
+  .nav-links .btn-link {
+    padding: 0.9rem 1.25rem;
+    font-size: 1rem;
+    min-height: 52px;
+    border-radius: 0;
+    border-bottom: 1px solid var(--border);
+    width: 100%;
+    display: flex; align-items: center;
+    justify-content: flex-start;
+  }
+  .nav-links .btn-primary-small {
+    background: transparent; color: var(--text-primary);
+    border-radius: 0;
+  }
+  .nav-links form { width: 100%; }
+  .nav-links > *:last-child .nav-link,
+  .nav-links > *:last-child { border-bottom: none; }
+
+  /* Hero */
+  .hero { padding: 3rem 0 2rem; }
+
+  /* Home feature grid — single column */
+  .feature-grid { grid-template-columns: 1fr; gap: 1.75rem; }
+
+  /* Auth — full-bleed card feels native on iOS */
+  .auth-container { padding: 1rem 0; }
+  .auth-card {
+    border-left: none; border-right: none;
+    border-radius: 0; max-width: 100%;
+    padding: 2rem 1.25rem;
+  }
+
+  /* Legal pages */
+  .legal-container { padding: 0 1.25rem; }
+  .legal-title { font-size: 1.5rem; }
+
+  /* Dashboard */
   .stats-bar { gap: 1.5rem; }
+  .fav-name { display: none; }
+  .dashboard-teams { gap: 1.25rem; }
+
+  /* Group page */
+  .group-header { flex-direction: column; gap: 1rem; }
+  .section-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+
+  /* Tables */
   .member-row { grid-template-columns: 2fr 1fr 1fr; }
   .member-row span:nth-child(n+4) { display: none; }
   .member-header span:nth-child(n+4) { display: none; }
   .leaderboard-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Thread chat */
   .chat-form { flex-direction: column; }
   .chat-submit { width: 100%; }
-  .group-header { flex-direction: column; }
-  .auth-card { padding: 2rem 1.25rem; }
-  .feature-grid { grid-template-columns: 1fr 1fr; gap: 2rem 1.5rem; }
-  .dashboard-teams { gap: 1.25rem; }
 }
 
 /* ── Team Color Preview (dropdowns) ── */

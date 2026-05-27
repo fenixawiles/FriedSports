@@ -2,20 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>{% block title %}FriedSports{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body>
-  <nav class="navbar">
+  <nav class="navbar" id="main-nav">
     <div class="nav-inner">
       <a href="{{ url_for('auth.index') }}" class="nav-logo">
         <span class="logo-dot"></span>
         FriedSports
       </a>
+      <button class="nav-hamburger" id="nav-hamburger" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
       {% if current_user.is_authenticated %}
-      <div class="nav-links">
+      <div class="nav-links" id="nav-links">
         <a href="{{ url_for('dashboard.dashboard') }}" class="nav-link">Dashboard</a>
         <a href="{{ url_for('groups.new') }}" class="nav-link">New Group</a>
         <a href="{{ url_for('groups.join_prompt') }}" class="nav-link">Join Group</a>
@@ -30,7 +33,7 @@
         </form>
       </div>
       {% else %}
-      <div class="nav-links">
+      <div class="nav-links" id="nav-links">
         <a href="{{ url_for('auth.login') }}" class="nav-link">Log in</a>
         <a href="{{ url_for('auth.signup') }}" class="btn-primary-small">Sign up</a>
       </div>
@@ -58,5 +61,28 @@
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
+  <script>
+  (function() {
+    var nav = document.getElementById('main-nav');
+    var btn = document.getElementById('nav-hamburger');
+    if (!btn) return;
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var open = nav.classList.toggle('nav-mobile-open');
+      btn.setAttribute('aria-expanded', open);
+    });
+    document.addEventListener('click', function(e) {
+      if (!nav.contains(e.target)) {
+        nav.classList.remove('nav-mobile-open');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+    // Close on nav link tap
+    document.getElementById('nav-links').addEventListener('click', function() {
+      nav.classList.remove('nav-mobile-open');
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  })();
+  </script>
 </body>
 </html>
