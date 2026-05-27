@@ -23,7 +23,7 @@
       <span class="incident-type-badge">{{ ir.incident_type.replace('_', ' ').title() }}</span>
       <span class="incident-severity">Severity {{ ir.severity }}/5</span>
       <span class="incident-status {{ ir.status }}">{{ ir.status }}</span>
-      <span class="incident-reporter">filed by {{ ir.reporter.display_name }}</span>
+      <span class="incident-reporter">started by {{ ir.reporter.display_name }}</span>
     </div>
     {% if ir.reported_score_text %}
     <div class="incident-context">"{{ ir.reported_score_text }}"</div>
@@ -87,7 +87,7 @@
   {% if thread.status == 'active' %}
   <div class="chat-input-area">
     <form method="post" action="{{ url_for('threads.post_message', thread_id=thread.id) }}" class="chat-form" id="chat-form">
-      <textarea name="body" id="chat-input" placeholder="Say something... or defend yourself." maxlength="1000" rows="2" required></textarea>
+      <textarea name="body" id="chat-input" placeholder="Say something... or defend yourself." maxlength="1000" rows="2" required style="font-size:16px" enterkeyhint="send"></textarea>
       <button type="submit" class="btn-primary chat-submit">Send</button>
     </form>
   </div>

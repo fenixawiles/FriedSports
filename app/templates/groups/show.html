@@ -59,11 +59,12 @@
   </div>
   {% endif %}
 
-  <!-- Active Incidents -->
+  <!-- Active Threads -->
   <section class="group-section">
     <div class="section-header" style="margin-bottom:0.85rem">
       <div>
-        <span class="section-title">Active Incidents</span>
+        <span class="section-title">Active Threads</span>
+        <span class="section-sub">Current discussions — tap to join</span>
         {% if member %}
         <div class="thread-tagline" id="thread-tagline"></div>
         {% endif %}
@@ -106,7 +107,10 @@
   <!-- Leaderboards -->
   <section class="leaderboard-section">
     <div class="section-header" style="margin-bottom:0.85rem">
-      <span class="section-title">Leaderboards</span>
+      <div>
+        <span class="section-title">Leaderboards</span>
+        <span class="section-sub">Season standings</span>
+      </div>
     </div>
     <div class="leaderboard-grid">
 
@@ -181,7 +185,10 @@
   <!-- Members -->
   <section class="group-section">
     <div class="section-header" style="margin-bottom:0.85rem">
-      <span class="section-title">Members</span>
+      <div>
+        <span class="section-title">Members</span>
+        <span class="section-sub">Who's in this group</span>
+      </div>
     </div>
     <div class="member-table">
       <div class="member-row member-header">

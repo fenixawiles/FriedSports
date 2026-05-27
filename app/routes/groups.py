@@ -168,7 +168,7 @@ def report_incident(group_id):
         if not target_team_id:
             errors.append("Select a team.")
         if not incident_type:
-            errors.append("Select an incident type.")
+            errors.append("Select what happened.")
         if not severity or severity not in range(1, 6):
             errors.append("Select a severity level.")
         if target_user_id and target_user_id == current_user.id:
@@ -216,7 +216,7 @@ def report_incident(group_id):
         thread = create_incident_thread(report)
         db.session.commit()
 
-        flash("Incident report filed. The thread is open.", "success")
+        flash("Thread started.", "success")
         return redirect(url_for("threads.show", thread_id=thread.id))
 
     return render_template(
