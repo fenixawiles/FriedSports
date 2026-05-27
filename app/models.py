@@ -302,8 +302,8 @@ class GameThreadMessage(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
 
     author = db.relationship("User", foreign_keys=[user_id])
-    reactions = db.relationship("MessageReaction", backref="message", lazy="dynamic")
-    reports = db.relationship("MessageReport", backref="message", lazy="dynamic")
+    reactions = db.relationship("MessageReaction", backref="message", lazy="select")
+    reports = db.relationship("MessageReport", backref="message", lazy="select")
 
     def reaction_counts(self):
         counts = {}
@@ -312,7 +312,7 @@ class GameThreadMessage(db.Model):
         return counts
 
     def user_reaction(self, user_id):
-        return [r.reaction_type for r in self.reactions.filter_by(user_id=user_id)]
+        return [r.reaction_type for r in self.reactions if r.user_id == user_id]
 
 
 class MessageReaction(db.Model):
