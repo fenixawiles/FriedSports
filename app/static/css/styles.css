@@ -27,6 +27,10 @@ html {
   font-size: 16px; scroll-behavior: smooth;
   /* Prevent iOS from adjusting font sizes after orientation change */
   -webkit-text-size-adjustment: 100%;
+  /* iOS Safari treats html as the true scroll root — overflow-x must be set here,
+     not just on body, to actually prevent horizontal layout shift on input focus. */
+  overflow-x: hidden;
+  max-width: 100%;
 }
 body {
   background: var(--bg-primary);
@@ -35,7 +39,9 @@ body {
   min-height: 100vh;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden; /* Prevent horizontal scroll / Safari layout zoom */
+  overflow-x: hidden;
+  max-width: 100%;
+  position: relative; /* contain absolutely-positioned children (hamburger menu, etc.) */
   display: flex;
   flex-direction: column;
 }
