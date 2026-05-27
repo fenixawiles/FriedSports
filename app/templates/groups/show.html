@@ -97,9 +97,7 @@
     </div>
     {% else %}
     <div class="empty-state">
-      {% if member %}
-      <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Start A Thread</a>
-      {% endif %}
+      <p>No threads yet. Start one above.</p>
     </div>
     {% endif %}
   </section>

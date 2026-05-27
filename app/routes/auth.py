@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_user, logout_user, login_required, current_user
+from sqlalchemy.exc import IntegrityError
 from app.models import db, User
 
 auth_bp = Blueprint("auth", __name__)
@@ -66,8 +67,13 @@ def signup():
             has_completed_profile=True,
         )
         user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
+        try:
+            db.session.add(user)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("An account with that email or username already exists.", "error")
+            return render_template("auth/signup.html")
         _maybe_elevate_admin(user)
         login_user(user)
         flash(f"Welcome to FriedSports, {user.shown_name}!", "success")

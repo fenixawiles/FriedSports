@@ -1,3 +1,4 @@
+import threading
 from app.models import db, GameEvent, GroupTrigger, GameThread, GameThreadMessage
 from app.services.trash_templates import pick_template
 from app.services.scoring import apply_incident_shame, apply_reporter_points
@@ -87,15 +88,30 @@ def create_incident_thread(report):
         report.target_team_id,
     )
 
-    # Send push notification to the target user (iOS app)
+    # Send push notification to the target user (iOS app) — fire and forget
     try:
-        from app.services.push_service import send_push
-        send_push(
-            user_id=report.target_user_id,
-            title="🚨 Thread Started",
-            body=f"{report.reporter.shown_name} started a thread on your {report.target_team.name}.",
-            data={"thread_id": thread.id, "group_id": report.group_id},
-        )
+        from flask import current_app
+
+        def _push_background(app, user_id, title, body, data):
+            with app.app_context():
+                try:
+                    from app.services.push_service import send_push
+                    send_push(user_id=user_id, title=title, body=body, data=data)
+                except Exception:
+                    pass
+
+        _app = current_app._get_current_object()
+        threading.Thread(
+            target=_push_background,
+            args=(
+                _app,
+                report.target_user_id,
+                "🚨 Thread Started",
+                f"{report.reporter.shown_name} started a thread on your {report.target_team.name}.",
+                {"thread_id": thread.id, "group_id": report.group_id},
+            ),
+            daemon=True,
+        ).start()
     except Exception:
         pass  # Never let push failures block thread creation
 
