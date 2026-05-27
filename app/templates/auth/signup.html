@@ -66,3 +66,10 @@
   </div>
 </div>
 {% endblock %}
+{% block footer %}
+<footer class="site-footer">
+  <span>© 2025 FriedSports</span>
+  <a href="{{ url_for('legal.privacy') }}">Privacy Policy</a>
+  <a href="{{ url_for('legal.terms') }}">Terms</a>
+</footer>
+{% endblock %}

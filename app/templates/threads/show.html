@@ -1,9 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ thread.title }} — FriedSports{% endblock %}
 
-{# Hide footer + remove bottom padding so iOS keyboard only needs to scroll
-   past the chat input itself — not footer + padding — when textarea is focused #}
-{% block footer %}{% endblock %}
+{# Remove main-content bottom padding so iOS keyboard only needs to scroll
+   past the chat input itself when the textarea is focused #}
 {% block head %}
 <style>
   .main-content { padding-bottom: 0 !important; }
