@@ -26,7 +26,7 @@
     <div class="report-section">
       <div class="report-section-label">Which team</div>
       <div style="display:flex;align-items:center;gap:0.75rem">
-        <select name="target_team_id" id="team-select" required style="flex:1">
+        <select name="target_team_id" id="team-select" class="team-select" required style="flex:1">
           <option value="">Select a team</option>
           {% for league, teams in teams_by_league.items() %}
           <optgroup label="{{ league }}">
@@ -85,6 +85,7 @@
       </div>
       <div class="form-group">
         <input type="text" name="reported_score_text" maxlength="120"
+               style="font-size:16px" enterkeyhint="done" autocomplete="off"
                placeholder="e.g. Down 28 in Q3  ·  Blew a 17-point lead  ·  Lost by 35">
       </div>
     </div>

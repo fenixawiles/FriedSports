@@ -19,15 +19,16 @@
       </button>
       {% if current_user.is_authenticated %}
       <div class="nav-links" id="nav-links">
+        <a href="{{ url_for('dashboard.settings') }}" class="nav-link nav-link-account">
+          {{ current_user.shown_name }}
+        </a>
+        <a href="{{ url_for('auth.index') }}" class="nav-link">Home</a>
         <a href="{{ url_for('dashboard.dashboard') }}" class="nav-link">Dashboard</a>
         <a href="{{ url_for('groups.new') }}" class="nav-link">New Group</a>
         <a href="{{ url_for('groups.join_prompt') }}" class="nav-link">Join Group</a>
         {% if current_user.is_admin %}
         <a href="{{ url_for('admin.dashboard') }}" class="nav-link nav-link-admin">Lab</a>
         {% endif %}
-        <a href="{{ url_for('dashboard.settings') }}" class="nav-link nav-link-account">
-          {{ current_user.shown_name }}
-        </a>
         <form action="{{ url_for('auth.logout') }}" method="post" style="display:inline">
           <button type="submit" class="nav-link btn-link">Log out</button>
         </form>
@@ -50,6 +51,9 @@
   </div>
 
   <main class="main-content">
+    <div id="page-back" style="display:none" class="page-back-wrap">
+      <a href="#" class="page-back-btn" onclick="history.back();return false;">← Back</a>
+    </div>
     {% block content %}{% endblock %}
   </main>
 
@@ -62,6 +66,15 @@
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
   <script>
+  // Global back button — show on every page except home/auth/dashboard
+  (function() {
+    var hide = ['/', '/login', '/signup', '/dashboard'];
+    var path = window.location.pathname;
+    if (hide.indexOf(path) < 0) {
+      var el = document.getElementById('page-back');
+      if (el) el.style.display = '';
+    }
+  })();
   (function() {
     var nav = document.getElementById('main-nav');
     var btn = document.getElementById('nav-hamburger');

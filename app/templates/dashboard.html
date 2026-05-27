@@ -46,19 +46,6 @@
         <div class="stat-value">{{ total_trash }}</div>
       </div>
     </div>
-    {% if fav_teams %}
-    <div class="dashboard-teams">
-      {% for league, team in fav_teams.items() %}
-      <div class="fav-team-card">
-        <div class="fav-league">{{ league }}</div>
-        <div class="fav-abbr" style="color: {{ team.primary_color }}">{{ team.abbreviation }}</div>
-        <div class="fav-name">{{ team.city }} {{ team.name }}</div>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <a href="{{ url_for('dashboard.onboarding') }}" class="fav-team-card fav-empty">+ Pick your teams</a>
-    {% endif %}
     {% endif %}
   </div>
 
@@ -72,31 +59,15 @@
   </div>
   {% else %}
 
-  {% if active_threads %}
   <section class="dashboard-section">
     <div class="section-header">
-      <span class="section-title">Active Incidents</span>
-    </div>
-    <div class="alert-list">
-      {% for thread in active_threads %}
-      <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="alert-banner">
-        <div class="alert-body">
-          <div class="alert-title">{{ thread.title }}</div>
-          <div class="alert-meta">{{ msg_counts.get(thread.id, 0) }} messages &middot; {{ thread.group.name }}</div>
-        </div>
-        <div class="alert-arrow">→</div>
-      </a>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  <section class="dashboard-section">
-    <div class="section-header">
-      <span class="section-title">Groups</span>
+      <div>
+        <span class="section-title">Your Groups</span>
+        <span class="section-sub">Tap to see activity and standings</span>
+      </div>
       <div style="display:flex;gap:0.5rem">
-        <a href="{{ url_for('groups.new') }}" class="btn-secondary-small">New Group</a>
-        <a href="{{ url_for('groups.join_prompt') }}" class="btn-secondary-small">Join Group</a>
+        <a href="{{ url_for('groups.new') }}" class="btn-primary-small">+ New Group</a>
+        <a href="{{ url_for('groups.join_prompt') }}" class="btn-secondary-small">Join</a>
       </div>
     </div>
     <div class="group-list">
@@ -119,6 +90,28 @@
       {% endfor %}
     </div>
   </section>
+
+  {% if active_threads %}
+  <section class="dashboard-section">
+    <div class="section-header">
+      <div>
+        <span class="section-title">Active Threads</span>
+        <span class="section-sub">Open discussions you're part of</span>
+      </div>
+    </div>
+    <div class="alert-list">
+      {% for thread in active_threads %}
+      <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="alert-banner">
+        <div class="alert-body">
+          <div class="alert-title">{{ thread.title }}</div>
+          <div class="alert-meta">{{ msg_counts.get(thread.id, 0) }} messages &middot; {{ thread.group.name }}</div>
+        </div>
+        <div class="alert-arrow">→</div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
   {% endif %}
 
