@@ -552,13 +552,13 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .status-badge.active { background: rgba(52,199,123,0.1); color: var(--green); border: 1px solid rgba(52,199,123,0.25); }
 .status-badge.closed { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
 
-/* Chat window */
+/* Chat window — flat on page background, messages scroll freely */
 .chat-window {
-  background: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 1rem 0.75rem;
+  background: transparent; border: none; border-radius: 0;
+  padding: 0 0 1rem;
   min-height: 320px; max-height: 58vh; overflow-y: auto;
   display: flex; flex-direction: column; gap: 0.35rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0;
   scroll-behavior: smooth;
 }
 .chat-window::-webkit-scrollbar { width: 4px; }
@@ -613,25 +613,24 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 
 /* Chat input */
 .chat-input-area {
-  /* Safe-area clearance for home indicator — replaces the main-content bottom
-     padding that is suppressed on thread pages. Background ensures messages
-     don't bleed through as the user scrolls. */
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--bg-primary);
 }
 .chat-form {
   display: flex; gap: 0.6rem; align-items: flex-end;
+  background: transparent; border: none; padding: 0;
+}
+.chat-form textarea {
+  flex: 1; min-width: 0; resize: none;
   background: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-sm); color: var(--text-primary);
+  padding: 0.55rem 0.75rem;
+  font-size: 16px; font-family: var(--font); line-height: 1.5;
   transition: border-color 0.15s;
 }
-.chat-form:focus-within { border-color: var(--border-mid); }
-.chat-form textarea {
-  flex: 1; min-width: 0; resize: none; background: transparent; border: none;
-  color: var(--text-primary); padding: 0.25rem 0;
-  font-size: 16px; /* Prevent iOS Safari zoom on focus */ font-family: var(--font); line-height: 1.5;
-}
-.chat-form textarea:focus { outline: none; }
+.chat-form textarea:focus { outline: none; border-color: var(--border-mid); }
 .chat-form textarea::placeholder { color: var(--text-muted); }
 .chat-submit { white-space: nowrap; flex-shrink: 0; }
 .thread-closed-notice {
