@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FraudWatch Receipt — {{ receipt.target_team.name }}</title>
+  <title>FriedSports Receipt — {{ receipt.target_team.name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   <meta property="og:title" content="{{ receipt.title }}">
-  <meta property="og:description" content="{{ receipt.summary or 'A certified FraudWatch moment.' }}">
+  <meta property="og:description" content="{{ receipt.summary or 'A certified FriedSports moment.' }}">
 </head>
 <body class="receipt-page">
 
   <div class="receipt-container">
     <div class="receipt-header">
-      <div class="receipt-logo"><span class="receipt-logo-dot"></span>FraudWatch</div>
+      <div class="receipt-logo"><span class="receipt-logo-dot"></span>FriedSports</div>
       <div class="receipt-official">OFFICIAL RECEIPT</div>
     </div>
 
@@ -67,8 +67,8 @@
 
     <div class="receipt-footer">
       <button class="btn-primary" onclick="copyReceiptLink()">📋 Copy Share Link</button>
-      <a href="{{ url_for('auth.index') }}" class="btn-secondary" style="margin-left: 0.75rem">Open FraudWatch</a>
-      <p class="receipt-timestamp">Issued by FraudWatch · {{ receipt.created_at.strftime('%B %d, %Y') if receipt.created_at else '' }}</p>
+      <a href="{{ url_for('auth.index') }}" class="btn-secondary" style="margin-left: 0.75rem">Open FriedSports</a>
+      <p class="receipt-timestamp">Issued by FriedSports · {{ receipt.created_at.strftime('%B %d, %Y') if receipt.created_at else '' }}</p>
     </div>
   </div>
 

@@ -36,6 +36,8 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden; /* Prevent horizontal scroll / Safari layout zoom */
+  display: flex;
+  flex-direction: column;
 }
 /* Kill double-tap zoom delay on interactive elements */
 button, a, label, [role="button"] { touch-action: manipulation; }
@@ -125,7 +127,8 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 
 /* ── Main layout ── */
 .main-content {
-  max-width: 1120px; margin: 0 auto;
+  flex: 1; /* Push footer to bottom of viewport on short pages */
+  max-width: 1120px; margin: 0 auto; width: 100%;
   padding: 2.5rem 1.5rem;
   /* Home indicator clearance */
   padding-bottom: calc(2.5rem + env(safe-area-inset-bottom));
@@ -858,8 +861,9 @@ body.receipt-page {
   .member-header span:nth-child(n+4) { display: none; }
   .leaderboard-grid { grid-template-columns: 1fr 1fr; }
 
-  /* Thread chat */
-  .chat-form { flex-direction: column; }
+  /* Thread chat — column layout: stretch items to full width */
+  .chat-form { flex-direction: column; align-items: stretch; }
+  .chat-form textarea { width: 100%; }
   .chat-submit { width: 100%; }
 }
 

@@ -112,10 +112,10 @@ def send_incident_notification(target_user, reporter, team, incident_type, group
         "PREMATURE_SLANDER": "Premature Slander",
     }
     label = type_labels.get(incident_type, incident_type)
-    subject = f"[{group.name}] {reporter.display_name} filed a report on your {team.abbreviation}"
+    subject = f"[{group.name}] {reporter.display_name} started a thread on your {team.abbreviation}"
     body = f"""Hey {target_user.display_name},
 
-{reporter.display_name} just filed a "{label}" report on your {team.city} {team.name} in {group.name}.
+{reporter.display_name} just started a "{label}" thread on your {team.city} {team.name} in {group.name}.
 
 The thread is open. Go defend yourself.
 

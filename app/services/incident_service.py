@@ -22,7 +22,7 @@ def _make_thread_title(report):
         report.incident_type,
         report.incident_type.replace("_", " ").title()
     )
-    return f"Incident Report: {report.target_user.display_name} and the {report.target_team.name} — {label}"
+    return f"{label} — {report.target_user.display_name}'s {report.target_team.name}"
 
 
 def create_incident_thread(report):
@@ -92,8 +92,8 @@ def create_incident_thread(report):
         from app.services.push_service import send_push
         send_push(
             user_id=report.target_user_id,
-            title="🚨 Incident Report Filed",
-            body=f"{report.reporter.shown_name} filed a report against your {report.target_team.name}.",
+            title="🚨 Thread Started",
+            body=f"{report.reporter.shown_name} started a thread on your {report.target_team.name}.",
             data={"thread_id": thread.id, "group_id": report.group_id},
         )
     except Exception:
