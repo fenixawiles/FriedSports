@@ -308,8 +308,9 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .profile-prompt-form input[type="text"] {
   background: var(--bg-surface); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 0.35rem 0.65rem;
-  font-size: 0.85rem; color: var(--text-primary);
+  font-size: 1rem; color: var(--text-primary);
   outline: none; transition: border-color 0.15s;
+  flex: 1; min-width: 100px;
 }
 .profile-prompt-form input[type="text"]:focus { border-color: var(--border-mid); }
 .profile-prompt-dismiss {
@@ -436,11 +437,11 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
 }
 .invite-url-input {
-  flex: 1; min-width: 200px;
+  flex: 1; min-width: 0;
   background: var(--bg-surface); border: 1px solid var(--border-mid);
   border-radius: var(--radius-sm); padding: 0.4rem 0.7rem;
-  font-size: 0.85rem; color: var(--text-primary); font-family: monospace;
-  outline: none; cursor: text;
+  font-size: 1rem; color: var(--text-primary); font-family: monospace;
+  outline: none; cursor: text; max-width: 100%;
 }
 .invite-url-input:focus { border-color: var(--border-mid); }
 
@@ -865,6 +866,19 @@ body.receipt-page {
   .chat-form { flex-direction: column; align-items: stretch; }
   .chat-form textarea { width: 100%; }
   .chat-submit { width: 100%; }
+
+  /* Name grid — single column on narrow screens */
+  .name-grid { grid-template-columns: 1fr; }
+
+  /* Profile prompt — stack inputs vertically on mobile */
+  .profile-prompt-form { flex-direction: column; align-items: stretch; }
+  .profile-prompt-form input[type="text"] { flex: none; width: 100%; min-width: 0; }
+
+  /* Onboarding league rows — wrap meta + select on narrow screens */
+  .onboarding-league-row { flex-wrap: wrap; }
+  .onboarding-league-meta { min-width: 0; flex: 1 1 100%; }
+  .onboarding-select-wrap { flex: 1 1 100%; }
+
 }
 
 /* ── Team Color Preview (dropdowns) ── */
@@ -917,7 +931,10 @@ body.receipt-page {
   padding: 0.1rem 0.35rem; border-radius: 3px; width: fit-content;
 }
 .onboarding-select-wrap { display: flex; align-items: center; gap: 0.75rem; flex: 1; }
-.onboarding-select-wrap select { flex: 1; }
+.onboarding-select-wrap select { flex: 1; font-size: 1rem; }
+
+/* ── Name grid (first/last name columns) ── */
+.name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .onboarding-submit { text-align: center; }
 .onboarding-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.75rem; }
 

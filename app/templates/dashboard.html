@@ -12,10 +12,8 @@
         <span>Add your name and choose how you appear to the group.</span>
       </div>
       <form method="post" action="{{ url_for('dashboard.complete_profile') }}" class="profile-prompt-form">
-        <input type="text" name="first_name" placeholder="First name" maxlength="64" required
-               style="width:120px">
-        <input type="text" name="last_name" placeholder="Last name" maxlength="64" required
-               style="width:120px">
+        <input type="text" name="first_name" placeholder="First name" maxlength="64" required>
+        <input type="text" name="last_name" placeholder="Last name" maxlength="64" required>
         <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;cursor:pointer">
           <input type="radio" name="display_preference" value="username" checked> Username
         </label>
