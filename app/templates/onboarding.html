@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Pick Your Teams — FriedSports{% endblock %}
+{% block content %}
+<div class="onboarding-container">
+  <div class="onboarding-header">
+    <h1>Pick Your Teams</h1>
+    <p>Choose the teams you follow. Pick at least one — any sport, any league.</p>
+  </div>
+
+  <form method="post" action="{{ url_for('dashboard.onboarding') }}" class="onboarding-form" id="onboarding-form">
+    <div class="onboarding-leagues">
+      {% for league in all_leagues %}
+      {% set league_teams = teams_by_league.get(league, []) %}
+      {% if league_teams %}
+      <div class="onboarding-league-row" id="row-{{ league }}">
+        <div class="onboarding-league-meta">
+          <span class="onboarding-league-name">{{ league_labels[league] }}</span>
+          <span class="onboarding-league-badge">{{ league }}</span>
+        </div>
+        <div class="onboarding-select-wrap">
+          <select name="{{ league.lower() }}_team_id" class="team-select" data-league="{{ league }}"
+                  onchange="updatePreview('{{ league }}', this)">
+            <option value="">— Skip this league —</option>
+            {% for team in league_teams %}
+            <option value="{{ team.id }}"
+                    data-primary="{{ team.primary_color }}"
+                    data-secondary="{{ team.secondary_color }}"
+                    data-abbr="{{ team.abbreviation }}">
+              {% if team.city and team.city != team.name %}{{ team.city }} {% endif %}{{ team.name }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="team-color-preview" id="preview-{{ league }}" style="display:none">
+            <div class="color-swatch" id="swatch-{{ league }}"></div>
+            <span class="color-abbr" id="abbr-{{ league }}"></span>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="onboarding-submit">
+      <button type="submit" class="btn-primary btn-large">Lock In My Teams →</button>
+      <p class="onboarding-hint">You can always change these in Settings.</p>
+    </div>
+  </form>
+</div>
+
+<script>
+function updatePreview(league, selectEl) {
+  const preview = document.getElementById('preview-' + league);
+  const swatch = document.getElementById('swatch-' + league);
+  const abbr = document.getElementById('abbr-' + league);
+  const opt = selectEl.options[selectEl.selectedIndex];
+
+  if (!selectEl.value) {
+    preview.style.display = 'none';
+    return;
+  }
+
+  const primary = opt.dataset.primary || '#333';
+  const secondary = opt.dataset.secondary || '#fff';
+  swatch.style.background = `linear-gradient(135deg, ${primary} 50%, ${secondary} 50%)`;
+  abbr.textContent = opt.dataset.abbr || '';
+  preview.style.display = 'flex';
+}
+</script>
+{% endblock %}

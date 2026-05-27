@@ -1,0 +1,124 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ game.away_team.abbreviation }} @ {{ game.home_team.abbreviation }} — Lab{% endblock %}
+{% block admin_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>{{ game.away_team.abbreviation }} @ {{ game.home_team.abbreviation }}</h1>
+      <div class="group-header-meta">
+        <span class="badge-scope">{{ game.league.abbreviation }}</span>
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ game.date }}</span>
+        {% if game.season %}<span style="font-size:0.8rem;color:var(--text-muted)">{{ game.season.label() }}</span>{% endif %}
+        <span class="badge-role {% if game.status == 'final' %}admin{% else %}member{% endif %}">{{ game.status }}</span>
+      </div>
+    </div>
+    <div class="group-actions">
+      <form action="{{ url_for('admin.games_derive', game_id=game.id) }}" method="post" style="display:inline">
+        <button class="btn-secondary {% if not game.has_full_stats() %}disabled{% endif %}"
+                {% if not game.has_full_stats() %}disabled title="Add team stats first"{% endif %}>
+          Compute Metrics
+        </button>
+      </form>
+      <a href="{{ url_for('admin.games_list') }}" class="btn-secondary-small">← Games</a>
+    </div>
+  </div>
+
+  <!-- Score -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Score</span>
+    </div>
+    <div style="display:flex;gap:3rem;margin-bottom:1.5rem">
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">Away</div>
+        <div style="font-size:1.6rem;font-weight:700;letter-spacing:-0.03em;color:{% if game.away_score > game.home_score %}var(--text-primary){% else %}var(--text-muted){% endif %}">
+          {{ game.away_team.abbreviation }} {{ game.away_score }}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">Home</div>
+        <div style="font-size:1.6rem;font-weight:700;letter-spacing:-0.03em;color:{% if game.home_score > game.away_score %}var(--text-primary){% else %}var(--text-muted){% endif %}">
+          {{ game.home_team.abbreviation }} {{ game.home_score }}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Team Stats (editable) -->
+  {% if away_stats or home_stats %}
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Team Stats</span>
+    </div>
+    <form action="{{ url_for('admin.games_update_stats', game_id=game.id) }}" method="post">
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th style="text-align:left;padding:0.5rem 0;color:var(--text-muted);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;font-weight:700">Team</th>
+              {% for lbl in ['PTS','FGM','FGA','3PM','3PA','FTM','FTA','ORB','DRB','AST','STL','BLK','TOV','PF'] %}
+              <th style="text-align:center;padding:0.4rem 0.5rem;color:var(--text-muted);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;font-weight:700">{{ lbl }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for prefix, team, stats in [('away_', game.away_team, away_stats), ('home_', game.home_team, home_stats)] %}
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:0.5rem 0;font-weight:700;color:var(--text-primary)">{{ team.abbreviation }}</td>
+              {% for field in ['points','fgm','fga','three_pm','three_pa','ftm','fta','off_rebounds','def_rebounds','assists','steals','blocks','turnovers','fouls'] %}
+              <td style="padding:0.3rem 0.3rem;text-align:center">
+                <input type="number" name="{{ prefix }}{{ field }}"
+                       value="{{ stats.__dict__.get(field, 0) if stats else 0 }}"
+                       min="0" style="width:52px;text-align:center;background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.82rem">
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:1rem">
+        <button type="submit" class="btn-secondary-small">Save Stats</button>
+      </div>
+    </form>
+  </section>
+  {% else %}
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Team Stats</span>
+    </div>
+    <div class="empty-state"><p>No stats entered yet.</p></div>
+  </section>
+  {% endif %}
+
+  <!-- Derived Metrics -->
+  {% if derived %}
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Derived Metrics</span>
+    </div>
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr">
+        <span>Team</span><span>W/L</span><span>Margin</span><span>TRB±</span><span>FG%±</span><span>TOV±</span><span>FTA±</span><span>Poss±</span>
+      </div>
+      {% for tid, d in derived.items() %}
+      <div class="member-row" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr">
+        <span class="member-name">{{ game.home_team.abbreviation if tid == game.home_team_id else game.away_team.abbreviation }}</span>
+        <span style="font-weight:700;color:{% if d.win %}var(--green){% else %}var(--accent){% endif %}">{{ 'W' if d.win else 'L' }}</span>
+        <span style="font-weight:700;color:{% if d.point_margin > 0 %}var(--green){% elif d.point_margin < 0 %}var(--accent){% else %}var(--text-muted){% endif %}">
+          {% if d.point_margin > 0 %}+{% endif %}{{ d.point_margin }}
+        </span>
+        <span>{% if d.trb_diff is not none %}{% if d.trb_diff > 0 %}+{% endif %}{{ d.trb_diff }}{% else %}—{% endif %}</span>
+        <span>{% if d.fg_pct_diff is not none %}{% if d.fg_pct_diff > 0 %}+{% endif %}{{ "%.1f"|format(d.fg_pct_diff * 100) }}%{% else %}—{% endif %}</span>
+        <span>{% if d.turnover_diff is not none %}{% if d.turnover_diff < 0 %}+{% endif %}{{ -d.turnover_diff if d.turnover_diff else 0 }}{% else %}—{% endif %}</span>
+        <span>{% if d.fta_diff is not none %}{% if d.fta_diff > 0 %}+{% endif %}{{ d.fta_diff }}{% else %}—{% endif %}</span>
+        <span>{% if d.possession_proxy_diff is not none %}{% if d.possession_proxy_diff > 0 %}+{% endif %}{{ "%.1f"|format(d.possession_proxy_diff) }}{% else %}—{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

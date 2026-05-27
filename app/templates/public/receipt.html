@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FraudWatch Receipt — {{ receipt.target_team.name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <meta property="og:title" content="{{ receipt.title }}">
+  <meta property="og:description" content="{{ receipt.summary or 'A certified FraudWatch moment.' }}">
+</head>
+<body class="receipt-page">
+
+  <div class="receipt-container">
+    <div class="receipt-header">
+      <div class="receipt-logo"><span class="receipt-logo-dot"></span>FraudWatch</div>
+      <div class="receipt-official">OFFICIAL RECEIPT</div>
+    </div>
+
+    <div class="receipt-title-block">
+      <h1 class="receipt-main-title">{{ receipt.title }}</h1>
+    </div>
+
+    <div class="receipt-body">
+      <div class="receipt-row">
+        <span class="receipt-key">Group</span>
+        <span class="receipt-val">{{ receipt.group.name }}</span>
+      </div>
+      <div class="receipt-row">
+        <span class="receipt-key">Fan on Record</span>
+        <span class="receipt-val">{{ receipt.target_user.display_name }}</span>
+      </div>
+      <div class="receipt-row">
+        <span class="receipt-key">Team</span>
+        <span class="receipt-val" style="color: {{ receipt.target_team.primary_color }}">
+          {{ receipt.target_team.city }} {{ receipt.target_team.name }}
+        </span>
+      </div>
+      <div class="receipt-row">
+        <span class="receipt-key">Final Score</span>
+        <span class="receipt-val receipt-score">{{ receipt.final_score or 'N/A' }}</span>
+      </div>
+      <div class="receipt-divider"></div>
+      {% if worst_msg %}
+      <div class="receipt-row receipt-quote-row">
+        <span class="receipt-key">Worst Moment</span>
+        <blockquote class="receipt-quote">{{ worst_msg.body }}</blockquote>
+      </div>
+      {% endif %}
+      {% if receipt.summary %}
+      <div class="receipt-row">
+        <span class="receipt-key">Summary</span>
+        <span class="receipt-val">{{ receipt.summary }}</span>
+      </div>
+      {% endif %}
+      <div class="receipt-divider"></div>
+      <div class="receipt-row receipt-shame-row">
+        <span class="receipt-key">Shame Points Issued</span>
+        <span class="receipt-val receipt-shame-val">{{ receipt.shame_points }}</span>
+      </div>
+      {% if receipt.top_hater %}
+      <div class="receipt-row">
+        <span class="receipt-key">Top Hater</span>
+        <span class="receipt-val">{{ receipt.top_hater.display_name }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="receipt-footer">
+      <button class="btn-primary" onclick="copyReceiptLink()">📋 Copy Share Link</button>
+      <a href="{{ url_for('auth.index') }}" class="btn-secondary" style="margin-left: 0.75rem">Open FraudWatch</a>
+      <p class="receipt-timestamp">Issued by FraudWatch · {{ receipt.created_at.strftime('%B %d, %Y') if receipt.created_at else '' }}</p>
+    </div>
+  </div>
+
+  <script>
+    function copyReceiptLink() {
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        alert('Receipt link copied!');
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Report Incident — {{ group.name }}{% endblock %}
+{% block content %}
+<div class="report-container">
+
+  <div class="report-header">
+    <a href="{{ url_for('groups.show', group_id=group.id) }}" class="back-link">← {{ group.name }}</a>
+    <h1>Report an Incident</h1>
+    <p class="report-sub">File a report. The group will be notified. The target will be shamed.</p>
+  </div>
+
+  <form method="post" class="report-form">
+
+    <div class="report-section">
+      <div class="report-section-label">Who's getting cooked</div>
+      <div class="form-group">
+        <select name="target_user_id" id="target-user-id" required>
+          <option value="">Select a member</option>
+          {% for item in members_with_users %}
+          <option value="{{ item.user.id }}">{{ item.user.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-label">Which team</div>
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        <select name="target_team_id" id="team-select" required style="flex:1">
+          <option value="">Select a team</option>
+          {% for league, teams in teams_by_league.items() %}
+          <optgroup label="{{ league }}">
+            {% for team in teams %}
+            <option value="{{ team.id }}"
+                    data-primary="{{ team.primary_color }}"
+                    data-secondary="{{ team.secondary_color }}"
+                    data-abbr="{{ team.abbreviation }}">
+              {% if team.city and team.city != team.name %}{{ team.city }} {% endif %}{{ team.name }}
+            </option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+        <div class="team-color-preview" id="team-preview" style="display:none">
+          <div class="color-swatch" id="team-swatch"></div>
+          <span class="color-abbr" id="team-abbr"></span>
+        </div>
+      </div>
+      <p class="report-hint" id="team-hint" style="display:none;margin-top:0.5rem">
+        ↑ Suggested based on their favorite teams. You may select any.
+      </p>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-label">What happened</div>
+      <div class="incident-type-grid">
+        {% for value, label in incident_types %}
+        <label class="incident-type-btn">
+          <input type="radio" name="incident_type" value="{{ value }}" required>
+          <div class="incident-type-inner">{{ label }}</div>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-label">Severity</div>
+      <div class="severity-bar">
+        {% for num, label in severities %}
+        <label class="severity-btn">
+          <input type="radio" name="severity" value="{{ num }}" {% if num == 3 %}checked{% endif %} required>
+          <div class="severity-inner">
+            <span class="severity-num">{{ num }}</span>
+            <span class="severity-label-text">{{ label }}</span>
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-label">
+        Context
+        <span class="label-hint">— optional</span>
+      </div>
+      <div class="form-group">
+        <input type="text" name="reported_score_text" maxlength="120"
+               placeholder="e.g. Down 28 in Q3  ·  Blew a 17-point lead  ·  Lost by 35">
+      </div>
+    </div>
+
+    <div class="report-submit">
+      <button type="submit" class="btn-primary btn-large">Open Slander Thread</button>
+      <a href="{{ url_for('groups.show', group_id=group.id) }}" class="btn-secondary" style="margin-left:0.75rem">Cancel</a>
+    </div>
+
+  </form>
+</div>
+
+<script>
+const USER_FAVS = {{ user_fav_teams | tojson }};
+const TEAM_COLORS = {{ team_colors | tojson }};
+
+const targetSelect = document.getElementById('target-user-id');
+const teamSelect = document.getElementById('team-select');
+const teamPreview = document.getElementById('team-preview');
+const teamSwatch = document.getElementById('team-swatch');
+const teamAbbrEl = document.getElementById('team-abbr');
+const teamHint = document.getElementById('team-hint');
+
+function updateTeamPreview() {
+  const opt = teamSelect.options[teamSelect.selectedIndex];
+  if (!teamSelect.value) {
+    teamPreview.style.display = 'none';
+    return;
+  }
+  const primary = opt.dataset.primary || '#333';
+  const secondary = opt.dataset.secondary || '#fff';
+  teamSwatch.style.background = `linear-gradient(135deg, ${primary} 50%, ${secondary} 50%)`;
+  teamAbbrEl.textContent = opt.dataset.abbr || '';
+  teamPreview.style.display = 'flex';
+}
+
+function updateTeamSuggestion() {
+  const userId = targetSelect.value;
+  const favIds = (USER_FAVS[userId] || []).map(Number);
+
+  if (!favIds.length) {
+    teamHint.style.display = 'none';
+    return;
+  }
+
+  // Auto-select first fav if nothing is currently selected
+  if (!teamSelect.value) {
+    for (let i = 0; i < teamSelect.options.length; i++) {
+      const opt = teamSelect.options[i];
+      if (opt.value && favIds.includes(parseInt(opt.value))) {
+        teamSelect.selectedIndex = i;
+        updateTeamPreview();
+        break;
+      }
+    }
+  }
+  teamHint.style.display = 'block';
+}
+
+teamSelect.addEventListener('change', updateTeamPreview);
+targetSelect.addEventListener('change', updateTeamSuggestion);
+updateTeamPreview();
+</script>
+{% endblock %}

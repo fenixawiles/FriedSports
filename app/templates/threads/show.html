@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ thread.title }} — FraudWatch{% endblock %}
+{% block content %}
+<div class="thread-container">
+
+  <div class="thread-header">
+    <a href="{{ url_for('groups.show', group_id=thread.group_id) }}" class="back-link">← {{ group.name }}</a>
+    <h1 class="thread-title-large">{{ thread.title }}</h1>
+    <div class="thread-header-meta">
+      <span class="team-chip-lg" style="color: {{ thread.target_team.primary_color }}; border-color: {{ thread.target_team.primary_color }}40">
+        {{ thread.target_team.abbreviation }} · {{ thread.target_team.name }}
+      </span>
+      <span class="target-label">{{ thread.target_user.display_name }}</span>
+      <span class="status-badge {{ thread.status }}">{{ thread.status }}</span>
+    </div>
+  </div>
+
+  {% set event = thread.group_trigger.game_event %}
+  {% set ir = event.incident_report if event else none %}
+  {% if ir %}
+  <div class="incident-header">
+    <div class="incident-meta-row">
+      <span class="incident-type-badge">{{ ir.incident_type.replace('_', ' ').title() }}</span>
+      <span class="incident-severity">Severity {{ ir.severity }}/5</span>
+      <span class="incident-status {{ ir.status }}">{{ ir.status }}</span>
+      <span class="incident-reporter">filed by {{ ir.reporter.display_name }}</span>
+    </div>
+    {% if ir.reported_score_text %}
+    <div class="incident-context">"{{ ir.reported_score_text }}"</div>
+    {% endif %}
+    <div class="incident-actions">
+      {% if ir.status == 'active' and member and member.role in ('owner', 'admin') %}
+      <form action="{{ url_for('reports.confirm', report_id=ir.id) }}" method="post" style="display:inline">
+        <button class="btn-secondary-small">Confirm</button>
+      </form>
+      {% endif %}
+      {% if ir.status not in ('dismissed', 'redeemed') and member and member.role in ('owner', 'admin') %}
+      <form action="{{ url_for('reports.dismiss', report_id=ir.id) }}" method="post" style="display:inline"
+            onsubmit="return confirm('Dismiss this report? The reporter will lose 5 points.')">
+        <button class="btn-danger-small">Dismiss</button>
+      </form>
+      {% endif %}
+      {% if ir.status not in ('redeemed',) and (current_user.id == thread.target_user_id or (member and member.role in ('owner', 'admin'))) %}
+      <form action="{{ url_for('reports.redeem', report_id=ir.id) }}" method="post" style="display:inline">
+        <button class="btn-secondary-small">Mark Redeemed</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="chat-window" id="chat-window">
+    {% for msg in messages %}
+    <div class="message message-{{ msg.message_type }}" data-id="{{ msg.id }}" id="msg-{{ msg.id }}">
+      {% if msg.message_type == 'system' %}
+        <div class="message-system-body">{{ msg.body }}</div>
+      {% else %}
+        <div class="message-bubble">
+          <div class="message-author">
+            {{ msg.author.display_name if msg.author else 'Unknown' }}
+            {% if msg.author and msg.author.id == thread.target_user_id %}
+            <span class="target-tag">target</span>
+            {% endif %}
+          </div>
+          <div class="message-text">{{ msg.body }}</div>
+          <div class="message-footer">
+            <div class="reaction-bar">
+              {% for rtype, emoji in [('laugh','😂'),('cook','👨‍🍳'),('fraud','🚨'),('receipt','🧾')] %}
+              <button class="reaction-btn {% if rtype in (msg.user_reaction(current_user.id)) %}reacted{% endif %}"
+                      data-message-id="{{ msg.id }}" data-reaction="{{ rtype }}"
+                      title="{{ rtype }}">
+                {{ emoji }} <span class="reaction-count">{{ msg.reaction_counts().get(rtype, 0) or '' }}</span>
+              </button>
+              {% endfor %}
+            </div>
+            <span class="message-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</span>
+            {% if msg.user_id == current_user.id or (member and member.role in ('owner','admin')) %}
+            <button class="delete-btn" data-message-id="{{ msg.id }}" title="Delete">✕</button>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if thread.status == 'active' %}
+  <div class="chat-input-area">
+    <form method="post" action="{{ url_for('threads.post_message', thread_id=thread.id) }}" class="chat-form" id="chat-form">
+      <textarea name="body" id="chat-input" placeholder="Say something... or defend yourself." maxlength="1000" rows="2" required></textarea>
+      <button type="submit" class="btn-primary chat-submit">Send</button>
+    </form>
+  </div>
+  {% else %}
+  <div class="thread-closed-notice">This thread is closed.</div>
+  {% endif %}
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const THREAD_ID = {{ thread.id }};
+  const CURRENT_USER_ID = {{ current_user.id }};
+</script>
+<script src="{{ url_for('static', filename='js/threads.js') }}"></script>
+{% endblock %}

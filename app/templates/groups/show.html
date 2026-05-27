@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} — FraudWatch{% endblock %}
+{% block content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>{{ group.name }}</h1>
+      <div class="group-header-meta">
+        <span class="badge-scope">{{ group.league_scope }}</span>
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ group.members.count() }} members</span>
+        {% if member and member.role in ('owner', 'admin') %}
+        <span class="badge-role {{ member.role }}">{{ member.role }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="group-actions">
+      {% if member %}
+        <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Report Incident</a>
+        <div class="invite-box">
+          <span class="invite-label">Invite</span>
+          <code class="invite-code" id="invite-code">{{ group.invite_code }}</code>
+          <button class="btn-icon" onclick="copyInvite()" title="Copy link">⎘</button>
+        </div>
+        <form action="{{ url_for('groups.mute', group_id=group.id) }}" method="post" style="display:inline">
+          <button type="submit" class="btn-secondary-small">
+            {{ 'Unmute' if member.mute_notifications else 'Mute' }}
+          </button>
+        </form>
+        {% if member.role != 'owner' %}
+        <form action="{{ url_for('groups.leave', group_id=group.id) }}" method="post" style="display:inline"
+              onsubmit="return confirm('Leave {{ group.name }}?')">
+          <button type="submit" class="btn-danger-small">Leave</button>
+        </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Active Incidents -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Active Incidents</span>
+    </div>
+    {% if threads %}
+    <div class="thread-list">
+      {% for thread in threads %}
+      <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="thread-card">
+        <div class="thread-card-left">
+          <div class="thread-title">{{ thread.title }}</div>
+          <div class="thread-meta">
+            {{ thread.messages.count() }} messages &middot;
+            <span class="team-chip" style="color: {{ thread.target_team.primary_color }}">{{ thread.target_team.abbreviation }}</span>
+            {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
+            {% if ir %}
+            &middot; <span style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em">{{ ir.status }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="thread-card-right">
+          <span class="thread-target">{{ thread.target_user.display_name }}</span>
+          <span class="thread-arrow">→</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>No active incidents. Stay vigilant.</p>
+      {% if member %}
+      <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Report Incident</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- Leaderboards -->
+  <section class="leaderboard-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Leaderboards</span>
+    </div>
+    <div class="leaderboard-grid">
+
+      <div class="lb-card">
+        <div class="lb-title">Biggest Loser</div>
+        {% for entry in leaderboards.get('biggest_loser', []) %}
+        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
+          <span class="lb-pos">{{ loop.index }}</span>
+          <span class="lb-name">{{ entry.user.display_name }}</span>
+          <span class="lb-score">{{ entry.shame }}</span>
+        </div>
+        {% else %}
+        <div class="lb-empty">No data yet</div>
+        {% endfor %}
+      </div>
+
+      <div class="lb-card">
+        <div class="lb-title">Best Hater</div>
+        {% for entry in leaderboards.get('best_hater', []) %}
+        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
+          <span class="lb-pos">{{ loop.index }}</span>
+          <span class="lb-name">{{ entry.user.display_name }}</span>
+          <span class="lb-score">{{ entry.trash_talk }}</span>
+        </div>
+        {% else %}
+        <div class="lb-empty">No data yet</div>
+        {% endfor %}
+      </div>
+
+      <div class="lb-card">
+        <div class="lb-title">Top Informant</div>
+        {% for entry in leaderboards.get('top_informant', []) %}
+        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
+          <span class="lb-pos">{{ loop.index }}</span>
+          <span class="lb-name">{{ entry.user.display_name }}</span>
+          <span class="lb-score">{{ entry.reporter }}</span>
+        </div>
+        {% else %}
+        <div class="lb-empty">No data yet</div>
+        {% endfor %}
+      </div>
+
+      <div class="lb-card">
+        <div class="lb-title">Most Delusional</div>
+        {% for entry in leaderboards.get('most_delusional', []) %}
+        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
+          <span class="lb-pos">{{ loop.index }}</span>
+          <span class="lb-name">{{ entry.user.display_name }}</span>
+          <span class="lb-score">{{ entry.shame + entry.defense }}</span>
+        </div>
+        {% else %}
+        <div class="lb-empty">No data yet</div>
+        {% endfor %}
+      </div>
+
+      <div class="lb-card">
+        <div class="lb-title">Bragging Rights</div>
+        {% for entry in leaderboards.get('bragging_champ', []) %}
+        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
+          <span class="lb-pos">{{ loop.index }}</span>
+          <span class="lb-name">{{ entry.user.display_name }}</span>
+          <span class="lb-score">{{ entry.bragging }}</span>
+        </div>
+        {% else %}
+        <div class="lb-empty">No data yet</div>
+        {% endfor %}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Members -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Members</span>
+    </div>
+    <div class="member-table">
+      <div class="member-row member-header">
+        <span>Member</span><span>Role</span><span>Shame</span>
+        <span>Trash Talk</span><span>Bragging</span>
+        {% if member and member.role in ('owner', 'admin') %}<span></span>{% endif %}
+      </div>
+      {% for item in members_with_users %}
+      <div class="member-row">
+        <span class="member-name">{{ item.user.display_name }}</span>
+        <span><span class="badge-role {{ item.member.role }}">{{ item.member.role }}</span></span>
+        <span class="score shame">{{ item.member.shame_score or 0 }}</span>
+        <span class="score trash">{{ item.member.trash_talk_score or 0 }}</span>
+        <span class="score brag">{{ item.member.bragging_rights_score or 0 }}</span>
+        {% if member and member.role in ('owner', 'admin') and item.member.role != 'owner' %}
+        <span style="display:flex;gap:0.4rem">
+          <form action="{{ url_for('groups.remove_member', group_id=group.id, user_id=item.user.id) }}"
+                method="post" style="display:inline"
+                onsubmit="return confirm('Remove {{ item.user.display_name }}?')">
+            <button type="submit" class="btn-danger-tiny">Remove</button>
+          </form>
+          {% if member.role == 'owner' %}
+          <form action="{{ url_for('groups.transfer_owner', group_id=group.id, user_id=item.user.id) }}"
+                method="post" style="display:inline"
+                onsubmit="return confirm('Transfer ownership to {{ item.user.display_name }}?')">
+            <button type="submit" class="btn-secondary-tiny">Owner</button>
+          </form>
+          {% endif %}
+        </span>
+        {% elif member and member.role in ('owner', 'admin') %}
+        <span></span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Receipts -->
+  {% if receipts %}
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Receipts</span>
+    </div>
+    <div class="receipt-list">
+      {% for r in receipts %}
+      <a href="{{ url_for('public.receipt', slug=r.public_slug) }}" class="receipt-item" target="_blank">
+        <span class="receipt-title">{{ r.title }}</span>
+        <span class="receipt-shame">{{ r.shame_points }} shame</span>
+        <span class="receipt-arrow">↗</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+
+<script>
+function copyInvite() {
+  const code = document.getElementById('invite-code').textContent.trim();
+  const url = window.location.origin + '/groups/join/' + code;
+  navigator.clipboard.writeText(url).then(() => {
+    alert('Invite link copied.');
+  });
+}
+</script>
+{% endblock %}

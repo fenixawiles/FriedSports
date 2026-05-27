@@ -1,0 +1,142 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ user.display_name }} — FriedSports Admin{% endblock %}
+{% block admin_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>{{ user.display_name }}</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ user.email }}</span>
+        <span class="badge-role {% if user.is_admin %}admin{% else %}member{% endif %}">{{ user.role }}</span>
+        <span style="font-size:0.8rem;color:var(--text-muted)">ID {{ user.id }}</span>
+      </div>
+    </div>
+    <div class="group-actions">
+      <a href="{{ url_for('admin.users_list') }}" class="btn-secondary-small">← Users</a>
+    </div>
+  </div>
+
+  <!-- Favorite Teams -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Favorite Teams</span>
+    </div>
+    {% if fav_teams %}
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:1fr 2fr">
+        <span>League</span><span>Team</span>
+      </div>
+      {% for uft in fav_teams %}
+      <div class="member-row" style="grid-template-columns:1fr 2fr">
+        <span style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--text-muted)">{{ uft.league }}</span>
+        <span class="member-name">
+          <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ uft.team.primary_color }};margin-right:0.4rem;vertical-align:middle"></span>
+          {{ uft.team.city }} {{ uft.team.name }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><p>No favorite teams set.</p></div>
+    {% endif %}
+  </section>
+
+  <!-- Group Memberships -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Groups</span>
+    </div>
+    {% if groups %}
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:2fr 1fr 1fr">
+        <span>Group</span><span>Role</span><span>Shame Score</span>
+      </div>
+      {% for item in groups %}
+      {% if item.group %}
+      <div class="member-row" style="grid-template-columns:2fr 1fr 1fr">
+        <span class="member-name">{{ item.group.name }}</span>
+        <span class="badge-role {% if item.member.role == 'owner' %}admin{% else %}member{% endif %}">{{ item.member.role }}</span>
+        <span style="color:var(--accent)">{{ item.member.shame_score or 0 }}</span>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><p>Not a member of any groups.</p></div>
+    {% endif %}
+  </section>
+
+  <!-- Admin Actions -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Admin Actions</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+
+      <!-- Change Email -->
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Change Email</div>
+        <form action="{{ url_for('admin.users_change_email', user_id=user.id) }}" method="post" style="display:flex;gap:0.5rem">
+          <input type="email" name="email" value="{{ user.email }}" required
+                 style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.82rem">
+          <button type="submit" class="btn-secondary-small">Update</button>
+        </form>
+      </div>
+
+      <!-- Change Password -->
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Set Password</div>
+        <form action="{{ url_for('admin.users_change_password', user_id=user.id) }}" method="post" style="display:flex;gap:0.5rem">
+          <input type="password" name="password" required placeholder="New password (6+ chars)"
+                 style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.82rem">
+          <button type="submit" class="btn-secondary-small">Set</button>
+        </form>
+      </div>
+
+      <!-- Change Role -->
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Change Role</div>
+        <form action="{{ url_for('admin.users_change_role', user_id=user.id) }}" method="post" style="display:flex;gap:0.5rem">
+          <select name="role" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.82rem;flex:1">
+            <option value="user" {% if user.role == 'user' %}selected{% endif %}>user</option>
+            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>admin</option>
+          </select>
+          <button type="submit" class="btn-secondary-small">Save</button>
+        </form>
+      </div>
+
+      <!-- Delete User -->
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Danger Zone</div>
+        <form action="{{ url_for('admin.users_delete', user_id=user.id) }}" method="post"
+              onsubmit="return confirm('Delete {{ user.display_name }}? This cannot be undone.')">
+          <button type="submit" class="btn-secondary-small"
+                  style="border-color:var(--accent);color:var(--accent)">
+            Delete Account
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- Send Email -->
+    <div style="margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.5rem">
+      <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.75rem">Send Direct Email</div>
+      <form action="{{ url_for('admin.users_send_email', user_id=user.id) }}" method="post">
+        <div style="margin-bottom:0.5rem">
+          <input type="text" name="subject" required placeholder="Subject"
+                 style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.82rem">
+        </div>
+        <div style="margin-bottom:0.5rem">
+          <textarea name="body" required rows="4" placeholder="Message body…"
+                    style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.82rem;resize:vertical"></textarea>
+        </div>
+        <button type="submit" class="btn-secondary-small">Send Email</button>
+      </form>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

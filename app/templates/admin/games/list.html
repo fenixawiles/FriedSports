@@ -1,0 +1,80 @@
+{% extends "admin/base.html" %}
+{% block title %}Games — Lab{% endblock %}
+{% block admin_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>Games</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ games.total }} total</span>
+      </div>
+    </div>
+    <div class="group-actions">
+      <a href="{{ url_for('admin.games_new') }}" class="btn-primary">+ Add Game</a>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <form method="get" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem">
+    <div class="form-group" style="margin-bottom:0">
+      <select name="league_id" onchange="this.form.submit()">
+        <option value="">All Leagues</option>
+        {% for l in leagues %}
+        <option value="{{ l.id }}" {% if selected_league == l.id %}selected{% endif %}>{{ l.abbreviation }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:0">
+      <select name="season_id" onchange="this.form.submit()">
+        <option value="">All Seasons</option>
+        {% for s in seasons %}
+        <option value="{{ s.id }}" {% if selected_season == s.id %}selected{% endif %}>{{ s.label() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  {% if games.items %}
+  <div class="thread-list">
+    {% for g in games.items %}
+    <a href="{{ url_for('admin.games_detail', game_id=g.id) }}" class="thread-card">
+      <div class="thread-card-left">
+        <div class="thread-title">
+          {{ g.away_team.abbreviation }} @ {{ g.home_team.abbreviation }}
+          <span style="font-weight:400;color:var(--text-muted);margin-left:0.5rem">{{ g.away_score }}–{{ g.home_score }}</span>
+        </div>
+        <div class="thread-meta">
+          {{ g.date }} &middot; {{ g.league.abbreviation }}
+          {% if g.season %}&middot; {{ g.season.label() }}{% endif %}
+          {% if g.has_full_stats() %}&middot; <span style="color:var(--green)">stats</span>{% endif %}
+          {% if g.has_derived_metrics() %}&middot; <span style="color:var(--green)">metrics</span>{% endif %}
+        </div>
+      </div>
+      <span style="color:var(--text-muted);font-size:0.8rem">→</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination -->
+  {% if games.pages > 1 %}
+  <div style="display:flex;gap:0.5rem;margin-top:1.5rem;font-size:0.85rem">
+    {% if games.has_prev %}
+    <a href="{{ url_for('admin.games_list', page=games.prev_num, league_id=selected_league, season_id=selected_season) }}" class="btn-secondary-small">← Prev</a>
+    {% endif %}
+    <span style="color:var(--text-muted);padding:0.28rem 0.5rem">{{ games.page }} / {{ games.pages }}</span>
+    {% if games.has_next %}
+    <a href="{{ url_for('admin.games_list', page=games.next_num, league_id=selected_league, season_id=selected_season) }}" class="btn-secondary-small">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty-state">
+    <p>No games yet.</p>
+    <a href="{{ url_for('admin.games_new') }}" class="btn-primary">Add First Game</a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

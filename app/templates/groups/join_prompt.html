@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Join a Group — FraudWatch{% endblock %}
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-title">Join a Group</div>
+    <p class="auth-sub">Enter an invite code to join a group.</p>
+    <form method="post" class="auth-form">
+      <div class="form-group">
+        <label for="invite_code">Invite Code</label>
+        <input type="text" name="invite_code" id="invite_code" placeholder="e.g. abc123" required autofocus>
+      </div>
+      <button type="submit" class="btn-primary btn-full" style="margin-top:0.5rem">Join Group</button>
+    </form>
+    <div class="auth-switch">
+      <a href="{{ url_for('groups.new') }}">Create a new group instead</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Settings — FriedSports{% endblock %}
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card" style="max-width: 560px">
+    <h1 class="auth-title">Settings</h1>
+    <form method="post" action="{{ url_for('dashboard.settings') }}" class="auth-form">
+
+      <div class="form-group">
+        <label for="display_name">Display Name</label>
+        <input type="text" id="display_name" name="display_name" maxlength="64"
+               value="{{ current_user.display_name }}" placeholder="Your display name">
+      </div>
+
+      <div class="form-group">
+        <label for="avatar_url">Avatar URL <span class="label-hint">(optional)</span></label>
+        <input type="url" id="avatar_url" name="avatar_url"
+               value="{{ current_user.avatar_url or '' }}" placeholder="https://...">
+      </div>
+
+      <div class="form-divider">Team Preferences</div>
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1.2rem">
+        Pick one team per league. Leave blank to keep current selection.
+      </p>
+
+      {% for league in all_leagues %}
+      {% set league_teams = teams_by_league.get(league, []) %}
+      {% set current_fav = fav_teams.get(league) %}
+      {% if league_teams %}
+      <div class="form-group settings-league-row">
+        <label for="{{ league.lower() }}_team_id">
+          {{ league_labels[league] }}
+          {% if current_fav %}
+          <span class="label-hint">— currently {{ current_fav.abbreviation }}</span>
+          {% endif %}
+        </label>
+        <div style="display:flex;align-items:center;gap:0.75rem">
+          <select id="{{ league.lower() }}_team_id" name="{{ league.lower() }}_team_id"
+                  class="team-select" onchange="updateSettingsPreview('{{ league }}', this)"
+                  style="flex:1">
+            <option value="">— No change —</option>
+            {% for team in league_teams %}
+            <option value="{{ team.id }}"
+                    data-primary="{{ team.primary_color }}"
+                    data-secondary="{{ team.secondary_color }}"
+                    data-abbr="{{ team.abbreviation }}"
+                    {% if current_fav and current_fav.id == team.id %}selected{% endif %}>
+              {% if team.city and team.city != team.name %}{{ team.city }} {% endif %}{{ team.name }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="team-color-preview" id="preview-{{ league }}"
+               style="{% if not current_fav %}display:none{% endif %}">
+            <div class="color-swatch" id="swatch-{{ league }}"
+                 {% if current_fav %}
+                 style="background:linear-gradient(135deg, {{ current_fav.primary_color }} 50%, {{ current_fav.secondary_color }} 50%)"
+                 {% endif %}></div>
+            <span class="color-abbr" id="abbr-{{ league }}">{{ current_fav.abbreviation if current_fav else '' }}</span>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+
+      <div class="form-divider">Change Password <span class="label-hint">— optional</span></div>
+
+      <div class="form-group">
+        <label for="current_password">Current Password</label>
+        <input type="password" id="current_password" name="current_password"
+               placeholder="Leave blank to keep current password">
+      </div>
+      <div class="form-group">
+        <label for="new_password">New Password</label>
+        <input type="password" id="new_password" name="new_password"
+               placeholder="At least 6 characters">
+      </div>
+      <div class="form-group">
+        <label for="confirm_password">Confirm New Password</label>
+        <input type="password" id="confirm_password" name="confirm_password"
+               placeholder="Repeat new password">
+      </div>
+
+      <button type="submit" class="btn-primary btn-full">Save Settings</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function updateSettingsPreview(league, selectEl) {
+  const preview = document.getElementById('preview-' + league);
+  const swatch = document.getElementById('swatch-' + league);
+  const abbr = document.getElementById('abbr-' + league);
+  const opt = selectEl.options[selectEl.selectedIndex];
+
+  if (!selectEl.value) {
+    preview.style.display = 'none';
+    return;
+  }
+
+  const primary = opt.dataset.primary || '#333';
+  const secondary = opt.dataset.secondary || '#fff';
+  swatch.style.background = `linear-gradient(135deg, ${primary} 50%, ${secondary} 50%)`;
+  abbr.textContent = opt.dataset.abbr || '';
+  preview.style.display = 'flex';
+}
+</script>
+{% endblock %}

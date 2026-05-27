@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+.admin-strip {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.admin-strip-inner {
+  max-width: 1120px; margin: 0 auto; padding: 0 1.5rem;
+  height: 38px; display: flex; align-items: center; gap: 0.25rem;
+}
+.admin-label {
+  font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--accent);
+  margin-right: 1rem; display: flex; align-items: center; gap: 0.4rem;
+}
+.admin-label::before {
+  content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+}
+.admin-nav-link {
+  font-size: 0.8rem; color: var(--text-muted); padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm); transition: color 0.12s;
+  text-decoration: none;
+}
+.admin-nav-link:hover { color: var(--text-primary); }
+.admin-nav-link.active { color: var(--text-primary); }
+</style>
+{% endblock %}
+{% block content %}
+<nav class="admin-strip">
+  <div class="admin-strip-inner">
+    <span class="admin-label">Lab</span>
+    <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">Overview</a>
+    <a href="{{ url_for('admin.games_list') }}" class="admin-nav-link {% if 'admin.games' in request.endpoint %}active{% endif %}">Games</a>
+    <a href="{{ url_for('admin.players_list') }}" class="admin-nav-link {% if 'admin.players' in request.endpoint %}active{% endif %}">Players</a>
+    <a href="{{ url_for('admin.metrics_list') }}" class="admin-nav-link {% if 'admin.metrics' in request.endpoint %}active{% endif %}">Metrics</a>
+    <a href="{{ url_for('admin.lab_rebound') }}" class="admin-nav-link {% if request.endpoint == 'admin.lab_rebound' %}active{% endif %}">Rebound Lab</a>
+    <a href="{{ url_for('admin.users_list') }}" class="admin-nav-link {% if 'admin.users' in request.endpoint %}active{% endif %}">Users</a>
+  </div>
+</nav>
+{% block admin_content %}{% endblock %}
+{% endblock %}

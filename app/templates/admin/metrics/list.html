@@ -1,0 +1,83 @@
+{% extends "admin/base.html" %}
+{% block title %}Metrics — Lab{% endblock %}
+{% block admin_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>Metric Definitions</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ metrics|length }} defined</span>
+      </div>
+    </div>
+  </div>
+
+  {% if metrics %}
+  <section class="group-section">
+    <div class="thread-list">
+      {% for m in metrics %}
+      <div class="thread-card" style="cursor:default;opacity:1">
+        <div class="thread-card-left">
+          <div class="thread-title">{{ m.name }}</div>
+          <div class="thread-meta">
+            <code>{{ m.slug }}</code> &middot;
+            {{ m.formula_type }} &middot;
+            {{ m.output_entity.replace('_', ' ') }}
+            {% if m.description %}&middot; {{ m.description[:80] }}{% if m.description|length > 80 %}…{% endif %}{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <div class="empty-state" style="margin-bottom:2rem"><p>No metrics defined yet.</p></div>
+  {% endif %}
+
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Define New Metric</span>
+    </div>
+    <form action="{{ url_for('admin.metrics_new') }}" method="post" class="report-form">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" name="name" required maxlength="128" placeholder="Rebound Compensation Index">
+        </div>
+        <div class="form-group">
+          <label>Slug</label>
+          <input type="text" name="slug" required maxlength="64" placeholder="rebound_compensation_index">
+        </div>
+        <div class="form-group">
+          <label>Formula Type</label>
+          <select name="formula_type">
+            <option value="python">Python</option>
+            <option value="sql">SQL</option>
+            <option value="composite">Composite</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Output Entity</label>
+          <select name="output_entity">
+            <option value="game_team">Game / Team</option>
+            <option value="game_player">Game / Player</option>
+            <option value="season_team">Season / Team</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Description <span class="label-hint">— optional</span></label>
+        <input type="text" name="description" maxlength="256" placeholder="What this metric measures">
+      </div>
+      <div class="form-group">
+        <label>Parameters <span class="label-hint">— JSON</span></label>
+        <input type="text" name="parameters" placeholder='{"weight_trb": 1.2, "threshold": 0.05}'>
+      </div>
+      <div class="report-submit">
+        <button type="submit" class="btn-primary">Create Metric</button>
+      </div>
+    </form>
+  </section>
+
+</div>
+{% endblock %}

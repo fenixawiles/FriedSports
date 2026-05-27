@@ -1,0 +1,111 @@
+{% extends "admin/base.html" %}
+{% block title %}Rebound Leverage Lab{% endblock %}
+{% block admin_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>Rebound Leverage Lab</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">Controlling for FG% parity — does rebounding differential predict winning?</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config form -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Query Parameters</span>
+    </div>
+    <form method="post" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.5rem">
+
+      <div class="form-group" style="margin-bottom:0;min-width:140px">
+        <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">League</label>
+        <select name="league_id" required>
+          <option value="">Select</option>
+          {% for l in leagues %}
+          <option value="{{ l.id }}" {% if params.get('league_id') == l.id %}selected{% endif %}>{{ l.abbreviation }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0;min-width:160px">
+        <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">Season <span class="label-hint">— optional</span></label>
+        <select name="season_id">
+          <option value="">All Seasons</option>
+          {% for s in seasons %}
+          <option value="{{ s.id }}" {% if params.get('season_id') == s.id %}selected{% endif %}>{{ s.label() }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0;min-width:110px">
+        <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">FG% Parity ±</label>
+        <input type="number" name="fg_pct_threshold" step="0.005" min="0" max="0.2"
+               value="{{ params.get('threshold', 0.02) }}" style="width:100px">
+      </div>
+
+      <div class="form-group" style="margin-bottom:0;min-width:90px">
+        <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">Bin Size</label>
+        <input type="number" name="bin_size" min="1" max="20"
+               value="{{ params.get('bin_size', 5) }}" style="width:80px">
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">Playoffs Only</label>
+        <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;margin-top:0.5rem">
+          <input type="checkbox" name="playoffs_only" {% if params.get('playoffs_only') %}checked{% endif %}>
+          <span style="font-size:0.85rem;color:var(--text-secondary)">Yes</span>
+        </label>
+      </div>
+
+      <button type="submit" class="btn-primary" style="align-self:flex-end">Run Query</button>
+    </form>
+  </section>
+
+  <!-- Results -->
+  {% if results is not none %}
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Results</span>
+      <span style="font-size:0.75rem;color:var(--text-muted)">
+        {{ results.total_filtered }} qualifying games
+        (of {{ results.total_qualifying }} total)
+        &middot; FG% parity ≤ {{ "%.1f"|format(results.threshold_used * 100) }}%
+      </span>
+    </div>
+
+    {% if results.total_filtered == 0 %}
+    <div class="empty-state">
+      <p>No games meet the current parameters. Add more game data or widen the FG% threshold.</p>
+    </div>
+    {% else %}
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:2fr 1fr 1fr 1fr">
+        <span>TRB Differential</span>
+        <span>Sample (N)</span>
+        <span>Win %</span>
+        <span>Avg Margin</span>
+      </div>
+      {% for bin in results.bins %}
+      <div class="member-row" style="grid-template-columns:2fr 1fr 1fr 1fr">
+        <span class="member-name" style="font-weight:{% if bin.sample > 10 %}700{% else %}400{% endif %}">{{ bin.label }}</span>
+        <span style="color:{% if bin.sample > 5 %}var(--text-primary){% else %}var(--text-muted){% endif %}">{{ bin.sample }}</span>
+        <span style="font-weight:700;color:{% if bin.win_pct is not none and bin.win_pct > 0.55 %}var(--green){% elif bin.win_pct is not none and bin.win_pct < 0.45 %}var(--accent){% else %}var(--text-secondary){% endif %}">
+          {% if bin.win_pct is not none %}{{ "%.1f"|format(bin.win_pct * 100) }}%{% else %}—{% endif %}
+        </span>
+        <span style="color:{% if bin.avg_margin is not none and bin.avg_margin > 0 %}var(--green){% elif bin.avg_margin is not none and bin.avg_margin < 0 %}var(--accent){% else %}var(--text-muted){% endif %}">
+          {% if bin.avg_margin is not none %}{% if bin.avg_margin > 0 %}+{% endif %}{{ bin.avg_margin }}{% else %}—{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:1rem">
+      Only games with complete team stats included. Win % and margin are from the perspective of each team row.
+    </p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

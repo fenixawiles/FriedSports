@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — FraudWatch{% endblock %}
+{% block content %}
+<div class="dashboard-container">
+
+  <div class="dashboard-header">
+    <h1>{{ current_user.display_name }}</h1>
+    {% if groups %}
+    <div class="stats-bar">
+      <div class="stat-block">
+        <div class="stat-label">Shame</div>
+        <div class="stat-value negative">{{ total_shame }}</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Bragging Rights</div>
+        <div class="stat-value">{{ total_bragging }}</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Trash Talk</div>
+        <div class="stat-value">{{ total_trash }}</div>
+      </div>
+    </div>
+    <div class="dashboard-teams">
+      {% if fav_nba %}
+      <div class="fav-team-card">
+        <div class="fav-league">NBA</div>
+        <div class="fav-abbr" style="color: {{ fav_nba.primary_color }}">{{ fav_nba.abbreviation }}</div>
+        <div class="fav-name">{{ fav_nba.city }} {{ fav_nba.name }}</div>
+      </div>
+      {% endif %}
+      {% if fav_nfl %}
+      <div class="fav-team-card">
+        <div class="fav-league">NFL</div>
+        <div class="fav-abbr" style="color: {{ fav_nfl.primary_color }}">{{ fav_nfl.abbreviation }}</div>
+        <div class="fav-name">{{ fav_nfl.city }} {{ fav_nfl.name }}</div>
+      </div>
+      {% endif %}
+      {% if not fav_nba and not fav_nfl %}
+      <a href="{{ url_for('dashboard.onboarding') }}" class="fav-team-card fav-empty">+ Pick your teams</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if not groups %}
+  <div class="dashboard-no-groups">
+    <p class="no-groups-sub">You're not in any groups yet. Create one or join with an invite code.</p>
+    <div class="no-groups-actions">
+      <a href="{{ url_for('groups.new') }}" class="btn-primary btn-large">Create a Group</a>
+      <a href="{{ url_for('groups.join_prompt') }}" class="btn-secondary">Join with Invite Code</a>
+    </div>
+  </div>
+  {% else %}
+
+  {% if active_threads %}
+  <section class="dashboard-section">
+    <div class="section-header">
+      <span class="section-title">Active Incidents</span>
+    </div>
+    <div class="alert-list">
+      {% for thread in active_threads %}
+      <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="alert-banner">
+        <div class="alert-body">
+          <div class="alert-title">{{ thread.title }}</div>
+          <div class="alert-meta">{{ thread.messages.count() }} messages &middot; {{ thread.group.name }}</div>
+        </div>
+        <div class="alert-arrow">→</div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="dashboard-section">
+    <div class="section-header">
+      <span class="section-title">Groups</span>
+      <a href="{{ url_for('groups.new') }}" class="btn-secondary-small">New Group</a>
+    </div>
+    <div class="group-list">
+      {% for item in groups %}
+      <a href="{{ url_for('groups.show', group_id=item.group.id) }}" class="group-card">
+        <div class="group-card-left">
+          <div class="group-card-name">{{ item.group.name }}</div>
+          <div class="group-card-meta">
+            <span class="badge-scope">{{ item.group.league_scope }}</span>
+            <span class="badge-role {{ item.member.role }}">{{ item.member.role }}</span>
+          </div>
+          <div class="group-card-scores">
+            <span><span class="stat-label">Shame</span> <span style="font-weight:700;color:var(--accent)">{{ item.member.shame_score or 0 }}</span></span>
+            <span><span class="stat-label">Trash</span> <span style="font-weight:700">{{ item.member.trash_talk_score or 0 }}</span></span>
+            <span><span class="stat-label">Brag</span> <span style="font-weight:700">{{ item.member.bragging_rights_score or 0 }}</span></span>
+          </div>
+        </div>
+        <span style="color:var(--text-muted);font-size:0.8rem">→</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% endif %}
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  function pollAlerts() {
+    fetch('/api/dashboard/alerts.json')
+      .then(r => r.json())
+      .then(data => {
+        const badge = document.getElementById('alert-badge');
+        const count = document.getElementById('alert-count');
+        if (data.count > 0) {
+          count.textContent = data.count;
+          badge.style.display = 'inline-flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      })
+      .catch(() => {});
+  }
+  pollAlerts();
+  setInterval(pollAlerts, 20000);
+</script>
+{% endblock %}

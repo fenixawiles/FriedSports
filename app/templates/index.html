@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}FriedSports — Sports trash talk, organized{% endblock %}
+{% block content %}
+<div class="hero">
+  <div class="hero-eyebrow">Sports trash talk, organized</div>
+  <h1 class="hero-title">Your team just choked.<br><em>Your group is already waiting.</em></h1>
+  <p class="hero-sub">
+    FriedSports is a private platform for holding your friends accountable when their teams blow it. File incident reports, open roast threads, and track who's been the most delusional fan all season.
+  </p>
+  <div class="hero-actions">
+    <a href="{{ url_for('auth.signup') }}" class="btn-primary">Get Started — It's Free</a>
+    <a href="{{ url_for('auth.login') }}" class="btn-secondary">Log In</a>
+  </div>
+</div>
+
+<div class="features">
+  <div class="features-label">How it works</div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-number">01</div>
+      <h3>Pick Your Teams</h3>
+      <p>NBA, NFL, MLB, NHL, Premier League, FIFA, F1, PGA — pick the teams you ride or die with.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-number">02</div>
+      <h3>File Incident Reports</h3>
+      <p>Blowout, choked lead, playoff collapse — file a formal report when someone's team embarrasses them.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-number">03</div>
+      <h3>Group Roast Threads</h3>
+      <p>Every report opens a group thread. Pile in, talk trash, award reactions. The target gets notified.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-number">04</div>
+      <h3>Permanent Receipts</h3>
+      <p>After every major disaster, a shareable receipt gets generated. The evidence doesn't disappear.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

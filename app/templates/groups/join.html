@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Join {{ group.name }} — FraudWatch{% endblock %}
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <h1 class="auth-title">Join Group</h1>
+    <p class="auth-sub">You've been invited to <strong>{{ group.name }}</strong>.</p>
+    <div class="group-preview">
+      <div class="group-preview-name">{{ group.name }}</div>
+      <div class="group-preview-meta">
+        <span class="badge-scope">{{ group.league_scope }}</span>
+        <span>{{ group.members.count() }} members</span>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('groups.join', invite_code=group.invite_code) }}">
+      <button type="submit" class="btn-primary btn-full">Join "{{ group.name }}"</button>
+    </form>
+    <p class="auth-switch"><a href="{{ url_for('dashboard.dashboard') }}">← Back to dashboard</a></p>
+  </div>
+</div>
+{% endblock %}

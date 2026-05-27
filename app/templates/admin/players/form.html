@@ -1,0 +1,41 @@
+{% extends "admin/base.html" %}
+{% block title %}Add Player — Lab{% endblock %}
+{% block admin_content %}
+<div class="report-container">
+
+  <div class="report-header">
+    <a href="{{ url_for('admin.players_list') }}" class="back-link">← Players</a>
+    <h1>Add Player</h1>
+  </div>
+
+  <form method="post" class="report-form">
+    <div class="report-section">
+      <div class="report-section-label">Player Info</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" name="name" required maxlength="128" placeholder="Full name" autofocus>
+        </div>
+        <div class="form-group">
+          <label>Position</label>
+          <input type="text" name="position" maxlength="32" placeholder="PG, SG, SF, PF, C, QB…">
+        </div>
+        <div class="form-group">
+          <label>Team</label>
+          <select name="team_id" required>
+            <option value="">Select team</option>
+            {% for t in teams %}
+            <option value="{{ t.id }}">{{ t.city }} {{ t.name }} ({{ t.league }})</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="report-submit">
+      <button type="submit" class="btn-primary btn-large">Add Player</button>
+      <a href="{{ url_for('admin.players_list') }}" class="btn-secondary" style="margin-left:0.75rem">Cancel</a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

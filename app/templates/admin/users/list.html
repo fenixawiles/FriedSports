@@ -1,0 +1,74 @@
+{% extends "admin/base.html" %}
+{% block title %}Users — FriedSports Admin{% endblock %}
+{% block admin_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>Users</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ users.total }} accounts</span>
+      </div>
+    </div>
+    <div class="group-actions">
+      <!-- Invite form -->
+      <form action="{{ url_for('admin.users_invite') }}" method="post" style="display:flex;gap:0.5rem;align-items:center">
+        <input type="email" name="email" placeholder="invite@email.com" required
+               style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.82rem;width:200px">
+        <button type="submit" class="btn-secondary-small">Send Invite</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <section class="group-section">
+    <form method="get" style="display:flex;gap:0.5rem;margin-bottom:1rem">
+      <input type="text" name="q" value="{{ search }}" placeholder="Search by name or email…"
+             style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.75rem;border-radius:6px;font-size:0.85rem;flex:1">
+      <button type="submit" class="btn-secondary-small">Search</button>
+      {% if search %}<a href="{{ url_for('admin.users_list') }}" class="btn-secondary-small">Clear</a>{% endif %}
+    </form>
+
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:2fr 2.5fr 1fr 1fr 1fr">
+        <span>Name</span><span>Email</span><span>Role</span><span>Joined</span><span></span>
+      </div>
+      {% for user in users.items %}
+      <div class="member-row" style="grid-template-columns:2fr 2.5fr 1fr 1fr 1fr">
+        <span class="member-name">{{ user.display_name }}</span>
+        <span style="color:var(--text-secondary);font-size:0.82rem">{{ user.email }}</span>
+        <span>
+          <span class="badge-role {% if user.is_admin %}admin{% else %}member{% endif %}">
+            {{ user.role }}
+          </span>
+        </span>
+        <span style="font-size:0.75rem;color:var(--text-muted)">
+          {{ user.created_at.strftime('%b %d, %Y') if user.created_at else '—' }}
+        </span>
+        <span>
+          <a href="{{ url_for('admin.users_detail', user_id=user.id) }}" class="btn-secondary-small">View</a>
+        </span>
+      </div>
+      {% else %}
+      <div style="padding:1.5rem;text-align:center;color:var(--text-muted)">No users found.</div>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if users.pages > 1 %}
+    <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:1rem">
+      {% if users.has_prev %}
+      <a href="{{ url_for('admin.users_list', page=users.prev_num, q=search) }}" class="btn-secondary-small">← Prev</a>
+      {% endif %}
+      <span style="font-size:0.8rem;color:var(--text-muted);padding:0.3rem 0.5rem">
+        Page {{ users.page }} of {{ users.pages }}
+      </span>
+      {% if users.has_next %}
+      <a href="{{ url_for('admin.users_list', page=users.next_num, q=search) }}" class="btn-secondary-small">Next →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

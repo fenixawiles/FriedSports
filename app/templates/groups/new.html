@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}New Group — FriedSports{% endblock %}
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <h1 class="auth-title">Create a Group</h1>
+    <p class="auth-sub">Invite your most insufferable sports friends.</p>
+    <form method="post" action="{{ url_for('groups.new') }}" class="auth-form">
+      <div class="form-group">
+        <label for="name">Group Name</label>
+        <input type="text" id="name" name="name" required maxlength="100"
+               placeholder="e.g. The Slander Room" value="{{ request.form.get('name', '') }}">
+      </div>
+      <div class="form-group">
+        <label for="league_scope">League Focus</label>
+        <select id="league_scope" name="league_scope">
+          <option value="MULTI">Multi-League</option>
+          <option value="NBA">NBA</option>
+          <option value="NFL">NFL</option>
+          <option value="MLB">MLB</option>
+          <option value="NHL">NHL</option>
+          <option value="EPL">Premier League</option>
+          <option value="FIFA">FIFA / International</option>
+          <option value="F1">Formula 1</option>
+          <option value="PGA">PGA Tour</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="privacy">Privacy</label>
+        <select id="privacy" name="privacy">
+          <option value="private">Private (invite only)</option>
+          <option value="public_readonly">Public (view only, invite to post)</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-primary btn-full">Create Group</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

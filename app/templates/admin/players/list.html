@@ -1,0 +1,57 @@
+{% extends "admin/base.html" %}
+{% block title %}Players — Lab{% endblock %}
+{% block admin_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>Players</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ players|length }} total</span>
+      </div>
+    </div>
+    <div class="group-actions">
+      <a href="{{ url_for('admin.players_new') }}" class="btn-primary">+ Add Player</a>
+    </div>
+  </div>
+
+  <form method="get" style="margin-bottom:1.5rem">
+    <div class="form-group" style="margin-bottom:0;max-width:240px">
+      <select name="team_id" onchange="this.form.submit()">
+        <option value="">All Teams</option>
+        {% for t in teams %}
+        <option value="{{ t.id }}" {% if selected_team == t.id %}selected{% endif %}>{{ t.city }} {{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  {% if players %}
+  <div class="member-table">
+    <div class="member-row member-header" style="grid-template-columns:2fr 1fr 1fr 1fr">
+      <span>Name</span><span>Team</span><span>Position</span><span>Status</span>
+    </div>
+    {% for p in players %}
+    <div class="member-row" style="grid-template-columns:2fr 1fr 1fr 1fr">
+      <span class="member-name">{{ p.name }}</span>
+      <span style="font-size:0.82rem;color:var(--text-secondary)">{{ p.team.abbreviation }}</span>
+      <span style="font-size:0.82rem;color:var(--text-muted)">{{ p.position or '—' }}</span>
+      <span>
+        {% if p.active %}
+        <span style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--green)">Active</span>
+        {% else %}
+        <span style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Inactive</span>
+        {% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <p>No players yet.</p>
+    <a href="{{ url_for('admin.players_new') }}" class="btn-primary">Add First Player</a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

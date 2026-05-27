@@ -1,0 +1,112 @@
+{% extends "admin/base.html" %}
+{% block title %}Lab Overview — FraudWatch{% endblock %}
+{% block admin_content %}
+<div class="dashboard-container" style="max-width:980px">
+
+  <div class="dashboard-header">
+    <h1>Sports Analytics Lab</h1>
+    <div class="stats-bar">
+      <div class="stat-block">
+        <div class="stat-label">Games</div>
+        <div class="stat-value">{{ game_count }}</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">With Derived Metrics</div>
+        <div class="stat-value">{{ derived_count }}</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Players</div>
+        <div class="stat-value">{{ player_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <section class="dashboard-section">
+    <div class="section-header">
+      <span class="section-title">Quick Actions</span>
+    </div>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:2rem">
+      <a href="{{ url_for('admin.games_new') }}" class="btn-primary">+ Add Game</a>
+      <a href="{{ url_for('admin.players_new') }}" class="btn-secondary">+ Add Player</a>
+      <a href="{{ url_for('admin.lab_rebound') }}" class="btn-secondary">Rebound Lab</a>
+    </div>
+  </section>
+
+  <!-- Leagues + Season creation -->
+  <section class="dashboard-section">
+    <div class="section-header">
+      <span class="section-title">Leagues & Seasons</span>
+    </div>
+    {% if leagues %}
+    <div class="thread-list" style="margin-bottom:1.5rem">
+      {% for league in leagues %}
+      <div class="thread-card" style="cursor:default;opacity:1">
+        <div class="thread-card-left">
+          <div class="thread-title">{{ league.name }}</div>
+          <div class="thread-meta">{{ league.abbreviation }} &middot; {{ league.sport_type }} &middot; {{ league.seasons.count() }} seasons</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><p>No leagues seeded yet.</p></div>
+    {% endif %}
+
+    <div style="margin-top:1rem">
+      <div class="report-section-label">Add Season</div>
+      <form action="{{ url_for('admin.seasons_new') }}" method="post" style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="next" value="{{ url_for('admin.dashboard') }}">
+        <div class="form-group" style="margin-bottom:0">
+          <select name="league_id" required>
+            <option value="">League</option>
+            {% for l in leagues %}
+            <option value="{{ l.id }}">{{ l.abbreviation }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <input type="number" name="year" placeholder="Year e.g. 2024" min="1950" max="2099" required style="width:140px">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <select name="season_type">
+            <option value="regular">Regular</option>
+            <option value="playoffs">Playoffs</option>
+            <option value="preseason">Preseason</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-secondary-small">Add Season</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Recent games -->
+  {% if recent_games %}
+  <section class="dashboard-section">
+    <div class="section-header">
+      <span class="section-title">Recent Entries</span>
+      <a href="{{ url_for('admin.games_list') }}" class="btn-secondary-small">All Games</a>
+    </div>
+    <div class="thread-list">
+      {% for g in recent_games %}
+      <a href="{{ url_for('admin.games_detail', game_id=g.id) }}" class="thread-card">
+        <div class="thread-card-left">
+          <div class="thread-title">
+            {{ g.away_team.abbreviation }} @ {{ g.home_team.abbreviation }}
+            <span style="font-weight:400;color:var(--text-muted)">— {{ g.away_score }}–{{ g.home_score }}</span>
+          </div>
+          <div class="thread-meta">
+            {{ g.date }} &middot; {{ g.league.abbreviation }}
+            {% if g.has_full_stats() %}&middot; <span style="color:var(--green)">stats ✓</span>{% endif %}
+            {% if g.has_derived_metrics() %}&middot; <span style="color:var(--green)">metrics ✓</span>{% endif %}
+          </div>
+        </div>
+        <span style="color:var(--text-muted);font-size:0.8rem">→</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

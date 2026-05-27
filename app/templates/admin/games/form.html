@@ -1,0 +1,136 @@
+{% extends "admin/base.html" %}
+{% block title %}Add Game — Lab{% endblock %}
+{% block admin_content %}
+<div class="report-container">
+
+  <div class="report-header">
+    <a href="{{ url_for('admin.games_list') }}" class="back-link">← Games</a>
+    <h1>Add Game</h1>
+    <p class="report-sub">Enter game result and team stats. Percentages are computed automatically.</p>
+  </div>
+
+  <form method="post" class="report-form">
+
+    <!-- Game info -->
+    <div class="report-section">
+      <div class="report-section-label">Game Info</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">
+        <div class="form-group">
+          <label>League</label>
+          <select name="league_id" id="league-select" required onchange="filterTeams()">
+            <option value="">Select league</option>
+            {% for l in leagues %}
+            <option value="{{ l.id }}" data-abbr="{{ l.abbreviation }}">{{ l.abbreviation }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Season <span class="label-hint">— optional</span></label>
+          <select name="season_id">
+            <option value="">No season</option>
+            {% for s in seasons %}
+            <option value="{{ s.id }}">{{ s.label() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" name="date" required>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.5rem">
+        <div class="form-group">
+          <label>Away Team</label>
+          <select name="away_team_id" id="away-team-select" required>
+            <option value="">Select team</option>
+            {% for t in all_teams %}
+            <option value="{{ t.id }}" data-league="{{ t.league }}">{{ t.city }} {{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Home Team</label>
+          <select name="home_team_id" id="home-team-select" required>
+            <option value="">Select team</option>
+            {% for t in all_teams %}
+            <option value="{{ t.id }}" data-league="{{ t.league }}">{{ t.city }} {{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1rem;margin-top:0.5rem">
+        <div class="form-group">
+          <label>Away Score</label>
+          <input type="number" name="away_score" min="0" required placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Home Score</label>
+          <input type="number" name="home_score" min="0" required placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            <option value="final">Final</option>
+            <option value="scheduled">Scheduled</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Venue <span class="label-hint">— optional</span></label>
+          <input type="text" name="venue" maxlength="128" placeholder="Arena name">
+        </div>
+      </div>
+    </div>
+
+    <!-- Away Stats -->
+    <div class="report-section">
+      <div class="report-section-label">Away Team Stats</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem">
+        {% for stat, lbl in [('points','Points'),('fgm','FGM'),('fga','FGA'),('three_pm','3PM'),('three_pa','3PA'),('ftm','FTM'),('fta','FTA'),('off_rebounds','ORB'),('def_rebounds','DRB'),('assists','AST'),('steals','STL'),('blocks','BLK'),('turnovers','TOV'),('fouls','PF')] %}
+        <div class="form-group">
+          <label>{{ lbl }}</label>
+          <input type="number" name="away_{{ stat }}" min="0" placeholder="0">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Home Stats -->
+    <div class="report-section">
+      <div class="report-section-label">Home Team Stats</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem">
+        {% for stat, lbl in [('points','Points'),('fgm','FGM'),('fga','FGA'),('three_pm','3PM'),('three_pa','3PA'),('ftm','FTM'),('fta','FTA'),('off_rebounds','ORB'),('def_rebounds','DRB'),('assists','AST'),('steals','STL'),('blocks','BLK'),('turnovers','TOV'),('fouls','PF')] %}
+        <div class="form-group">
+          <label>{{ lbl }}</label>
+          <input type="number" name="home_{{ stat }}" min="0" placeholder="0">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="report-submit">
+      <button type="submit" class="btn-primary btn-large">Save Game</button>
+      <a href="{{ url_for('admin.games_list') }}" class="btn-secondary" style="margin-left:0.75rem">Cancel</a>
+    </div>
+
+  </form>
+</div>
+
+<script>
+function filterTeams() {
+  const leagueSelect = document.getElementById('league-select');
+  const selected = leagueSelect.options[leagueSelect.selectedIndex];
+  const abbr = selected ? selected.dataset.abbr : null;
+  ['away-team-select', 'home-team-select'].forEach(id => {
+    const sel = document.getElementById(id);
+    const val = sel.value;
+    Array.from(sel.options).forEach(opt => {
+      if (!opt.value) return;
+      opt.hidden = abbr ? opt.dataset.league !== abbr : false;
+    });
+    const cur = sel.querySelector(`option[value="${val}"]`);
+    if (cur && cur.hidden) sel.value = '';
+  });
+}
+filterTeams();
+</script>
+{% endblock %}
