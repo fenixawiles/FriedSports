@@ -1,0 +1,106 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ ticket.uid }} — Support — FriedSports Admin{% endblock %}
+{% block admin_content %}
+<div class="group-container" style="max-width:720px">
+
+  <div class="group-header">
+    <div>
+      <h1 style="font-size:1.25rem">{{ ticket.subject }}</h1>
+      <div class="group-header-meta" style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+        <span style="font-family:monospace;font-size:0.8rem;color:var(--accent);font-weight:600">{{ ticket.uid }}</span>
+        <span class="badge-status-{{ ticket.status }}">{{ ticket.status_label }}</span>
+      </div>
+    </div>
+    <div class="group-actions">
+      <a href="{{ url_for('admin.support_list') }}" class="btn-secondary-small">← Queue</a>
+      <a href="{{ url_for('admin.users_detail', user_id=ticket.user_id) }}" class="btn-secondary-small">View User</a>
+    </div>
+  </div>
+
+  <!-- Metadata -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Ticket Info</span>
+    </div>
+    <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem">
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.2rem">Submitted By</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary)">
+          <a href="{{ url_for('admin.users_detail', user_id=ticket.user_id) }}" style="color:var(--text-primary)">{{ ticket.user.display_name }}</a>
+          <span style="color:var(--text-muted)"> · {{ ticket.user.email }}</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.2rem">Category</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary)">{{ ticket.category.replace('_', ' ').title() }}</div>
+      </div>
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.2rem">Opened</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary)">{{ ticket.created_at.strftime('%b %d, %Y at %I:%M %p') }}</div>
+      </div>
+      {% if ticket.resolved_at %}
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.2rem">Resolved</div>
+        <div style="font-size:0.85rem;color:#34c77b">{{ ticket.resolved_at.strftime('%b %d, %Y at %I:%M %p') }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Description -->
+    <div>
+      <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">User's Report</div>
+      <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;font-size:0.9rem;line-height:1.65;color:var(--text-secondary);white-space:pre-wrap">{{ ticket.description }}</div>
+    </div>
+  </section>
+
+  <!-- Admin Response / Status Update -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">{% if ticket.is_resolved %}Resolution{% else %}Update Status{% endif %}</span>
+    </div>
+
+    {% if ticket.is_resolved %}
+    <!-- Resolved — locked banner -->
+    <div style="background:rgba(52,199,123,0.08);border:1px solid rgba(52,199,123,0.25);border-radius:var(--radius-sm);padding:1rem 1.25rem;margin-bottom:1rem">
+      <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#34c77b;margin-bottom:0.3rem">✓ Resolved</div>
+      <div style="font-size:0.85rem;color:var(--text-secondary)">This ticket is closed. No further status changes can be made.</div>
+    </div>
+    {% if ticket.admin_note %}
+    <div>
+      <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Response Sent to User</div>
+      <div style="background:var(--bg-elevated);border-left:3px solid #34c77b;border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:1rem;font-size:0.9rem;line-height:1.65;color:var(--text-secondary);white-space:pre-wrap">{{ ticket.admin_note }}</div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- Active — update form -->
+    {% if ticket.admin_note %}
+    <div style="margin-bottom:1.25rem">
+      <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Previous Response</div>
+      <div style="background:var(--bg-elevated);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:1rem;font-size:0.9rem;line-height:1.65;color:var(--text-secondary);white-space:pre-wrap">{{ ticket.admin_note }}</div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('admin.support_detail', uid=ticket.uid) }}">
+      <div class="form-group">
+        <label for="status">Move to Status</label>
+        <select id="status" name="status" class="team-select">
+          {% for s in ticket.NEXT_STATUSES[ticket.status] %}
+          <option value="{{ s }}">{{ ticket.STATUS_LABELS[s] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="admin_note">Response to User <span style="font-weight:400;color:var(--text-muted)">(optional — sent in notification email)</span></label>
+        <textarea id="admin_note" name="admin_note" rows="5"
+                  placeholder="Explain what was found, what's being done, or what resolved the issue…"
+                  style="resize:vertical">{{ ticket.admin_note or '' }}</textarea>
+      </div>
+      <button type="submit" class="btn-primary">Update Status</button>
+    </form>
+    {% endif %}
+
+  </section>
+
+</div>
+{% endblock %}

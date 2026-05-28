@@ -67,6 +67,33 @@
     {% endif %}
   </section>
 
+  <!-- Support Tickets -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Support Tickets</span>
+      <a href="{{ url_for('admin.support_list') }}?user={{ user.id }}" class="btn-secondary-small" style="font-size:0.75rem">All Tickets</a>
+    </div>
+    {% set tickets = user.support_tickets.order_by(none).all() %}
+    {% if tickets %}
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:1fr 3fr 1fr 1fr">
+        <span>Ref</span><span>Subject</span><span>Status</span><span>Date</span>
+      </div>
+      {% for t in tickets %}
+      <div class="member-row" style="grid-template-columns:1fr 3fr 1fr 1fr">
+        <span><a href="{{ url_for('admin.support_detail', uid=t.uid) }}"
+                 style="font-family:monospace;font-size:0.78rem;color:var(--accent)">{{ t.uid }}</a></span>
+        <span class="member-name" style="font-size:0.85rem">{{ t.subject }}</span>
+        <span><span class="badge-status-{{ t.status }}" style="font-size:0.72rem;padding:2px 7px;border-radius:20px;font-weight:600">{{ t.status_label }}</span></span>
+        <span style="font-size:0.75rem;color:var(--text-muted)">{{ t.created_at.strftime('%b %d') }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><p>No support tickets from this user.</p></div>
+    {% endif %}
+  </section>
+
   <!-- Admin Actions -->
   <section class="group-section">
     <div class="section-header" style="margin-bottom:0.85rem">

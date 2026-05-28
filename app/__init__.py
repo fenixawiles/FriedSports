@@ -42,6 +42,7 @@ def create_app(config=None):
     from app.routes.reports import reports_bp
     from app.routes.admin import admin_bp
     from app.routes.legal import legal_bp
+    from app.routes.support import support_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -52,6 +53,7 @@ def create_app(config=None):
     app.register_blueprint(reports_bp, url_prefix="/reports")
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(legal_bp)
+    app.register_blueprint(support_bp, url_prefix="/support")
 
     register_commands(app)
 

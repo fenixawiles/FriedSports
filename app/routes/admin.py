@@ -8,7 +8,7 @@ URL prefix: /admin
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app
 from flask_login import login_required, current_user
 from app.utils import admin_required
-from app.models import db, Team, User, UserFavoriteTeam, GroupMember, AdminAuditLog
+from app.models import db, Team, User, UserFavoriteTeam, GroupMember, AdminAuditLog, SupportTicket
 from app.analytics.models import (
     LabLeague, LabSeason, LabGame, LabPlayer,
     TeamGameStats, PlayerGameStats, DerivedGameMetrics, MetricDefinition,
@@ -610,3 +610,87 @@ def broadcast():
         return redirect(url_for("admin.broadcast"))
 
     return render_template("admin/broadcast.html")
+
+
+# ── Support ticket management ─────────────────────────────────────────────────
+
+@admin_bp.route("/support")
+@login_required
+@admin_required
+def support_list():
+    status_filter = request.args.get("status", "all")
+    q = SupportTicket.query.order_by(SupportTicket.created_at.desc())
+    if status_filter != "all":
+        q = q.filter_by(status=status_filter)
+    tickets = q.all()
+    counts = {
+        "all":         SupportTicket.query.count(),
+        "received":    SupportTicket.query.filter_by(status="received").count(),
+        "in_progress": SupportTicket.query.filter_by(status="in_progress").count(),
+        "resolved":    SupportTicket.query.filter_by(status="resolved").count(),
+    }
+    return render_template(
+        "admin/support/list.html",
+        tickets=tickets,
+        status_filter=status_filter,
+        counts=counts,
+    )
+
+
+@admin_bp.route("/support/<uid>", methods=["GET", "POST"])
+@login_required
+@admin_required
+def support_detail(uid):
+    import threading
+    ticket = SupportTicket.query.filter_by(uid=uid).first_or_404()
+
+    if request.method == "POST":
+        if ticket.is_resolved:
+            flash("This ticket is already resolved.", "info")
+            return redirect(url_for("admin.support_detail", uid=uid))
+
+        new_status = request.form.get("status", "").strip()
+        admin_note = request.form.get("admin_note", "").strip() or None
+
+        valid_next = ticket.NEXT_STATUSES.get(ticket.status, [])
+        if new_status not in valid_next:
+            flash("Invalid status transition.", "error")
+            return redirect(url_for("admin.support_detail", uid=uid))
+
+        old_status = ticket.status
+        ticket.status = new_status
+        ticket.admin_note = admin_note
+        if new_status == "resolved":
+            from datetime import datetime, timezone
+            ticket.resolved_at = datetime.now(timezone.utc)
+
+        log = AdminAuditLog(
+            admin_id=current_user.id,
+            target_user_id=ticket.user_id,
+            action="ticket_status_update",
+            details=f"{ticket.uid}: {old_status} → {new_status}",
+            ip_address=request.remote_addr,
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        _app = current_app._get_current_object()
+        _tid = ticket.id
+
+        def _notify(app, ticket_id):
+            with app.app_context():
+                try:
+                    t = db.session.get(SupportTicket, ticket_id)
+                    if t:
+                        from app.services.email_service import send_ticket_status_update
+                        send_ticket_status_update(t)
+                        db.session.commit()
+                except Exception as e:
+                    app.logger.error(f"Ticket status email error: {e}")
+
+        threading.Thread(target=_notify, args=(_app, _tid), daemon=True).start()
+
+        flash(f"Ticket {uid} updated to {ticket.status_label}.", "success")
+        return redirect(url_for("admin.support_detail", uid=uid))
+
+    return render_template("admin/support/detail.html", ticket=ticket)

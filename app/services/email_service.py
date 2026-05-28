@@ -239,6 +239,84 @@ def send_admin_notification(subject, body):
     return _send(admin_email, f"[FriedSports Admin] {subject}", html, body)
 
 
+# ── Support ticket emails ─────────────────────────────────────────────────────
+
+def send_ticket_received_user(ticket):
+    """Confirm to the user that their ticket was received."""
+    base_url = "https://friedsports.com"
+    token = _make_magic_link(ticket.user_id, f"/support/{ticket.uid}")
+    cta_url = f"{base_url}/auth/magic/{token}"
+    html = _wrap(f"""
+<p>Hey <strong style="color:#fff">{ticket.user.display_name}</strong>,</p>
+<p>We got your report. Here's your reference number:</p>
+<div class="code-box"><span style="font-size:1.4rem;letter-spacing:.15em">{ticket.uid}</span></div>
+<p><strong style="color:#fff">Subject:</strong> {ticket.subject}</p>
+<p>We'll look into it and keep you posted. You'll get an email when the status changes.</p>
+<a href="{cta_url}" class="btn">View Your Ticket →</a>
+<hr class="divider">
+<p class="muted">Keep this email for your reference number.</p>
+""")
+    text = f"Support ticket {ticket.uid} received: {ticket.subject}. View it: {cta_url}"
+    return _send(ticket.user.email, f"Got it — {ticket.uid} received", html, text)
+
+
+def send_ticket_received_admin(ticket):
+    """Notify admin that a new support ticket was submitted."""
+    admin_email = current_app.config.get("ADMIN_EMAIL")
+    if not admin_email:
+        current_app.logger.info(f"[admin email skipped — ADMIN_EMAIL not set] ticket {ticket.uid}")
+        return False
+    base_url = "https://friedsports.com"
+    cta_url = f"{base_url}/admin/support/{ticket.uid}"
+    html = _wrap(f"""
+<p>New support ticket submitted.</p>
+<p>
+  <strong style="color:#fff">Ref:</strong> {ticket.uid}<br>
+  <strong style="color:#fff">From:</strong> {ticket.user.display_name} ({ticket.user.email})<br>
+  <strong style="color:#fff">Category:</strong> {ticket.category.replace('_', ' ').title()}<br>
+  <strong style="color:#fff">Subject:</strong> {ticket.subject}
+</p>
+<div style="background:#1a1a2e;border-left:3px solid #d93348;padding:10px 14px;border-radius:0 4px 4px 0;margin:0 0 20px">
+  <p style="margin:0;color:#c8c8d8;font-style:italic">{ticket.description}</p>
+</div>
+<a href="{cta_url}" class="btn">Manage Ticket →</a>
+""")
+    text = f"New ticket {ticket.uid} from {ticket.user.display_name}: {ticket.subject}"
+    return _send(admin_email, f"[Support] {ticket.uid} — {ticket.subject}", html, text)
+
+
+def send_ticket_status_update(ticket):
+    """Notify user of a status change (in_progress or resolved)."""
+    base_url = "https://friedsports.com"
+    token = _make_magic_link(ticket.user_id, f"/support/{ticket.uid}")
+    cta_url = f"{base_url}/auth/magic/{token}"
+
+    if ticket.status == "in_progress":
+        subject = f"We're on it — {ticket.uid} is being investigated"
+        status_line = "Your issue is currently <strong style=\"color:#f0a500\">In Progress</strong>."
+    else:  # resolved
+        subject = f"Resolved — your issue {ticket.uid} has been closed"
+        status_line = "Your issue has been marked <strong style=\"color:#34c77b\">Resolved</strong>."
+
+    note_block = ""
+    if ticket.admin_note:
+        note_block = f"""
+<p style="margin:0 0 8px;font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">Response from FriedSports</p>
+<div style="background:#1a1a2e;border-left:3px solid #34c77b;padding:10px 14px;border-radius:0 4px 4px 0;margin:0 0 20px">
+  <p style="margin:0;color:#c8c8d8">{ticket.admin_note}</p>
+</div>"""
+
+    html = _wrap(f"""
+<p>Hey <strong style="color:#fff">{ticket.user.display_name}</strong>,</p>
+<p>Update on your support ticket <strong style="color:#fff">{ticket.uid}</strong> — {ticket.subject}</p>
+<p>{status_line}</p>
+{note_block}
+<a href="{cta_url}" class="btn">View Ticket →</a>
+""")
+    text = f"Update on {ticket.uid}: {ticket.status_label}. View: {cta_url}"
+    return _send(ticket.user.email, subject, html, text)
+
+
 # ── Magic link helper (used internally + by routes) ──────────────────────────
 
 def _make_magic_link(user_id, next_url, expires_minutes=60 * 24):

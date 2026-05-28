@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.uid }} — Support — FriedSports{% endblock %}
+{% block content %}
+<div class="group-container" style="max-width:640px">
+
+  <div class="thread-header">
+    <a href="{{ url_for('support.index') }}" class="back-link">← Support</a>
+    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-top:0.5rem">
+      <h1 class="thread-title-large" style="margin:0">{{ ticket.subject }}</h1>
+      <span class="badge-status-{{ ticket.status }}" style="font-size:0.75rem">{{ ticket.status_label }}</span>
+    </div>
+    <p style="font-family:monospace;font-size:0.8rem;color:var(--accent);margin-top:0.35rem;font-weight:600">{{ ticket.uid }}</p>
+  </div>
+
+  <section class="group-section" style="border-top:none;padding-top:0">
+
+    <!-- Metadata -->
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.5rem">
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.2rem">Category</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary)">{{ ticket.category.replace('_',' ').title() }}</div>
+      </div>
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.2rem">Opened</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary)">{{ ticket.created_at.strftime('%b %d, %Y') }}</div>
+      </div>
+      {% if ticket.resolved_at %}
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.2rem">Resolved</div>
+        <div style="font-size:0.85rem;color:#34c77b">{{ ticket.resolved_at.strftime('%b %d, %Y') }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Description -->
+    <div style="margin-bottom:1.5rem">
+      <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Your Report</div>
+      <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;font-size:0.9rem;line-height:1.65;color:var(--text-secondary);white-space:pre-wrap">{{ ticket.description }}</div>
+    </div>
+
+    <!-- Admin response (if any) -->
+    {% if ticket.admin_note %}
+    <div style="margin-bottom:1.5rem">
+      <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Response from FriedSports</div>
+      <div style="background:var(--bg-elevated);border-left:3px solid {% if ticket.is_resolved %}#34c77b{% else %}var(--accent){% endif %};border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:1rem;font-size:0.9rem;line-height:1.65;color:var(--text-secondary);white-space:pre-wrap">{{ ticket.admin_note }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Resolved banner -->
+    {% if ticket.is_resolved %}
+    <div style="background:rgba(52,199,123,0.08);border:1px solid rgba(52,199,123,0.2);border-radius:var(--radius-sm);padding:0.75rem 1rem;font-size:0.85rem;color:#34c77b">
+      ✓ This issue has been resolved.
+    </div>
+    {% else %}
+    <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">
+      You'll receive an email when the status of this ticket changes.
+    </div>
+    {% endif %}
+
+  </section>
+
+</div>
+{% endblock %}

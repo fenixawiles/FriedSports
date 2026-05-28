@@ -1,0 +1,61 @@
+{% extends "admin/base.html" %}
+{% block title %}Support Queue — FriedSports Admin{% endblock %}
+{% block admin_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>Support Queue</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ counts['all'] }} total tickets</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter tabs -->
+  <section class="group-section" style="border-top:none;padding-top:0">
+    <div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      {% set tab_defs = [
+        ('all',         'All',         total),
+        ('received',    'Received',    counts.received),
+        ('in_progress', 'In Progress', counts.in_progress),
+        ('resolved',    'Resolved',    counts.resolved),
+      ] %}
+      {% for val, label, cnt in tab_defs %}
+      <a href="{{ url_for('admin.support_list', status=val if val != 'all' else None) }}"
+         style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.3rem 0.75rem;border-radius:20px;font-size:0.8rem;font-weight:600;text-decoration:none;border:1px solid {% if status_filter == val %}var(--accent){% else %}var(--border){% endif %};color:{% if status_filter == val %}var(--accent){% else %}var(--text-muted){% endif %};background:{% if status_filter == val %}rgba(255,59,48,0.07){% else %}transparent{% endif %}">
+        {{ label }}
+        <span style="font-size:0.72rem;background:var(--bg-elevated);padding:1px 6px;border-radius:10px;color:var(--text-secondary)">{{ cnt }}</span>
+      </a>
+      {% endfor %}
+    </div>
+
+    {% if tickets %}
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:1.2fr 2fr 3fr 1.2fr 1.2fr 1fr">
+        <span>Ref</span><span>User</span><span>Subject</span><span>Category</span><span>Status</span><span>Opened</span>
+      </div>
+      {% for t in tickets %}
+      <a href="{{ url_for('admin.support_detail', uid=t.uid) }}"
+         class="member-row" style="text-decoration:none;display:grid;grid-template-columns:1.2fr 2fr 3fr 1.2fr 1.2fr 1fr">
+        <span style="font-family:monospace;font-size:0.78rem;color:var(--accent);font-weight:600">{{ t.uid }}</span>
+        <span class="member-name" style="font-size:0.85rem">{{ t.user.display_name }}</span>
+        <span style="font-size:0.85rem;color:var(--text-secondary)">{{ t.subject }}</span>
+        <span style="font-size:0.78rem;color:var(--text-muted)">{{ t.category.replace('_', ' ').title() }}</span>
+        <span>
+          <span class="badge-status-{{ t.status }}">{{ t.status_label }}</span>
+        </span>
+        <span style="font-size:0.75rem;color:var(--text-muted)">{{ t.created_at.strftime('%b %d') }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>No tickets{% if status_filter != 'all' %} with status "{{ status_filter }}"{% endif %}.</p>
+    </div>
+    {% endif %}
+
+  </section>
+
+</div>
+{% endblock %}

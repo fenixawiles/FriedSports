@@ -398,3 +398,52 @@ class LoginToken(db.Model):
     @property
     def is_valid(self):
         return self.used_at is None and datetime.now(timezone.utc) < self.expires_at
+
+
+def _generate_support_uid():
+    import random
+    import string
+    chars = string.ascii_uppercase + string.digits
+    return 'FS-' + ''.join(random.choices(chars, k=7))
+
+
+class SupportTicket(db.Model):
+    """User-submitted support/bug reports with admin lifecycle management."""
+    __tablename__ = "support_tickets"
+
+    id          = db.Column(db.Integer, primary_key=True)
+    uid         = db.Column(db.String(12), unique=True, nullable=False,
+                            default=_generate_support_uid, index=True)
+    user_id     = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    subject     = db.Column(db.String(200), nullable=False)
+    category    = db.Column(db.String(32), nullable=False, default="other")
+    # bug | account | feature | billing | other
+    description = db.Column(db.Text, nullable=False)
+    status      = db.Column(db.String(16), nullable=False, default="received")
+    # received | in_progress | resolved
+    admin_note  = db.Column(db.Text, nullable=True)   # internal; shown to user as "Response"
+    resolved_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at  = db.Column(db.DateTime(timezone=True), default=now_utc)
+    updated_at  = db.Column(db.DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+    user = db.relationship("User", backref=db.backref("support_tickets", lazy="dynamic"))
+
+    STATUS_LABELS = {
+        "received":    "Received",
+        "in_progress": "In Progress",
+        "resolved":    "Resolved",
+    }
+    # Valid next statuses from each state; empty list = terminal
+    NEXT_STATUSES = {
+        "received":    ["in_progress", "resolved"],
+        "in_progress": ["resolved"],
+        "resolved":    [],
+    }
+
+    @property
+    def is_resolved(self):
+        return self.status == "resolved"
+
+    @property
+    def status_label(self):
+        return self.STATUS_LABELS.get(self.status, self.status)

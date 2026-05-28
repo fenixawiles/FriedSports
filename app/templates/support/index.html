@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Support — FriedSports{% endblock %}
+{% block content %}
+<div class="group-container">
+
+  <div class="thread-header">
+    <h1 class="thread-title-large">Support</h1>
+    <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem">Your reported issues and their status</p>
+  </div>
+
+  <section class="group-section" style="border-top:none;padding-top:0">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <div>
+        <span class="section-title">My Tickets</span>
+      </div>
+      <a href="{{ url_for('support.new') }}" class="btn-primary-small">+ Report an Issue</a>
+    </div>
+
+    {% if tickets %}
+    <div class="member-table">
+      <div class="member-row member-header">
+        <span>Ref</span><span>Subject</span><span>Status</span><span>Opened</span>
+      </div>
+      {% for t in tickets %}
+      <a href="{{ url_for('support.detail', uid=t.uid) }}" class="member-row" style="text-decoration:none;display:grid">
+        <span style="font-family:monospace;font-size:0.8rem;color:var(--accent);font-weight:600">{{ t.uid }}</span>
+        <span class="member-name">{{ t.subject }}</span>
+        <span>
+          <span class="badge-status-{{ t.status }}">{{ t.status_label }}</span>
+        </span>
+        <span style="font-size:0.75rem;color:var(--text-muted)">{{ t.created_at.strftime('%b %d, %Y') }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>No tickets yet. Something broken or not working right?</p>
+      <a href="{{ url_for('support.new') }}" class="btn-primary" style="margin-top:1rem;display:inline-block">Report an Issue →</a>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

@@ -27,6 +27,7 @@
         <a href="{{ url_for('dashboard.dashboard') }}" class="nav-link">Dashboard</a>
         <a href="{{ url_for('groups.new') }}" class="nav-link">New Group</a>
         <a href="{{ url_for('groups.join_prompt') }}" class="nav-link">Join Group</a>
+        <a href="{{ url_for('support.index') }}" class="nav-link">Support</a>
         {% if current_user.is_admin %}
         <a href="{{ url_for('admin.dashboard') }}" class="nav-link nav-link-admin">Lab</a>
         {% endif %}
