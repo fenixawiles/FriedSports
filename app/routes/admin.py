@@ -454,12 +454,12 @@ def users_send_email(user_id):
     if not subject or not body:
         flash("Subject and body are required.", "error")
         return redirect(url_for("admin.users_detail", user_id=user_id))
-    from app.services.email_service import _send
-    ok = _send(subject, user.email, body)
+    from app.services.email_service import _send, _wrap
+    ok = _send(user.email, subject, _wrap(f"<p>{body}</p>"), body)
     if ok:
         flash(f"Email sent to {user.email}.", "success")
     else:
-        flash("Email not sent — mail not configured.", "warning")
+        flash("Email failed — check RESEND_API_KEY in Railway.", "warning")
     return redirect(url_for("admin.users_detail", user_id=user_id))
 
 
@@ -474,14 +474,16 @@ def users_invite():
     if User.query.filter_by(email=email).first():
         flash("A user with that email already exists.", "info")
         return redirect(url_for("admin.users_list"))
-    from app.services.email_service import _send
+    from app.services.email_service import _send, _wrap
     invite_url = url_for("auth.signup", _external=True)
-    body = f"You've been invited to FriedSports. Sign up here: {invite_url}"
-    ok = _send("You're invited to FriedSports", email, body)
+    text = f"You've been invited to FriedSports. Sign up here: {invite_url}"
+    html = _wrap(f"<p>You've been invited to FriedSports.</p>"
+                 f'<a href="{invite_url}" class="btn">Sign Up →</a>')
+    ok = _send(email, "You're invited to FriedSports", html, text)
     if ok:
         flash(f"Invite sent to {email}.", "success")
     else:
-        flash(f"Mail not configured — share this link manually: {invite_url}", "info")
+        flash(f"Email failed — share this link manually: {invite_url}", "info")
     return redirect(url_for("admin.users_list"))
 
 
