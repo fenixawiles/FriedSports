@@ -183,6 +183,46 @@ def register_device_token():
     return jsonify({"ok": True})
 
 
+@api_bp.route("/groups/<int:group_id>/members")
+@login_required
+def group_members(group_id):
+    group = Group.query.get_or_404(group_id)
+    requester = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id).first()
+    if not requester and group.privacy != "public_readonly":
+        abort(403)
+
+    all_members = (
+        GroupMember.query
+        .options(joinedload(GroupMember.user))
+        .filter_by(group_id=group_id)
+        .all()
+    )
+
+    is_owner = requester and requester.role == "owner"
+    is_admin = requester and requester.role in ("owner", "admin")
+
+    result = []
+    for m in all_members:
+        can_remove = (
+            is_admin
+            and m.role != "owner"
+            and m.user_id != current_user.id
+        )
+        can_transfer = (
+            is_owner
+            and m.user_id != current_user.id
+        )
+        result.append({
+            "user_id": m.user_id,
+            "display_name": m.user.display_name if m.user else "Unknown",
+            "role": m.role,
+            "can_remove": can_remove,
+            "can_transfer": can_transfer,
+        })
+
+    return jsonify(result)
+
+
 def _is_admin(user_id, group_id):
     member = GroupMember.query.filter_by(group_id=group_id, user_id=user_id).first()
     return member and member.role in ("owner", "admin")

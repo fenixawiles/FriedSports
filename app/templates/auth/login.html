@@ -18,6 +18,11 @@
       </div>
       <button type="submit" class="btn-primary btn-full">Log In</button>
     </form>
+    <p class="auth-switch" style="margin-top:0.5rem">
+      <a href="{{ url_for('auth.send_code') }}" style="color:var(--text-muted);font-size:0.82rem">
+        Sign in with a code instead →
+      </a>
+    </p>
     <p class="auth-switch">New here? <a href="{{ url_for('auth.signup') }}">Create an account</a></p>
   </div>
 </div>

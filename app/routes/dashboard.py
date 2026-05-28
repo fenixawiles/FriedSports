@@ -114,10 +114,6 @@ def dashboard():
 
     fav_teams = {uft.league: uft.team for uft in current_user.favorite_teams.all()}
 
-    total_shame = sum(m.shame_score or 0 for m in memberships)
-    total_bragging = sum(m.bragging_rights_score or 0 for m in memberships)
-    total_trash = sum(m.trash_talk_score or 0 for m in memberships)
-
     groups = [{"group": m.group, "member": m} for m in memberships]
 
     # Show profile completion prompt for existing users who haven't set names yet
@@ -134,9 +130,6 @@ def dashboard():
         fav_teams=fav_teams,
         fav_nba=fav_teams.get("NBA"),
         fav_nfl=fav_teams.get("NFL"),
-        total_shame=total_shame,
-        total_bragging=total_bragging,
-        total_trash=total_trash,
         show_profile_prompt=show_profile_prompt,
     )
 

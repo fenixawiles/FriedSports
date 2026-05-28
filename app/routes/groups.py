@@ -1,8 +1,8 @@
 import secrets
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
-from app.models import db, Group, GroupMember, GameThread, Receipt
-from app.services.scoring import compute_leaderboards
+from sqlalchemy import func
+from app.models import db, Group, GroupMember, GameThread, GameThreadMessage, Receipt
 
 groups_bp = Blueprint("groups", __name__)
 
@@ -84,14 +84,23 @@ def show(group_id):
         group_id=group_id, status="active"
     ).order_by(GameThread.created_at.desc()).all()
 
-    from sqlalchemy.orm import joinedload
-    all_members = (
-        GroupMember.query
-        .options(joinedload(GroupMember.user))
-        .filter_by(group_id=group_id)
-        .all()
-    )
-    members_with_users = [{"member": m, "user": m.user} for m in all_members]
+    # Batch message counts — one query instead of one per thread card
+    thread_ids = [t.id for t in threads]
+    msg_counts = {}
+    if thread_ids:
+        rows = (
+            db.session.query(
+                GameThreadMessage.thread_id,
+                func.count(GameThreadMessage.id),
+            )
+            .filter(
+                GameThreadMessage.thread_id.in_(thread_ids),
+                GameThreadMessage.is_deleted == False,
+            )
+            .group_by(GameThreadMessage.thread_id)
+            .all()
+        )
+        msg_counts = {tid: cnt for tid, cnt in rows}
 
     receipts = Receipt.query.filter_by(group_id=group_id).order_by(
         Receipt.created_at.desc()
@@ -102,25 +111,10 @@ def show(group_id):
         group=group,
         member=member,
         threads=threads,
-        members_with_users=members_with_users,
+        msg_counts=msg_counts,
         receipts=receipts,
     )
 
-
-@groups_bp.route("/<int:group_id>/leaderboard")
-@login_required
-def leaderboard(group_id):
-    group = Group.query.get_or_404(group_id)
-    member = _require_member(group, current_user.id)
-
-    leaderboards = compute_leaderboards(group_id, limit=None)
-
-    return render_template(
-        "groups/leaderboard.html",
-        group=group,
-        member=member,
-        leaderboards=leaderboards,
-    )
 
 
 @groups_bp.route("/<int:group_id>/report", methods=["GET", "POST"])
@@ -297,6 +291,29 @@ def join(invite_code):
 
     member_count = group.members.count()
     return render_template("groups/join.html", group=group, member_count=member_count)
+
+
+@groups_bp.route("/<int:group_id>/invite-email", methods=["POST"])
+@login_required
+def invite_email(group_id):
+    group = Group.query.get_or_404(group_id)
+    member = group.get_member(current_user.id)
+    if not member:
+        abort(403)
+    to_email = request.form.get("invite_email", "").strip().lower()
+    if not to_email or "@" not in to_email:
+        flash("Enter a valid email address.", "error")
+        return redirect(url_for("groups.show", group_id=group_id))
+    invite_url = f"{request.host_url.rstrip('/')}groups/join/{group.invite_code}"
+    try:
+        from app.services.email_service import send_invite_email
+        send_invite_email(to_email, current_user, group, invite_url)
+        flash(f"Invite sent to {to_email}.", "success")
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"Invite email failed: {e}")
+        flash("Couldn't send the invite right now. Copy the link instead.", "error")
+    return redirect(url_for("groups.show", group_id=group_id))
 
 
 @groups_bp.route("/<int:group_id>/regenerate-invite", methods=["POST"])

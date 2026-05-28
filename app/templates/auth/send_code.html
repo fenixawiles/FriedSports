@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Sign In — FriedSports{% endblock %}
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <h1 class="auth-title">Sign In With a Code</h1>
+    <p class="auth-sub">We'll email you a 6-digit code. No password needed.</p>
+    <form method="post" action="{{ url_for('auth.send_code') }}" class="auth-form">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required
+               placeholder="your@email.com" autocomplete="email"
+               value="{{ request.form.get('email', '') }}">
+      </div>
+      <button type="submit" class="btn-primary btn-full">Send Code</button>
+    </form>
+    <p class="auth-switch">
+      <a href="{{ url_for('auth.login') }}" style="color:var(--text-muted);font-size:0.82rem">
+        ← Back to password login
+      </a>
+    </p>
+  </div>
+</div>
+{% endblock %}
+{% block footer %}
+<footer class="site-footer">
+  <span>© 2025 FriedSports</span>
+  <a href="{{ url_for('legal.privacy') }}">Privacy Policy</a>
+  <a href="{{ url_for('legal.terms') }}">Terms</a>
+</footer>
+{% endblock %}

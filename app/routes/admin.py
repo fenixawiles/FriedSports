@@ -570,3 +570,41 @@ def _apply_stats_from_form(form, stats: TeamGameStats, prefix: str = ""):
     stats.turnovers = fi("turnovers")
     stats.fouls = fi("fouls")
     stats.compute_percentages()
+
+
+# ── Broadcast email ───────────────────────────────────────────────────────────
+
+@admin_bp.route("/broadcast", methods=["GET", "POST"])
+@login_required
+@admin_required
+def broadcast():
+    if request.method == "POST":
+        subject = request.form.get("subject", "").strip()
+        body_html = request.form.get("body_html", "").strip()
+        target = request.form.get("target", "all")
+        target_email = request.form.get("target_email", "").strip().lower()
+
+        if not subject or not body_html:
+            flash("Subject and body are required.", "error")
+            return render_template("admin/broadcast.html")
+
+        from app.services.email_service import send_broadcast, _send
+
+        if target == "single":
+            if not target_email:
+                flash("Enter a target email address.", "error")
+                return render_template("admin/broadcast.html")
+            from app.services.email_service import _wrap
+            ok = _send(target_email, subject, _wrap(body_html))
+            if ok:
+                flash(f"Email sent to {target_email}.", "success")
+            else:
+                flash("Send failed — check RESEND_API_KEY.", "error")
+        else:
+            users = User.query.filter(User.email.isnot(None)).all()
+            sent, failed = send_broadcast(users, subject, body_html)
+            flash(f"Sent to {sent} users. {failed} failed.", "success" if failed == 0 else "warning")
+
+        return redirect(url_for("admin.broadcast"))
+
+    return render_template("admin/broadcast.html")

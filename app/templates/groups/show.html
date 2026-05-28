@@ -40,7 +40,16 @@
   {% if member %}
   <div class="invite-panel" id="invite-panel">
     <div class="invite-panel-inner">
-      <div class="invite-panel-label">Share this link — works for anyone, with or without an account</div>
+      <div class="invite-panel-label">Invite by email — or copy the link below</div>
+      <div class="invite-panel-row">
+        <form action="{{ url_for('groups.invite_email', group_id=group.id) }}" method="post"
+              style="display:contents">
+          <input type="email" name="invite_email" class="invite-url-input"
+                 placeholder="friend@example.com" required autocomplete="off">
+          <button type="submit" class="btn-primary-small">Send Invite</button>
+        </form>
+      </div>
+      <div class="invite-panel-label" style="margin-top:0.75rem">Or share the link directly</div>
       <div class="invite-panel-row">
         <input type="text" class="invite-url-input" id="invite-url-input" readonly
                value="" placeholder="Loading...">
@@ -80,7 +89,7 @@
         <div class="thread-card-left">
           <div class="thread-title">{{ thread.title }}</div>
           <div class="thread-meta">
-            {{ thread.messages.count() }} messages &middot;
+            {{ msg_counts.get(thread.id, 0) }} messages &middot;
             <span class="team-chip" style="color: {{ thread.target_team.primary_color }}">{{ thread.target_team.abbreviation }}</span>
             {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
             {% if ir %}
@@ -102,48 +111,29 @@
     {% endif %}
   </section>
 
-  <!-- Members -->
-  <section class="group-section">
+  <!-- Members (lazy-loaded when section scrolls into view) -->
+  <section class="group-section" id="members-section"
+           data-group-id="{{ group.id }}"
+           data-members-url="{{ url_for('api.group_members', group_id=group.id) }}"
+           data-remove-url="/groups/{{ group.id }}/remove/"
+           data-transfer-url="/groups/{{ group.id }}/transfer-owner/"
+           data-is-admin="{{ 'true' if member and member.role in ('owner', 'admin') else 'false' }}"
+           data-is-owner="{{ 'true' if member and member.role == 'owner' else 'false' }}">
     <div class="section-header" style="margin-bottom:0.85rem">
       <div>
         <span class="section-title">Members</span>
         <span class="section-sub">Who's in this group</span>
       </div>
-      <a href="{{ url_for('groups.leaderboard', group_id=group.id) }}" class="btn-secondary-small">Leaderboard →</a>
     </div>
-    <div class="member-table">
-      <div class="member-row member-header">
-        <span>Member</span><span>Role</span><span>Shame</span>
-        <span>Trash Talk</span><span>Bragging</span>
-        {% if member and member.role in ('owner', 'admin') %}<span></span>{% endif %}
+    <div id="members-table-wrap">
+      <!-- skeleton rows shown until data loads -->
+      <div class="member-table member-table-skeleton">
+        <div class="member-row member-header">
+          <span>Member</span><span>Role</span>
+        </div>
+        <div class="member-row skeleton-row"><span class="skel skel-name"></span><span class="skel skel-role"></span></div>
+        <div class="member-row skeleton-row"><span class="skel skel-name"></span><span class="skel skel-role"></span></div>
       </div>
-      {% for item in members_with_users %}
-      <div class="member-row">
-        <span class="member-name">{{ item.user.display_name }}</span>
-        <span><span class="badge-role {{ item.member.role }}">{{ item.member.role }}</span></span>
-        <span class="score shame">{{ item.member.shame_score or 0 }}</span>
-        <span class="score trash">{{ item.member.trash_talk_score or 0 }}</span>
-        <span class="score brag">{{ item.member.bragging_rights_score or 0 }}</span>
-        {% if member and member.role in ('owner', 'admin') and item.member.role != 'owner' %}
-        <span style="display:flex;gap:0.4rem">
-          <form action="{{ url_for('groups.remove_member', group_id=group.id, user_id=item.user.id) }}"
-                method="post" style="display:inline"
-                onsubmit="return confirm('Remove {{ item.user.display_name }}?')">
-            <button type="submit" class="btn-danger-tiny">Remove</button>
-          </form>
-          {% if member.role == 'owner' %}
-          <form action="{{ url_for('groups.transfer_owner', group_id=group.id, user_id=item.user.id) }}"
-                method="post" style="display:inline"
-                onsubmit="return confirm('Transfer ownership to {{ item.user.display_name }}?')">
-            <button type="submit" class="btn-secondary-tiny">Owner</button>
-          </form>
-          {% endif %}
-        </span>
-        {% elif member and member.role in ('owner', 'admin') %}
-        <span></span>
-        {% endif %}
-      </div>
-      {% endfor %}
     </div>
   </section>
 
@@ -213,5 +203,94 @@ function copyInvitePanel() {
     prompt('Copy this invite link:', INVITE_URL);
   });
 }
+
+// ── Lazy-load members table ──────────────────────────────────────────────────
+(function () {
+  var section = document.getElementById('members-section');
+  if (!section) return;
+
+  var loaded = false;
+
+  function loadMembers() {
+    if (loaded) return;
+    loaded = true;
+
+    var url = section.dataset.membersUrl;
+    var removeBase = section.dataset.removeUrl;
+    var transferBase = section.dataset.transferUrl;
+
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (members) {
+        var wrap = document.getElementById('members-table-wrap');
+        if (!wrap) return;
+
+        // Detect whether ANY member has admin actions (determines extra column)
+        var hasActions = members.some(function (m) { return m.can_remove || m.can_transfer; });
+
+        var html = '<div class="member-table">';
+        html += '<div class="member-row member-header">';
+        html += '<span>Member</span><span>Role</span>';
+        if (hasActions) html += '<span></span>';
+        html += '</div>';
+
+        members.forEach(function (m) {
+          html += '<div class="member-row">';
+          html += '<span class="member-name">' + _esc(m.display_name) + '</span>';
+          html += '<span><span class="badge-role ' + _esc(m.role) + '">' + _esc(m.role) + '</span></span>';
+
+          if (hasActions) {
+            if (m.can_remove || m.can_transfer) {
+              html += '<span style="display:flex;gap:0.4rem">';
+              if (m.can_remove) {
+                html += '<form action="' + removeBase + m.user_id + '" method="post" style="display:inline"'
+                  + ' onsubmit="return confirm(\'Remove ' + _esc(m.display_name) + '?\')">'
+                  + '<button type="submit" class="btn-danger-tiny">Remove</button></form>';
+              }
+              if (m.can_transfer) {
+                html += '<form action="' + transferBase + m.user_id + '" method="post" style="display:inline"'
+                  + ' onsubmit="return confirm(\'Transfer ownership to ' + _esc(m.display_name) + '?\')">'
+                  + '<button type="submit" class="btn-secondary-tiny">Owner</button></form>';
+              }
+              html += '</span>';
+            } else {
+              html += '<span></span>';
+            }
+          }
+
+          html += '</div>';
+        });
+
+        html += '</div>';
+        wrap.innerHTML = html;
+      })
+      .catch(function () {
+        var wrap = document.getElementById('members-table-wrap');
+        if (wrap) wrap.innerHTML = '<div class="lb-empty">Could not load members.</div>';
+      });
+  }
+
+  function _esc(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // Use IntersectionObserver if available, otherwise load immediately
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      if (entries[0].isIntersecting) {
+        loadMembers();
+        observer.disconnect();
+      }
+    }, { rootMargin: '200px' });  // start loading 200px before it enters view
+    observer.observe(section);
+  } else {
+    loadMembers();
+  }
+})();
 </script>
 {% endblock %}

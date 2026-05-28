@@ -32,24 +32,20 @@ class Config:
         **({"connect_args": {"ssl_context": True}} if _use_ssl else {}),
     }
 
-    # Cache static files (CSS, JS, images) for 1 year in the browser.
-    # Flask appends ?v=<hash> to url_for('static') in production so cache-busting
-    # happens automatically when files change.
+    # Static file caching — 1 year in production, disabled in development
+    # so CSS/JS changes are visible immediately without hard-refreshing.
     SEND_FILE_MAX_AGE_DEFAULT = 31536000  # 1 year in seconds
 
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 
-    # Flask-Mail
-    MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
-    MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
-    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
-    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
-    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
-    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_FROM", "noreply@friedsports.com")
+    # Resend email
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+    MAIL_FROM = os.environ.get("MAIL_FROM", "noreply@friedsports.com")
 
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    SEND_FILE_MAX_AGE_DEFAULT = 0  # no caching in dev — CSS/JS changes appear immediately
 
 
 class ProductionConfig(Config):

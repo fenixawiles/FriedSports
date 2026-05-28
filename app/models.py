@@ -377,3 +377,24 @@ class DeviceToken(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
     user = db.relationship("User", backref=db.backref("device_tokens", lazy="select"))
+
+
+class LoginToken(db.Model):
+    """Single-use tokens for email OTP sign-in and magic-link authentication."""
+    __tablename__ = "login_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    purpose = db.Column(db.String(32), nullable=False)   # 'signin_code' | 'magic_link'
+    code = db.Column(db.String(8), nullable=True)        # 6-digit OTP (signin_code only)
+    next_url = db.Column(db.String(512), nullable=True)  # redirect after magic link login
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    used_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
+
+    user = db.relationship("User", backref=db.backref("login_tokens", lazy="select"))
+
+    @property
+    def is_valid(self):
+        return self.used_at is None and datetime.now(timezone.utc) < self.expires_at

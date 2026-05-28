@@ -29,22 +29,6 @@
 
   <div class="dashboard-header">
     <h1>{{ current_user.shown_name }}</h1>
-    {% if groups %}
-    <div class="stats-bar">
-      <div class="stat-block">
-        <div class="stat-label">Shame</div>
-        <div class="stat-value negative">{{ total_shame }}</div>
-      </div>
-      <div class="stat-block">
-        <div class="stat-label">Bragging Rights</div>
-        <div class="stat-value">{{ total_bragging }}</div>
-      </div>
-      <div class="stat-block">
-        <div class="stat-label">Trash Talk</div>
-        <div class="stat-value">{{ total_trash }}</div>
-      </div>
-    </div>
-    {% endif %}
   </div>
 
   {% if not groups %}
@@ -76,11 +60,6 @@
           <div class="group-card-meta">
             <span class="badge-scope">{{ item.group.league_scope }}</span>
             <span class="badge-role {{ item.member.role }}">{{ item.member.role }}</span>
-          </div>
-          <div class="group-card-scores">
-            <span><span class="stat-label">Shame</span> <span style="font-weight:700;color:var(--accent)">{{ item.member.shame_score or 0 }}</span></span>
-            <span><span class="stat-label">Trash</span> <span style="font-weight:700">{{ item.member.trash_talk_score or 0 }}</span></span>
-            <span><span class="stat-label">Brag</span> <span style="font-weight:700">{{ item.member.bragging_rights_score or 0 }}</span></span>
           </div>
         </div>
         <span style="color:var(--text-muted);font-size:0.8rem">→</span>

@@ -2,7 +2,6 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
-from flask_mail import Mail
 from flask_compress import Compress
 
 from config import get_config
@@ -15,7 +14,6 @@ login_manager.login_view = "auth.login"
 login_manager.login_message = "Please log in to continue."
 login_manager.login_message_category = "warning"
 
-mail = Mail()
 compress = Compress()
 
 
@@ -32,7 +30,6 @@ def create_app(config=None):
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
-    mail.init_app(app)
     compress.init_app(app)
 
     # Blueprints

@@ -88,31 +88,55 @@ def create_incident_thread(report):
         report.target_team_id,
     )
 
-    # Send push notification to the target user (iOS app) — fire and forget
+    # Fire push + email notifications in background — never block thread creation
     try:
         from flask import current_app
 
-        def _push_background(app, user_id, title, body, data):
+        _app = current_app._get_current_object()
+        _report_id = report.id
+        _thread_id = thread.id
+
+        def _notify_background(app, report_id, thread_id):
             with app.app_context():
                 try:
-                    from app.services.push_service import send_push
-                    send_push(user_id=user_id, title=title, body=body, data=data)
+                    from app.models import db as _db, IncidentReport
+                    r = _db.session.get(IncidentReport, report_id)
+                    if not r:
+                        return
+                    # Push notification (iOS)
+                    try:
+                        from app.services.push_service import send_push
+                        send_push(
+                            user_id=r.target_user_id,
+                            title="🚨 Thread Started",
+                            body=f"{r.reporter.shown_name} started a thread on your {r.target_team.name}.",
+                            data={"thread_id": thread_id, "group_id": r.group_id},
+                        )
+                    except Exception:
+                        pass
+                    # Email notification with magic-link CTA
+                    try:
+                        from app.services.email_service import send_thread_notification
+                        send_thread_notification(
+                            target_user=r.target_user,
+                            reporter=r.reporter,
+                            team=r.target_team,
+                            incident_type=r.incident_type,
+                            group=r.group,
+                            thread_id=thread_id,
+                            description=r.description,
+                        )
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 
-        _app = current_app._get_current_object()
         threading.Thread(
-            target=_push_background,
-            args=(
-                _app,
-                report.target_user_id,
-                "🚨 Thread Started",
-                f"{report.reporter.shown_name} started a thread on your {report.target_team.name}.",
-                {"thread_id": thread.id, "group_id": report.group_id},
-            ),
+            target=_notify_background,
+            args=(_app, _report_id, _thread_id),
             daemon=True,
         ).start()
     except Exception:
-        pass  # Never let push failures block thread creation
+        pass  # Never let notification failures block thread creation
 
     return thread

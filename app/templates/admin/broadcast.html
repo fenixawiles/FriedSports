@@ -1,0 +1,57 @@
+{% extends "admin/base.html" %}
+{% block title %}Broadcast Email — Admin{% endblock %}
+{% block admin_content %}
+<div class="group-container" style="max-width:680px">
+
+  <div class="thread-header">
+    <h1 class="thread-title-large">Broadcast Email</h1>
+    <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem">Send an email to all users or a single address</p>
+  </div>
+
+  <section class="group-section" style="border-top:none;padding-top:0">
+    <form method="post" action="{{ url_for('admin.broadcast') }}" class="auth-form">
+
+      <div class="form-group">
+        <label for="target">Recipients</label>
+        <select name="target" id="target" class="team-select" onchange="toggleSingleEmail(this.value)">
+          <option value="all">All users</option>
+          <option value="single">Single email address</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="single-email-group" style="display:none">
+        <label for="target_email">Target Email</label>
+        <input type="email" name="target_email" id="target_email"
+               placeholder="user@example.com" autocomplete="off">
+      </div>
+
+      <div class="form-group">
+        <label for="subject">Subject</label>
+        <input type="text" name="subject" id="subject" required
+               placeholder="e.g. FriedSports just dropped something new">
+      </div>
+
+      <div class="form-group">
+        <label for="body_html">Body (HTML supported)</label>
+        <textarea name="body_html" id="body_html" rows="10" required
+                  style="font-family:monospace;font-size:0.85rem"
+                  placeholder="&lt;p&gt;Hey,&lt;/p&gt;&lt;p&gt;Big news...&lt;/p&gt;"></textarea>
+        <span style="font-size:0.75rem;color:var(--text-muted)">
+          Will be wrapped in the FriedSports dark email template automatically.
+        </span>
+      </div>
+
+      <button type="submit" class="btn-primary"
+              onclick="return confirm('Send this email? This cannot be undone.')">
+        Send Email
+      </button>
+    </form>
+  </section>
+
+</div>
+<script>
+function toggleSingleEmail(val) {
+  document.getElementById('single-email-group').style.display = val === 'single' ? '' : 'none';
+}
+</script>
+{% endblock %}

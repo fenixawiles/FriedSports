@@ -37,6 +37,7 @@
     <a href="{{ url_for('admin.lab_rebound') }}" class="admin-nav-link {% if request.endpoint == 'admin.lab_rebound' %}active{% endif %}">Rebound Lab</a>
     <a href="{{ url_for('admin.users_list') }}" class="admin-nav-link {% if 'admin.users' in request.endpoint %}active{% endif %}">Users</a>
     <a href="{{ url_for('admin.audit_log') }}" class="admin-nav-link {% if request.endpoint == 'admin.audit_log' %}active{% endif %}">Audit Log</a>
+    <a href="{{ url_for('admin.broadcast') }}" class="admin-nav-link {% if request.endpoint == 'admin.broadcast' %}active{% endif %}">Broadcast</a>
   </div>
 </nav>
 {% block admin_content %}{% endblock %}
