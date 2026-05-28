@@ -32,6 +32,11 @@ class Config:
         **({"connect_args": {"ssl_context": True}} if _use_ssl else {}),
     }
 
+    # Cache static files (CSS, JS, images) for 1 year in the browser.
+    # Flask appends ?v=<hash> to url_for('static') in production so cache-busting
+    # happens automatically when files change.
+    SEND_FILE_MAX_AGE_DEFAULT = 31536000  # 1 year in seconds
+
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 
     # Flask-Mail

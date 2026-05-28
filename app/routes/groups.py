@@ -84,12 +84,14 @@ def show(group_id):
         group_id=group_id, status="active"
     ).order_by(GameThread.created_at.desc()).all()
 
-    all_members = GroupMember.query.filter_by(group_id=group_id).all()
-    from app.models import User
-    members_with_users = [
-        {"member": m, "user": User.query.get(m.user_id)}
-        for m in all_members
-    ]
+    from sqlalchemy.orm import joinedload
+    all_members = (
+        GroupMember.query
+        .options(joinedload(GroupMember.user))
+        .filter_by(group_id=group_id)
+        .all()
+    )
+    members_with_users = [{"member": m, "user": m.user} for m in all_members]
 
     leaderboards = compute_leaderboards(group_id)
 
@@ -119,9 +121,15 @@ def report_incident(group_id):
     if not member:
         abort(403)
 
-    all_members = GroupMember.query.filter_by(group_id=group_id).all()
+    from sqlalchemy.orm import joinedload as _jl
+    all_members = (
+        GroupMember.query
+        .options(_jl(GroupMember.user))
+        .filter_by(group_id=group_id)
+        .all()
+    )
     members_with_users = [
-        {"member": m, "user": User.query.get(m.user_id)}
+        {"member": m, "user": m.user}
         for m in all_members
         if m.user_id != current_user.id
     ]
@@ -148,11 +156,15 @@ def report_incident(group_id):
         for t in all_teams
     }
 
-    # Build userId → [teamId, ...] map for JS team suggestions
+    # Batch-load all favorite teams for target members — one IN query vs N queries
+    target_user_ids = [m.user_id for m in all_members if m.user_id != current_user.id]
     user_fav_teams = {}
-    for item in members_with_users:
-        favs = UserFavoriteTeam.query.filter_by(user_id=item["user"].id).all()
-        user_fav_teams[str(item["user"].id)] = [uft.team_id for uft in favs]
+    if target_user_ids:
+        favs = UserFavoriteTeam.query.filter(
+            UserFavoriteTeam.user_id.in_(target_user_ids)
+        ).all()
+        for uft in favs:
+            user_fav_teams.setdefault(str(uft.user_id), []).append(uft.team_id)
 
     if request.method == "POST":
         target_user_id = request.form.get("target_user_id", type=int)

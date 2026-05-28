@@ -73,7 +73,13 @@ def onboarding():
 @dashboard_bp.route("/dashboard")
 @login_required
 def dashboard():
-    memberships = GroupMember.query.filter_by(user_id=current_user.id).all()
+    from sqlalchemy.orm import joinedload
+    memberships = (
+        GroupMember.query
+        .options(joinedload(GroupMember.group))
+        .filter_by(user_id=current_user.id)
+        .all()
+    )
     group_ids = [m.group_id for m in memberships]
 
     active_threads = []
@@ -112,11 +118,7 @@ def dashboard():
     total_bragging = sum(m.bragging_rights_score or 0 for m in memberships)
     total_trash = sum(m.trash_talk_score or 0 for m in memberships)
 
-    from app.models import Group
-    groups = [
-        {"group": Group.query.get(m.group_id), "member": m}
-        for m in memberships
-    ]
+    groups = [{"group": m.group, "member": m} for m in memberships]
 
     # Show profile completion prompt for existing users who haven't set names yet
     show_profile_prompt = (

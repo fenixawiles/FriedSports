@@ -69,7 +69,8 @@ def apply_dismiss_penalty(group_id, reporter_user_id):
 
 
 def apply_thread_points(thread, new_message):
-    """Award scoring points when a message is posted to a thread."""
+    """Award scoring points when a message is posted to a thread.
+    Does NOT commit — caller is responsible for committing."""
     if new_message.message_type != "user" or not new_message.user_id:
         return
 
@@ -97,11 +98,10 @@ def apply_thread_points(thread, new_message):
     if sender_id == target_user_id and target_member:
         target_member.defense_score = (target_member.defense_score or 0) + 5
 
-    db.session.commit()
-
 
 def apply_reaction_points(message, reactor_user_id):
-    """Award +1 trash_talk to message author when reacted to."""
+    """Award +1 trash_talk to message author when reacted to.
+    Does NOT commit — caller is responsible for committing."""
     if not message.user_id or message.user_id == reactor_user_id:
         return
     thread = message.thread
@@ -110,7 +110,6 @@ def apply_reaction_points(message, reactor_user_id):
     ).first()
     if member:
         member.trash_talk_score = (member.trash_talk_score or 0) + 1
-        db.session.commit()
 
 
 def apply_redemption_win(thread):
@@ -139,17 +138,22 @@ def apply_redemption_win(thread):
 
 
 def compute_leaderboards(group_id):
-    members = GroupMember.query.filter_by(group_id=group_id).all()
+    from sqlalchemy.orm import joinedload
+    # Single query — joins users instead of N individual lookups
+    members = (
+        GroupMember.query
+        .options(joinedload(GroupMember.user))
+        .filter_by(group_id=group_id)
+        .all()
+    )
     if not members:
         return {}
 
-    from app.models import User
     enriched = []
     for m in members:
-        u = User.query.get(m.user_id)
         enriched.append({
             "member": m,
-            "user": u,
+            "user": m.user,
             "shame": m.shame_score or 0,
             "trash_talk": m.trash_talk_score or 0,
             "bragging": m.bragging_rights_score or 0,
