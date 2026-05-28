@@ -27,6 +27,8 @@ html {
   font-size: 16px; scroll-behavior: smooth;
   /* Prevent iOS from adjusting font sizes after orientation change */
   -webkit-text-size-adjustment: 100%;
+  /* iOS momentum scrolling — page coasts naturally after a swipe */
+  -webkit-overflow-scrolling: touch;
   /* iOS Safari treats html as the true scroll root — overflow-x must be set here,
      not just on body, to actually prevent horizontal layout shift on input focus. */
   overflow-x: hidden;
