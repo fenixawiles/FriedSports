@@ -1058,3 +1058,37 @@ body.receipt-page {
 
 /* ── Danger zone (account deletion) ── */
 .danger-zone { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(217,51,72,0.15); }
+
+/* ── Thread rows (group show — with delete icon) ── */
+.thread-row { display: flex; align-items: center; gap: 0.5rem; }
+.thread-row .thread-card { flex: 1; min-width: 0; }
+.thread-delete-btn {
+  background: none; border: none; cursor: pointer; color: var(--accent);
+  font-size: 1rem; opacity: 0.45; transition: opacity 0.15s;
+  min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.thread-delete-btn:hover { opacity: 1; }
+
+/* ── Leave / danger section on group page ── */
+.group-danger-zone { border-top: 1px solid rgba(217,51,72,0.15); }
+.group-danger-hint {
+  font-size: 0.82rem; color: var(--text-muted);
+  padding: 0.6rem 0;
+}
+
+/* ── Notification bell in navbar ── */
+.nav-bell {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; min-width: 44px; font-size: 1.05rem;
+  color: var(--text-muted); text-decoration: none;
+  flex-shrink: 0;
+}
+.nav-bell:hover { color: var(--text-primary); }
+.notif-badge {
+  position: absolute; top: 8px; right: 4px;
+  background: var(--accent); color: #fff;
+  font-size: 0.6rem; font-weight: 800;
+  padding: 1px 4px; border-radius: 10px; min-width: 16px; text-align: center;
+  line-height: 1.4; pointer-events: none;
+}

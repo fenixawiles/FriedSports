@@ -2,7 +2,8 @@ import secrets
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
 from sqlalchemy import func
-from app.models import db, Group, GroupMember, GameThread, GameThreadMessage, Receipt
+from app.models import (db, Group, GroupMember, GameThread, GameThreadMessage, Receipt,
+                        IncidentReport, GameEvent, GroupTrigger, MessageReaction, MessageReport)
 
 groups_bp = Blueprint("groups", __name__)
 
@@ -400,4 +401,107 @@ def transfer_owner(group_id, user_id):
     group.owner_id = user_id
     db.session.commit()
     flash("Ownership transferred.", "success")
+    return redirect(url_for("groups.show", group_id=group_id))
+
+
+# ── Group & thread deletion helpers ──────────────────────────────────────────
+
+def _cascade_delete_group(group_id):
+    """Delete a group and all its associated data in safe dependency order."""
+    # Messages in threads in this group
+    thread_ids = [t.id for t in GameThread.query.filter_by(group_id=group_id).all()]
+    if thread_ids:
+        MessageReaction.query.filter(
+            MessageReaction.message_id.in_(
+                db.session.query(GameThreadMessage.id)
+                .filter(GameThreadMessage.thread_id.in_(thread_ids))
+            )
+        ).delete(synchronize_session=False)
+        MessageReport.query.filter(
+            MessageReport.message_id.in_(
+                db.session.query(GameThreadMessage.id)
+                .filter(GameThreadMessage.thread_id.in_(thread_ids))
+            )
+        ).delete(synchronize_session=False)
+        GameThreadMessage.query.filter(
+            GameThreadMessage.thread_id.in_(thread_ids)
+        ).delete(synchronize_session=False)
+        Receipt.query.filter(Receipt.thread_id.in_(thread_ids)).delete(synchronize_session=False)
+    # Soft-delete threads
+    GameThread.query.filter_by(group_id=group_id).update({"status": "deleted"})
+    # Group triggers and incident reports
+    trigger_ids = [t.id for t in GroupTrigger.query.filter_by(group_id=group_id).all()]
+    if trigger_ids:
+        # Game events tied to these triggers
+        event_ids = [gt.game_event_id for gt in GroupTrigger.query.filter_by(group_id=group_id).all()]
+        GroupTrigger.query.filter_by(group_id=group_id).delete()
+        if event_ids:
+            IncidentReport.query.filter(
+                IncidentReport.id.in_(
+                    db.session.query(GameEvent.incident_report_id)
+                    .filter(GameEvent.id.in_(event_ids))
+                    .filter(GameEvent.incident_report_id.isnot(None))
+                )
+            ).delete(synchronize_session=False)
+            GameEvent.query.filter(GameEvent.id.in_(event_ids)).delete(synchronize_session=False)
+    GroupMember.query.filter_by(group_id=group_id).delete()
+    Receipt.query.filter_by(group_id=group_id).delete()
+    group = db.session.get(Group, group_id)
+    if group:
+        db.session.delete(group)
+    db.session.flush()
+
+
+@groups_bp.route("/<int:group_id>/delete", methods=["POST"])
+@login_required
+def delete_group(group_id):
+    group = Group.query.get_or_404(group_id)
+    member = group.get_member(current_user.id)
+    if not member or member.role != "owner":
+        abort(403)
+    group_name = group.name
+    _cascade_delete_group(group_id)
+    db.session.commit()
+    flash(f'"{group_name}" has been permanently deleted.', "info")
+    return redirect(url_for("dashboard.dashboard"))
+
+
+@groups_bp.route("/threads/<int:thread_id>/delete", methods=["POST"])
+@login_required
+def delete_thread(thread_id):
+    thread = GameThread.query.get_or_404(thread_id)
+    group_id = thread.group_id
+    member = Group.query.get_or_404(group_id).get_member(current_user.id)
+
+    # Permission: group owner/admin OR the reporter of this thread
+    is_admin = member and member.role in ("owner", "admin")
+    is_reporter = False
+    if thread.group_trigger and thread.group_trigger.game_event and \
+            thread.group_trigger.game_event.incident_report:
+        is_reporter = (thread.group_trigger.game_event.incident_report.reporter_user_id
+                       == current_user.id)
+    if not is_admin and not is_reporter:
+        abort(403)
+
+    thread.status = "deleted"
+    db.session.commit()
+    flash("Thread deleted.", "info")
+    return redirect(url_for("groups.show", group_id=group_id))
+
+
+@groups_bp.route("/<int:group_id>/threads/delete-batch", methods=["POST"])
+@login_required
+def delete_threads_batch(group_id):
+    group = Group.query.get_or_404(group_id)
+    member = group.get_member(current_user.id)
+    if not member or member.role not in ("owner", "admin"):
+        abort(403)
+    thread_ids = request.form.getlist("thread_ids", type=int)
+    if thread_ids:
+        GameThread.query.filter(
+            GameThread.id.in_(thread_ids),
+            GameThread.group_id == group_id,
+        ).update({"status": "deleted"}, synchronize_session=False)
+        db.session.commit()
+        flash(f"{len(thread_ids)} thread(s) deleted.", "info")
     return redirect(url_for("groups.show", group_id=group_id))

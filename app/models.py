@@ -1,4 +1,4 @@
-import uuid
+import random as _random
 from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
@@ -12,20 +12,22 @@ def now_utc():
 
 
 def generate_uid():
-    return str(uuid.uuid4())
+    """FS-XXXXXX where X is a random digit (0-9)."""
+    return 'FS-' + ''.join(_random.choices('0123456789', k=6))
 
 
 class User(UserMixin, db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
-    uid = db.Column(db.String(36), unique=True, nullable=False, default=generate_uid, index=True)
+    uid = db.Column(db.String(12), unique=True, nullable=False, default=generate_uid, index=True)
     display_name = db.Column(db.String(64), nullable=False)       # username
     first_name = db.Column(db.String(64), nullable=True)
     last_name = db.Column(db.String(64), nullable=True)
     # "username" → show display_name, "real_name" → show first + last
     display_preference = db.Column(db.String(16), nullable=False, default="username")
     has_completed_profile = db.Column(db.Boolean, nullable=False, default=False)
+    email_verified = db.Column(db.Boolean, nullable=False, default=False)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
     avatar_url = db.Column(db.String(256))
@@ -386,8 +388,8 @@ class LoginToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     token = db.Column(db.String(64), unique=True, nullable=False, index=True)
-    purpose = db.Column(db.String(32), nullable=False)   # 'signin_code' | 'magic_link'
-    code = db.Column(db.String(8), nullable=True)        # 6-digit OTP (signin_code only)
+    purpose = db.Column(db.String(32), nullable=False)   # 'signin_code' | 'signup_code' | 'magic_link' | 'password_reset'
+    code = db.Column(db.String(10), nullable=True)       # 8-digit OTP (signin_code/signup_code only)
     next_url = db.Column(db.String(512), nullable=True)  # redirect after magic link login
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
     used_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -401,10 +403,8 @@ class LoginToken(db.Model):
 
 
 def _generate_support_uid():
-    import random
-    import string
-    chars = string.ascii_uppercase + string.digits
-    return 'FS-' + ''.join(random.choices(chars, k=7))
+    """FS-XXXXXX where X is a random digit (0-9)."""
+    return 'FS-' + ''.join(_random.choices('0123456789', k=6))
 
 
 class SupportTicket(db.Model):
@@ -447,3 +447,18 @@ class SupportTicket(db.Model):
     @property
     def status_label(self):
         return self.STATUS_LABELS.get(self.status, self.status)
+
+
+class Notification(db.Model):
+    """In-app notifications — e.g. someone started a thread about your team."""
+    __tablename__ = "notifications"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    type       = db.Column(db.String(32), nullable=False)    # 'thread_started'
+    message    = db.Column(db.String(512), nullable=False)
+    link_url   = db.Column(db.String(512), nullable=True)
+    is_read    = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
+
+    user = db.relationship("User", backref=db.backref("notifications", lazy="dynamic"))

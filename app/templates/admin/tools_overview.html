@@ -1,0 +1,55 @@
+{% extends "admin/tools_base.html" %}
+{% block title %}Admin Overview — FriedSports{% endblock %}
+{% block tools_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>Admin Tools</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">User management, support queue, audit log</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stat cards -->
+  <section class="group-section" style="border-top:none;padding-top:0">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem">
+      <a href="{{ url_for('admin.users_list') }}" class="receipt-item" style="text-decoration:none;padding:1.1rem 1.25rem">
+        <div style="font-size:1.75rem;font-weight:800;color:var(--text-primary);line-height:1">{{ user_count }}</div>
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-top:0.3rem">Total Users</div>
+      </a>
+      <a href="{{ url_for('admin.support_list') }}" class="receipt-item" style="text-decoration:none;padding:1.1rem 1.25rem">
+        <div style="font-size:1.75rem;font-weight:800;color:{% if open_tickets > 0 %}var(--accent){% else %}var(--text-primary){% endif %};line-height:1">{{ open_tickets }}</div>
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-top:0.3rem">Open Tickets</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- Recent audit entries -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Recent Activity</span>
+      <a href="{{ url_for('admin.audit_log') }}" class="btn-secondary-small" style="font-size:0.75rem">Full Log →</a>
+    </div>
+    {% if recent_logs %}
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:1.5fr 1.5fr 1.5fr 2fr">
+        <span>When</span><span>Admin</span><span>Action</span><span>Details</span>
+      </div>
+      {% for log in recent_logs %}
+      <div class="member-row" style="grid-template-columns:1.5fr 1.5fr 1.5fr 2fr">
+        <span style="font-size:0.75rem;color:var(--text-muted)">{{ log.created_at.strftime('%b %d, %H:%M') if log.created_at else '—' }}</span>
+        <span style="font-size:0.82rem">{{ log.admin.display_name if log.admin else '—' }}</span>
+        <span style="font-size:0.75rem;color:var(--text-secondary);font-weight:600">{{ log.action.replace('_', ' ') }}</span>
+        <span style="font-size:0.78rem;color:var(--text-muted)">{{ log.details or '—' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><p>No admin actions recorded yet.</p></div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

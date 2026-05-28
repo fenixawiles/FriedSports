@@ -4,15 +4,18 @@
 <div class="auth-container">
   <div class="auth-card">
     <h1 class="auth-title">Enter Your Code</h1>
-    <p class="auth-sub">Check your email{% if email %} at <strong style="color:var(--text-secondary)">{{ email }}</strong>{% endif %} for a 6-digit code. It expires in 15 minutes.</p>
+    <p class="auth-sub">Check your email{% if email %} at <strong style="color:var(--text-secondary)">{{ email }}</strong>{% endif %} for an 8-digit code. It expires in 15 minutes.</p>
     <form method="post" action="{{ url_for('auth.verify_code') }}" class="auth-form">
       <input type="hidden" name="email" value="{{ email }}">
+      {% if request.args.get('next') %}
+      <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+      {% endif %}
       <div class="form-group">
-        <label for="code">6-Digit Code</label>
+        <label for="code">8-Digit Code</label>
         <input type="text" id="code" name="code" required
-               placeholder="123456"
-               inputmode="numeric" pattern="[0-9]{6}"
-               maxlength="6" autocomplete="one-time-code"
+               placeholder="12345678"
+               inputmode="numeric" pattern="[0-9]{8}"
+               maxlength="8" autocomplete="one-time-code"
                style="font-size:1.4rem;letter-spacing:.2em;text-align:center">
       </div>
       <button type="submit" class="btn-primary btn-full">Sign In</button>

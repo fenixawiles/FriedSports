@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_compress import Compress
 
 from config import get_config
@@ -54,6 +54,18 @@ def create_app(config=None):
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(legal_bp)
     app.register_blueprint(support_bp, url_prefix="/support")
+
+    # Inject unread notification count into every template for the nav bell
+    from app.models import Notification as _Notif
+
+    @app.context_processor
+    def _inject_nav_data():
+        if current_user.is_authenticated:
+            count = _Notif.query.filter_by(
+                user_id=current_user.id, is_read=False
+            ).count()
+            return {"unread_notification_count": count}
+        return {"unread_notification_count": 0}
 
     register_commands(app)
 

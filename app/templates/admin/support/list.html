@@ -1,6 +1,6 @@
-{% extends "admin/base.html" %}
+{% extends "admin/tools_base.html" %}
 {% block title %}Support Queue — FriedSports Admin{% endblock %}
-{% block admin_content %}
+{% block tools_content %}
 <div class="group-container">
 
   <div class="group-header">
@@ -16,10 +16,10 @@
   <section class="group-section" style="border-top:none;padding-top:0">
     <div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:1.25rem">
       {% set tab_defs = [
-        ('all',         'All',         total),
-        ('received',    'Received',    counts.received),
-        ('in_progress', 'In Progress', counts.in_progress),
-        ('resolved',    'Resolved',    counts.resolved),
+        ('all',         'All',         counts['all']),
+        ('received',    'Received',    counts['received']),
+        ('in_progress', 'In Progress', counts['in_progress']),
+        ('resolved',    'Resolved',    counts['resolved']),
       ] %}
       {% for val, label, cnt in tab_defs %}
       <a href="{{ url_for('admin.support_list', status=val if val != 'all' else None) }}"
@@ -58,4 +58,4 @@
   </section>
 
 </div>
-{% endblock %}
+{% endblock tools_content %}

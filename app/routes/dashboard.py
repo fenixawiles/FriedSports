@@ -248,3 +248,29 @@ def delete_account():
 
     flash("Your account has been permanently deleted.", "info")
     return redirect(url_for("auth.index"))
+
+
+@dashboard_bp.route("/notifications")
+@login_required
+def notifications():
+    from app.models import Notification
+    notifs = (
+        Notification.query
+        .filter_by(user_id=current_user.id)
+        .order_by(Notification.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    # Mark all as read on page load
+    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({"is_read": True})
+    db.session.commit()
+    return render_template("dashboard/notifications.html", notifications=notifs)
+
+
+@dashboard_bp.route("/notifications/mark-read", methods=["POST"])
+@login_required
+def notifications_mark_read():
+    from app.models import Notification
+    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({"is_read": True})
+    db.session.commit()
+    return redirect(url_for("dashboard.notifications"))

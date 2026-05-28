@@ -8,7 +8,10 @@ URL prefix: /admin
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app
 from flask_login import login_required, current_user
 from app.utils import admin_required
-from app.models import db, Team, User, UserFavoriteTeam, GroupMember, AdminAuditLog, SupportTicket
+from app.models import (db, Team, User, UserFavoriteTeam, GroupMember, AdminAuditLog,
+                        SupportTicket, Group, IncidentReport, GameEvent, GroupTrigger,
+                        GameThread, GameThreadMessage, MessageReaction, MessageReport,
+                        Receipt, DeviceToken, LoginToken, Notification)
 from app.analytics.models import (
     LabLeague, LabSeason, LabGame, LabPlayer,
     TeamGameStats, PlayerGameStats, DerivedGameMetrics, MetricDefinition,
@@ -428,6 +431,70 @@ def users_change_role(user_id):
     return redirect(url_for("admin.users_detail", user_id=user_id))
 
 
+def _cascade_delete_group_admin(group_id):
+    """Delete a group and all its data — used by user deletion and admin group cleanup."""
+    from app.routes.groups import _cascade_delete_group
+    _cascade_delete_group(group_id)
+
+
+def _cascade_delete_user(user_id):
+    """Safely delete a user and all associated records, respecting FK constraints."""
+    # Anonymise messages (preserve thread history but sever user link)
+    GameThreadMessage.query.filter_by(user_id=user_id).update(
+        {"user_id": None, "is_deleted": True}, synchronize_session=False
+    )
+    # Delete reactions and reports by this user
+    MessageReaction.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    MessageReport.query.filter_by(reporter_user_id=user_id).delete(synchronize_session=False)
+    # Cascade-delete all groups this user owns
+    for g in Group.query.filter_by(owner_id=user_id).all():
+        from app.routes.groups import _cascade_delete_group
+        _cascade_delete_group(g.id)
+    # Remove group memberships where they don't own (owned groups already deleted above)
+    GroupMember.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    # Soft-delete threads targeting this user
+    GameThread.query.filter_by(target_user_id=user_id).update(
+        {"status": "deleted"}, synchronize_session=False
+    )
+    # Delete incident reports (reporter or target)
+    ir_ids = [r.id for r in IncidentReport.query.filter(
+        db.or_(
+            IncidentReport.reporter_user_id == user_id,
+            IncidentReport.target_user_id == user_id,
+        )
+    ).all()]
+    if ir_ids:
+        ge_ids = [e.id for e in GameEvent.query.filter(
+            GameEvent.incident_report_id.in_(ir_ids)
+        ).all()]
+        if ge_ids:
+            GroupTrigger.query.filter(GroupTrigger.game_event_id.in_(ge_ids)).delete(
+                synchronize_session=False
+            )
+            GameEvent.query.filter(GameEvent.id.in_(ge_ids)).delete(synchronize_session=False)
+        IncidentReport.query.filter(IncidentReport.id.in_(ir_ids)).delete(
+            synchronize_session=False
+        )
+    # Receipts referencing this user
+    Receipt.query.filter(
+        db.or_(Receipt.target_user_id == user_id, Receipt.top_hater_user_id == user_id)
+    ).delete(synchronize_session=False)
+    # Nullify audit log (preserve history, remove FK reference)
+    AdminAuditLog.query.filter_by(target_user_id=user_id).update(
+        {"target_user_id": None}, synchronize_session=False
+    )
+    AdminAuditLog.query.filter_by(admin_id=user_id).update(
+        {"admin_id": None}, synchronize_session=False
+    )
+    # Delete tokens, devices, tickets, favourites, notifications
+    LoginToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    DeviceToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    SupportTicket.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    UserFavoriteTeam.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    Notification.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    db.session.flush()
+
+
 @admin_bp.route("/users/<int:user_id>/delete", methods=["POST"])
 @login_required
 @admin_required
@@ -437,8 +504,13 @@ def users_delete(user_id):
         flash("You cannot delete your own account from here.", "error")
         return redirect(url_for("admin.users_detail", user_id=user_id))
     display_name = user.display_name
-    _audit("delete_user", user, f"Deleted account: {user.email}")
-    db.session.delete(user)
+    email = user.email
+    _audit("delete_user", user, f"Deleted account: {email}")
+    db.session.flush()  # persist audit log before cascade
+    _cascade_delete_user(user_id)
+    user_obj = db.session.get(User, user_id)
+    if user_obj:
+        db.session.delete(user_obj)
     db.session.commit()
     flash(f"User '{display_name}' deleted.", "success")
     return redirect(url_for("admin.users_list"))
@@ -485,6 +557,112 @@ def users_invite():
     else:
         flash(f"Email failed — share this link manually: {invite_url}", "info")
     return redirect(url_for("admin.users_list"))
+
+
+# ── Admin Tools dashboard (separate from Lab) ─────────────────────────────────
+
+@admin_bp.route("/tools")
+@login_required
+@admin_required
+def tools_dashboard():
+    user_count = User.query.count()
+    open_tickets = SupportTicket.query.filter(
+        SupportTicket.status.in_(["received", "in_progress"])
+    ).count()
+    recent_logs = (
+        AdminAuditLog.query
+        .order_by(AdminAuditLog.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    return render_template(
+        "admin/tools_overview.html",
+        user_count=user_count,
+        open_tickets=open_tickets,
+        recent_logs=recent_logs,
+    )
+
+
+# ── Admin email action routes ─────────────────────────────────────────────────
+
+@admin_bp.route("/users/<int:user_id>/send-password-reset", methods=["POST"])
+@login_required
+@admin_required
+def send_password_reset(user_id):
+    import secrets as _sec
+    from datetime import timedelta
+    user = db.session.get(User, user_id) or abort(404)
+    tok = LoginToken(
+        user_id=user.id,
+        token=_sec.token_urlsafe(32),
+        purpose="password_reset",
+        expires_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ) + timedelta(hours=1),
+    )
+    db.session.add(tok)
+    db.session.commit()
+    reset_url = url_for("auth.reset_password", token=tok.token, _external=True)
+    from app.services.email_service import send_admin_password_reset
+    send_admin_password_reset(user, reset_url)
+    _audit("send_password_reset", user, "Admin sent password reset email")
+    db.session.commit()
+    flash(f"Password reset email sent to {user.email}.", "success")
+    return redirect(url_for("admin.users_detail", user_id=user_id))
+
+
+@admin_bp.route("/users/<int:user_id>/send-username-change", methods=["POST"])
+@login_required
+@admin_required
+def send_username_change(user_id):
+    import secrets as _sec
+    from datetime import timedelta
+    user = db.session.get(User, user_id) or abort(404)
+    tok = LoginToken(
+        user_id=user.id,
+        token=_sec.token_urlsafe(32),
+        purpose="magic_link",
+        next_url="/dashboard/settings",
+        expires_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ) + timedelta(hours=24),
+    )
+    db.session.add(tok)
+    db.session.commit()
+    settings_url = url_for("auth.magic_link", token=tok.token, _external=True)
+    from app.services.email_service import send_username_change_prompt
+    send_username_change_prompt(user, settings_url)
+    _audit("send_username_change", user, "Admin sent username change prompt")
+    db.session.commit()
+    flash(f"Username change email sent to {user.email}.", "success")
+    return redirect(url_for("admin.users_detail", user_id=user_id))
+
+
+@admin_bp.route("/users/<int:user_id>/send-email-change", methods=["POST"])
+@login_required
+@admin_required
+def send_email_change(user_id):
+    import secrets as _sec
+    from datetime import timedelta
+    user = db.session.get(User, user_id) or abort(404)
+    tok = LoginToken(
+        user_id=user.id,
+        token=_sec.token_urlsafe(32),
+        purpose="magic_link",
+        next_url="/dashboard/settings",
+        expires_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ) + timedelta(hours=24),
+    )
+    db.session.add(tok)
+    db.session.commit()
+    settings_url = url_for("auth.magic_link", token=tok.token, _external=True)
+    from app.services.email_service import send_email_change_prompt
+    send_email_change_prompt(user, settings_url)
+    _audit("send_email_change", user, "Admin sent email change prompt")
+    db.session.commit()
+    flash(f"Email change prompt sent to {user.email}.", "success")
+    return redirect(url_for("admin.users_detail", user_id=user_id))
 
 
 @admin_bp.route("/audit-log")

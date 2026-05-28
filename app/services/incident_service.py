@@ -99,7 +99,7 @@ def create_incident_thread(report):
         def _notify_background(app, report_id, thread_id):
             with app.app_context():
                 try:
-                    from app.models import db as _db, IncidentReport
+                    from app.models import db as _db, IncidentReport, Notification
                     r = _db.session.get(IncidentReport, report_id)
                     if not r:
                         return
@@ -112,8 +112,8 @@ def create_incident_thread(report):
                             body=f"{r.reporter.shown_name} started a thread on your {r.target_team.name}.",
                             data={"thread_id": thread_id, "group_id": r.group_id},
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        app.logger.warning(f"Push notification failed: {e}")
                     # Email notification with magic-link CTA
                     try:
                         from app.services.email_service import send_thread_notification
@@ -126,10 +126,31 @@ def create_incident_thread(report):
                             thread_id=thread_id,
                             description=r.description,
                         )
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
+                        # Commit magic link token created inside send_thread_notification
+                        _db.session.commit()
+                    except Exception as e:
+                        app.logger.warning(f"Thread notification email failed: {e}")
+                    # In-app notification + 10-unread email trigger
+                    try:
+                        notif = Notification(
+                            user_id=r.target_user_id,
+                            type="thread_started",
+                            message=f"{r.reporter.shown_name} started a thread about your {r.target_team.name}",
+                            link_url=f"/threads/{thread_id}",
+                        )
+                        _db.session.add(notif)
+                        _db.session.flush()
+                        unread = Notification.query.filter_by(
+                            user_id=r.target_user_id, is_read=False
+                        ).count()
+                        if unread == 10:
+                            from app.services.email_service import send_missed_notifications_email
+                            send_missed_notifications_email(r.target_user, unread)
+                        _db.session.commit()
+                    except Exception as e:
+                        app.logger.warning(f"Notification creation failed: {e}")
+                except Exception as e:
+                    app.logger.warning(f"Notification background task failed: {e}")
 
         threading.Thread(
             target=_notify_background,

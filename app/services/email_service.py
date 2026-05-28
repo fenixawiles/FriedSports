@@ -99,6 +99,19 @@ def send_signin_code(user, code):
     return _send(user.email, subject, html, text)
 
 
+def send_signup_code(user, code):
+    """Sent after sign-up form submission to verify the new account's email."""
+    subject = "Verify your FriedSports account"
+    html = _wrap(f"""
+<p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
+<p>You're almost in. Enter the code below to verify your email and finish creating your account.</p>
+<div class="code-box"><span>{code}</span></div>
+<p style="font-size:13px;color:#72728a">This code expires in 15 minutes. If you didn't sign up for FriedSports, ignore this.</p>
+""")
+    text = f"Your FriedSports verification code is: {code}. Expires in 15 minutes."
+    return _send(user.email, subject, html, text)
+
+
 # ── Thread notification (magic-link CTA) ─────────────────────────────────────
 
 _THREAD_SUBJECTS = [
@@ -177,20 +190,27 @@ send_incident_notification = send_thread_notification
 # ── Group invite ──────────────────────────────────────────────────────────────
 
 def send_invite_email(to_email, from_user, group, invite_url):
-    subject = f"{from_user.display_name} invited you to {group.name} on FriedSports"
+    subject = f"{from_user.display_name} wants you in on FriedSports — your teams deserve better"
     html = _wrap(f"""
 <p>Hey,</p>
-<p><strong style="color:#fff">{from_user.display_name}</strong> invited you to join
-<strong style="color:#fff">{group.name}</strong> on FriedSports.</p>
-<p>FriedSports is where sports fans hold each other accountable for their team's L's.
-Threads, trash talk, and permanent receipts.</p>
-<a href="{invite_url}" class="btn">Join {group.name} →</a>
+<p><strong style="color:#fff">{from_user.display_name}</strong> wants you in
+<strong style="color:#fff">{group.name}</strong> on FriedSports — and honestly, your teams have earned this.</p>
 <hr class="divider">
-<p class="muted">Don't have an account? The link above will walk you through signup.</p>
+<p style="font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px">What is FriedSports?</p>
+<p>FriedSports is the sports accountability app your group chat was always trying to be.
+When your team blows a 20-point lead, gets blown out, or just embarrasses you — someone in your group
+files a <em>formal report</em>. A thread opens. The receipts start piling up.</p>
+<p>It's trash talk with structure. Evidence-based slander. Permanent receipts that follow your
+team's worst performances forever.</p>
+<p style="color:#fff;font-weight:600">Think: a courtroom for sports takes. Everyone's a prosecutor. Your teams are always the defendant.</p>
+<hr class="divider">
+<p>Join <strong style="color:#fff">{group.name}</strong> and find out what your friends already know about your team.</p>
+<a href="{invite_url}" class="btn">Accept the Charges →</a>
+<p class="muted">No account yet? The link above will get you set up in under a minute. Requires an email address and a willingness to face the truth about your team.</p>
 """)
     text = (
-        f"{from_user.display_name} invited you to {group.name} on FriedSports. "
-        f"Join here: {invite_url}"
+        f"{from_user.display_name} invited you to {group.name} on FriedSports — "
+        f"the sports accountability app. Join here: {invite_url}"
     )
     return _send(to_email, subject, html, text)
 
@@ -315,6 +335,73 @@ def send_ticket_status_update(ticket):
 """)
     text = f"Update on {ticket.uid}: {ticket.status_label}. View: {cta_url}"
     return _send(ticket.user.email, subject, html, text)
+
+
+# ── Missed notifications email ───────────────────────────────────────────────
+
+def send_missed_notifications_email(user, count):
+    """Sent when a user accumulates 10 unread in-app notifications."""
+    base_url = "https://friedsports.com"
+    token = _make_magic_link(user.id, "/notifications")
+    cta_url = f"{base_url}/auth/magic/{token}"
+    subject = f"👀 You've got {count} things waiting for you on FriedSports"
+    html = _wrap(f"""
+<p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
+<p>While you were out living your best life, your groups have been <em>busy</em>.</p>
+<p>You've got <strong style="color:#d93348;font-size:1.1rem">{count} unread notifications</strong>
+waiting for you — and if history is any guide, at least one of them involves your team doing
+something embarrassing.</p>
+<p>Come see what you missed before the receipts get worse.</p>
+<a href="{cta_url}" class="btn">Check Your Notifications →</a>
+<hr class="divider">
+<p class="muted">You're getting this because you haven't logged in while your groups have been active. Tap the button above to go straight in.</p>
+""")
+    text = (
+        f"Hey {user.display_name}, you have {count} unread notifications on FriedSports. "
+        f"Check them here: {cta_url}"
+    )
+    return _send(user.email, subject, html, text)
+
+
+# ── Admin-initiated user email actions ───────────────────────────────────────
+
+def send_admin_password_reset(user, reset_url):
+    """Admin-initiated password reset link sent to user."""
+    subject = "Reset your FriedSports password"
+    html = _wrap(f"""
+<p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
+<p>A password reset link has been created for your FriedSports account by an admin.</p>
+<a href="{reset_url}" class="btn">Set New Password →</a>
+<p style="font-size:13px;color:#72728a">This link expires in 1 hour. If you didn't expect this, you can safely ignore it.</p>
+""")
+    text = f"Reset your FriedSports password: {reset_url}. Expires in 1 hour."
+    return _send(user.email, subject, html, text)
+
+
+def send_username_change_prompt(user, settings_url):
+    """Admin-initiated prompt to update username."""
+    subject = "Action needed — update your FriedSports username"
+    html = _wrap(f"""
+<p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
+<p>You've been asked to update your username on FriedSports. Tap below to go to your settings and make the change.</p>
+<a href="{settings_url}" class="btn">Go to Settings →</a>
+<p style="font-size:13px;color:#72728a">This link logs you in automatically. If you have questions, reply to this email.</p>
+""")
+    text = f"Please update your FriedSports username at: {settings_url}"
+    return _send(user.email, subject, html, text)
+
+
+def send_email_change_prompt(user, settings_url):
+    """Admin-initiated prompt to update email address."""
+    subject = "Action needed — update your FriedSports email address"
+    html = _wrap(f"""
+<p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
+<p>You've been asked to update the email address on your FriedSports account. Tap below to go to your settings.</p>
+<a href="{settings_url}" class="btn">Go to Settings →</a>
+<p style="font-size:13px;color:#72728a">This link logs you in automatically. If you have questions, reply to this email.</p>
+""")
+    text = f"Please update your FriedSports email address at: {settings_url}"
+    return _send(user.email, subject, html, text)
 
 
 # ── Magic link helper (used internally + by routes) ──────────────────────────

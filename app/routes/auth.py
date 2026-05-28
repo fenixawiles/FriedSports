@@ -1,5 +1,6 @@
 import random
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
@@ -16,6 +17,26 @@ def _maybe_elevate_admin(user):
     if admin_email and user.email.lower() == admin_email and user.role != "admin":
         user.role = "admin"
         db.session.commit()
+
+
+def _send_otp_background(app, user_id, code, purpose):
+    """Fire OTP email in a daemon thread to avoid blocking."""
+    def _bg(a, uid, c, p):
+        with a.app_context():
+            try:
+                from app.models import User as _U
+                u = db.session.get(_U, uid)
+                if not u:
+                    return
+                if p == "signup_code":
+                    from app.services.email_service import send_signup_code
+                    send_signup_code(u, c)
+                else:
+                    from app.services.email_service import send_signin_code
+                    send_signin_code(u, c)
+            except Exception as e:
+                a.logger.warning(f"OTP email failed: {e}")
+    threading.Thread(target=_bg, args=(app, user_id, code, purpose), daemon=True).start()
 
 
 @auth_bp.route("/")
@@ -69,6 +90,7 @@ def signup():
             display_preference=display_preference,
             email=email,
             has_completed_profile=True,
+            email_verified=False,
         )
         user.set_password(password)
         try:
@@ -78,29 +100,42 @@ def signup():
             db.session.rollback()
             flash("An account with that email or username already exists.", "error")
             return render_template("auth/signup.html")
+
         _maybe_elevate_admin(user)
-        login_user(user)
-        # Fire welcome email in background so it doesn't block the redirect
-        try:
-            import threading
-            _app = current_app._get_current_object()
-            _uid = user.id
-            def _welcome_bg(app, uid):
-                with app.app_context():
-                    try:
-                        from app.models import User as _User
-                        from app.services.email_service import send_welcome_email
-                        u = db.session.get(_User, uid)
-                        if u:
-                            send_welcome_email(u)
-                    except Exception:
-                        pass
-            threading.Thread(target=_welcome_bg, args=(_app, _uid), daemon=True).start()
-        except Exception:
-            pass
-        flash(f"Welcome to FriedSports, {user.shown_name}!", "success")
+
+        # Fire welcome email in background
+        _app = current_app._get_current_object()
+        _uid = user.id
+        def _welcome_bg(app, uid):
+            with app.app_context():
+                try:
+                    from app.models import User as _User
+                    from app.services.email_service import send_welcome_email
+                    u = db.session.get(_User, uid)
+                    if u:
+                        send_welcome_email(u)
+                except Exception:
+                    pass
+        threading.Thread(target=_welcome_bg, args=(_app, _uid), daemon=True).start()
+
+        # Send 8-digit verification OTP before logging in
+        code = str(random.randint(10000000, 99999999))
+        tok = LoginToken(
+            user_id=user.id,
+            token=secrets.token_urlsafe(16),
+            purpose="signup_code",
+            code=code,
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+        )
+        db.session.add(tok)
+        db.session.commit()
+
+        _send_otp_background(current_app._get_current_object(), user.id, code, "signup_code")
+
+        flash("Check your email — we sent you an 8-digit verification code.", "info")
         next_page = request.form.get("next") or request.args.get("next")
-        return redirect(next_page or url_for("dashboard.onboarding"))
+        return redirect(url_for("auth.verify_code", email=user.email,
+                                next=next_page or url_for("dashboard.onboarding")))
 
     return render_template("auth/signup.html")
 
@@ -120,9 +155,25 @@ def login():
             return render_template("auth/login.html")
 
         _maybe_elevate_admin(user)
-        login_user(user)
+
+        # Send 8-digit OTP — log in only after verification
+        code = str(random.randint(10000000, 99999999))
+        tok = LoginToken(
+            user_id=user.id,
+            token=secrets.token_urlsafe(16),
+            purpose="signin_code",
+            code=code,
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+        )
+        db.session.add(tok)
+        db.session.commit()
+
+        _send_otp_background(current_app._get_current_object(), user.id, code, "signin_code")
+
+        flash("Check your email — we sent you an 8-digit code to complete sign-in.", "info")
         next_page = request.args.get("next")
-        return redirect(next_page or url_for("dashboard.dashboard"))
+        return redirect(url_for("auth.verify_code", email=email,
+                                next=next_page or url_for("dashboard.dashboard")))
 
     return render_template("auth/login.html")
 
@@ -135,11 +186,11 @@ def logout():
     return redirect(url_for("auth.index"))
 
 
-# ── Email OTP sign-in ────────────────────────────────────────────────────────
+# ── Email OTP sign-in (standalone / magic link fallback) ─────────────────────
 
 @auth_bp.route("/send-code", methods=["GET", "POST"])
 def send_code():
-    """Show email input form (GET) or send a 6-digit OTP (POST)."""
+    """Show email input form (GET) or send an 8-digit OTP (POST)."""
     if current_user.is_authenticated:
         return redirect(url_for("dashboard.dashboard"))
 
@@ -151,12 +202,10 @@ def send_code():
 
         user = User.query.filter_by(email=email).first()
         if not user:
-            # Don't reveal whether the email exists
             flash("If that email is registered, a code is on its way.", "info")
             return redirect(url_for("auth.verify_code", email=email))
 
-        # Generate a 6-digit code and store it
-        code = str(random.randint(100000, 999999))
+        code = str(random.randint(10000000, 99999999))
         tok = LoginToken(
             user_id=user.id,
             token=secrets.token_urlsafe(16),
@@ -167,11 +216,7 @@ def send_code():
         db.session.add(tok)
         db.session.commit()
 
-        try:
-            from app.services.email_service import send_signin_code
-            send_signin_code(user, code)
-        except Exception as e:
-            current_app.logger.error(f"Failed to send OTP: {e}")
+        _send_otp_background(current_app._get_current_object(), user.id, code, "signin_code")
 
         flash("If that email is registered, a code is on its way.", "info")
         return redirect(url_for("auth.verify_code", email=email))
@@ -181,7 +226,7 @@ def send_code():
 
 @auth_bp.route("/verify-code", methods=["GET", "POST"])
 def verify_code():
-    """Accept the 6-digit OTP and log the user in."""
+    """Accept the 8-digit OTP and log the user in."""
     if current_user.is_authenticated:
         return redirect(url_for("dashboard.dashboard"))
 
@@ -198,7 +243,8 @@ def verify_code():
 
         tok = (
             LoginToken.query
-            .filter_by(user_id=user.id, purpose="signin_code", code=code)
+            .filter_by(user_id=user.id, code=code)
+            .filter(LoginToken.purpose.in_(["signin_code", "signup_code"]))
             .filter(LoginToken.used_at.is_(None))
             .filter(LoginToken.expires_at > datetime.now(timezone.utc))
             .order_by(LoginToken.created_at.desc())
@@ -209,6 +255,8 @@ def verify_code():
             return render_template("auth/verify_code.html", email=email)
 
         tok.used_at = datetime.now(timezone.utc)
+        if not user.email_verified:
+            user.email_verified = True
         db.session.commit()
 
         _maybe_elevate_admin(user)
@@ -243,3 +291,40 @@ def magic_link(token):
 
     next_url = tok.next_url or url_for("dashboard.dashboard")
     return redirect(next_url)
+
+
+# ── Password reset (admin-initiated) ─────────────────────────────────────────
+
+@auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    """Token-gated password reset page — used when admin sends a reset link."""
+    tok = LoginToken.query.filter_by(token=token, purpose="password_reset").first()
+    if not tok or not tok.is_valid:
+        flash("This reset link has expired or already been used.", "warning")
+        return redirect(url_for("auth.login"))
+
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        if not password or len(password) < 6:
+            flash("Password must be at least 6 characters.", "error")
+            return render_template("auth/reset_password.html", token=token)
+        if password != confirm:
+            flash("Passwords do not match.", "error")
+            return render_template("auth/reset_password.html", token=token)
+
+        user = tok.user
+        if not user:
+            flash("Account not found.", "error")
+            return redirect(url_for("auth.login"))
+
+        user.set_password(password)
+        tok.used_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        _maybe_elevate_admin(user)
+        login_user(user)
+        flash("Password updated. You're now logged in.", "success")
+        return redirect(url_for("dashboard.dashboard"))
+
+    return render_template("auth/reset_password.html", token=token)

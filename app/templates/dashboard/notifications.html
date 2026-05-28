@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Notifications — FriedSports{% endblock %}
+{% block content %}
+<div class="group-container" style="max-width:680px">
+
+  <div class="group-header">
+    <div>
+      <h1>Notifications</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">Your recent activity</span>
+      </div>
+    </div>
+    <div class="group-actions">
+      <form action="{{ url_for('dashboard.notifications_mark_read') }}" method="post" style="display:inline">
+        <button type="submit" class="btn-secondary-small">Mark All Read</button>
+      </form>
+    </div>
+  </div>
+
+  <section class="group-section" style="border-top:none;padding-top:0">
+    {% if notifications %}
+    <div class="notif-list">
+      {% for n in notifications %}
+      <a href="{{ n.link_url or url_for('dashboard.dashboard') }}"
+         class="notif-item {% if not n.is_read %}notif-unread{% endif %}">
+        <div class="notif-message">{{ n.message }}</div>
+        <div class="notif-time">{{ n.created_at.strftime('%b %d at %I:%M %p') if n.created_at else '' }}</div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>You're all caught up — no notifications yet.</p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+
+<style>
+.notif-list { display: flex; flex-direction: column; gap: 0; }
+.notif-item {
+  display: block; padding: 1rem 0; border-bottom: 1px solid var(--border);
+  text-decoration: none; transition: background 0.12s;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: var(--bg-elevated); margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }
+.notif-unread .notif-message { color: var(--text-primary); font-weight: 500; }
+.notif-unread::before {
+  content: ''; display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--accent);
+  margin-right: 0.5rem; vertical-align: middle; flex-shrink: 0;
+}
+.notif-message { font-size: 0.9rem; color: var(--text-secondary); display: inline; }
+.notif-time { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; }
+</style>
+{% endblock %}

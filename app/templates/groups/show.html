@@ -26,10 +26,10 @@
             {{ 'Unmute' if member.mute_notifications else 'Mute' }}
           </button>
         </form>
-        {% if member.role != 'owner' %}
-        <form action="{{ url_for('groups.leave', group_id=group.id) }}" method="post" style="display:inline"
-              onsubmit="return confirm('Leave {{ group.name }}?')">
-          <button type="submit" class="btn-danger-small">Leave</button>
+        {% if member.role == 'owner' %}
+        <form action="{{ url_for('groups.delete_group', group_id=group.id) }}" method="post" style="display:inline"
+              onsubmit="return confirm('Permanently delete {{ group.name }}? This cannot be undone.')">
+          <button type="submit" class="btn-danger-small">Delete Group</button>
         </form>
         {% endif %}
       {% endif %}
@@ -79,31 +79,63 @@
         {% endif %}
       </div>
       {% if member %}
+      {% if member.role in ('owner', 'admin') and threads %}
+      <button type="button" id="thread-select-btn" class="btn-secondary-small" onclick="toggleThreadSelect()">Select</button>
+      {% endif %}
       <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Start A Thread</a>
       {% endif %}
     </div>
     {% if threads %}
+    {% if member and member.role in ('owner', 'admin') %}
+    <form id="thread-batch-form" action="{{ url_for('groups.delete_threads_batch', group_id=group.id) }}" method="post">
+    {% endif %}
     <div class="thread-list">
       {% for thread in threads %}
-      <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="thread-card">
-        <div class="thread-card-left">
-          <div class="thread-title">{{ thread.title }}</div>
-          <div class="thread-meta">
-            {{ msg_counts.get(thread.id, 0) }} messages &middot;
-            <span class="team-chip" style="color: {{ thread.target_team.primary_color }}">{{ thread.target_team.abbreviation }}</span>
-            {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
-            {% if ir %}
-            &middot; <span style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em">{{ ir.status }}</span>
-            {% endif %}
+      {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
+      {% set can_delete = member and (member.role in ('owner', 'admin') or (ir and ir.reporter_user_id == current_user.id)) %}
+      <div class="thread-row">
+        {% if member and member.role in ('owner', 'admin') %}
+        <input type="checkbox" name="thread_ids" value="{{ thread.id }}" class="thread-check" style="display:none">
+        {% endif %}
+        <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="thread-card">
+          <div class="thread-card-left">
+            <div class="thread-title">{{ thread.title }}</div>
+            <div class="thread-meta">
+              {{ msg_counts.get(thread.id, 0) }} messages &middot;
+              <span class="team-chip" style="color: {{ thread.target_team.primary_color }}">{{ thread.target_team.abbreviation }}</span>
+              {% if ir %}
+              &middot; <span style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em">{{ ir.status }}</span>
+              {% endif %}
+            </div>
           </div>
-        </div>
-        <div class="thread-card-right">
-          <span class="thread-target">{{ thread.target_user.display_name }}</span>
-          <span class="thread-arrow">→</span>
-        </div>
-      </a>
+          <div class="thread-card-right">
+            <span class="thread-target">{{ thread.target_user.display_name }}</span>
+            <span class="thread-arrow">→</span>
+          </div>
+        </a>
+        {% if can_delete %}
+        <button type="submit" form="del-thread-{{ thread.id }}"
+                class="thread-delete-btn" title="Delete thread"
+                onclick="return confirm('Delete this thread? This cannot be undone.')">🗑</button>
+        {% endif %}
+      </div>
       {% endfor %}
     </div>
+    {% if member and member.role in ('owner', 'admin') %}
+    <div id="batch-actions" style="display:none;margin-top:0.75rem">
+      <button type="submit" class="btn-danger-small">Delete Selected</button>
+    </div>
+    </form>
+    {% endif %}
+    <!-- Individual delete forms (outside batch form — HTML doesn't allow nested forms) -->
+    {% for thread in threads %}
+    {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
+    {% if member and (member.role in ('owner', 'admin') or (ir and ir.reporter_user_id == current_user.id)) %}
+    <form id="del-thread-{{ thread.id }}"
+          action="{{ url_for('groups.delete_thread', thread_id=thread.id) }}"
+          method="post" style="display:none"></form>
+    {% endif %}
+    {% endfor %}
     {% else %}
     <div class="empty-state">
       <p>No threads yet. Start one above.</p>
@@ -136,6 +168,26 @@
       </div>
     </div>
   </section>
+
+  <!-- Leave Group -->
+  {% if member %}
+  <section class="group-section group-danger-zone">
+    {% if member.role == 'owner' %}
+    <p class="group-danger-hint">You own this group. Transfer ownership to a member before you can leave.</p>
+    {% else %}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+      <div>
+        <span class="section-title" style="color:var(--accent)">Leave Group</span>
+        <span class="section-sub">You'll lose access to this group's threads and members.</span>
+      </div>
+      <form action="{{ url_for('groups.leave', group_id=group.id) }}" method="post" style="display:inline"
+            onsubmit="return confirm('Leave {{ group.name }}? You\'ll need a new invite to rejoin.')">
+        <button type="submit" class="btn-danger-small">Leave Group</button>
+      </form>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
 
   <!-- Receipts -->
   {% if receipts %}
@@ -174,6 +226,16 @@ const TAGLINES = [
 const taglineEl = document.getElementById('thread-tagline');
 if (taglineEl) {
   taglineEl.textContent = TAGLINES[Math.floor(Math.random() * TAGLINES.length)];
+}
+
+function toggleThreadSelect() {
+  var checks = document.querySelectorAll('.thread-check');
+  var batchActions = document.getElementById('batch-actions');
+  var btn = document.getElementById('thread-select-btn');
+  var isActive = checks.length > 0 && checks[0].style.display !== 'none';
+  checks.forEach(function(c) { c.style.display = isActive ? 'none' : 'inline-block'; });
+  if (batchActions) batchActions.style.display = isActive ? 'none' : 'block';
+  if (btn) btn.textContent = isActive ? 'Select' : 'Cancel';
 }
 
 const INVITE_CODE = document.getElementById('invite-code') ? document.getElementById('invite-code').textContent.trim() : '';

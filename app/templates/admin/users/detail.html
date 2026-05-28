@@ -1,6 +1,6 @@
-{% extends "admin/base.html" %}
+{% extends "admin/tools_base.html" %}
 {% block title %}{{ user.display_name }} — FriedSports Admin{% endblock %}
-{% block admin_content %}
+{% block tools_content %}
 <div class="group-container">
 
   <div class="group-header">
@@ -148,7 +148,26 @@
 
     </div>
 
-    <!-- Send Email -->
+    <!-- Email Actions -->
+    <div style="margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.5rem">
+      <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.75rem">Email Actions</div>
+      <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
+        <form action="{{ url_for('admin.send_password_reset', user_id=user.id) }}" method="post" style="display:inline"
+              onsubmit="return confirm('Send password reset email to {{ user.email }}?')">
+          <button type="submit" class="btn-secondary-small">Send Password Reset</button>
+        </form>
+        <form action="{{ url_for('admin.send_username_change', user_id=user.id) }}" method="post" style="display:inline"
+              onsubmit="return confirm('Send username change email to {{ user.email }}?')">
+          <button type="submit" class="btn-secondary-small">Send Username Change</button>
+        </form>
+        <form action="{{ url_for('admin.send_email_change', user_id=user.id) }}" method="post" style="display:inline"
+              onsubmit="return confirm('Send email change email to {{ user.email }}?')">
+          <button type="submit" class="btn-secondary-small">Send Email Change</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Send Direct Email -->
     <div style="margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.5rem">
       <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.75rem">Send Direct Email</div>
       <form action="{{ url_for('admin.users_send_email', user_id=user.id) }}" method="post">
@@ -166,4 +185,4 @@
   </section>
 
 </div>
-{% endblock %}
+{% endblock tools_content %}
