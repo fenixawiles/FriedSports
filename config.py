@@ -21,10 +21,16 @@ class Config:
         if "?" in _db_url:
             _db_url = _db_url.split("?")[0]
     SQLALCHEMY_DATABASE_URI = _db_url
-    # Pass ssl_context for pg8000 when the original URL required SSL
-    SQLALCHEMY_ENGINE_OPTIONS = (
-        {"connect_args": {"ssl_context": True}} if _use_ssl else {}
-    )
+    # pool_pre_ping: SQLAlchemy checks the connection is alive before using it.
+    # This is the primary fix for "stale connection" 500s when Neon's pooler
+    # drops an idle connection and the next request tries to reuse it.
+    # pool_recycle: proactively recycle connections every 5 minutes so they
+    # never outlive Neon's idle timeout.
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+        **({"connect_args": {"ssl_context": True}} if _use_ssl else {}),
+    }
 
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 

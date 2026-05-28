@@ -55,6 +55,25 @@ def create_app(config=None):
 
     register_commands(app)
 
+    # Global handler for unhandled SQLAlchemy errors (stale connections, etc.)
+    # These manifest as OperationalError or DatabaseError from pg8000/Postgres.
+    # Without this, they bubble up as raw 500 pages.
+    from sqlalchemy.exc import OperationalError, DatabaseError
+
+    @app.errorhandler(OperationalError)
+    @app.errorhandler(DatabaseError)
+    def handle_db_error(e):
+        db.session.rollback()
+        from flask import flash, redirect, request as req, url_for
+        import logging
+        logging.getLogger(__name__).error("Database error: %s", e)
+        flash("Something went wrong. Please try again.", "error")
+        # Send back to the page they came from, or home
+        referrer = req.referrer
+        if referrer and req.host in referrer:
+            return redirect(referrer), 302
+        return redirect(url_for("auth.index")), 302
+
     return app
 
 
