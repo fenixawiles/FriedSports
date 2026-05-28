@@ -93,8 +93,6 @@ def show(group_id):
     )
     members_with_users = [{"member": m, "user": m.user} for m in all_members]
 
-    leaderboards = compute_leaderboards(group_id)
-
     receipts = Receipt.query.filter_by(group_id=group_id).order_by(
         Receipt.created_at.desc()
     ).limit(5).all()
@@ -105,8 +103,23 @@ def show(group_id):
         member=member,
         threads=threads,
         members_with_users=members_with_users,
-        leaderboards=leaderboards,
         receipts=receipts,
+    )
+
+
+@groups_bp.route("/<int:group_id>/leaderboard")
+@login_required
+def leaderboard(group_id):
+    group = Group.query.get_or_404(group_id)
+    member = _require_member(group, current_user.id)
+
+    leaderboards = compute_leaderboards(group_id, limit=None)
+
+    return render_template(
+        "groups/leaderboard.html",
+        group=group,
+        member=member,
+        leaderboards=leaderboards,
     )
 
 

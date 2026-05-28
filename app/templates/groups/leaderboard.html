@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard — {{ group.name }} — FriedSports{% endblock %}
+{% block content %}
+<div class="group-container">
+
+  <div class="thread-header">
+    <a href="{{ url_for('groups.show', group_id=group.id) }}" class="back-link">← {{ group.name }}</a>
+    <h1 class="thread-title-large">Leaderboard</h1>
+    <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem">Season standings for {{ group.name }}</p>
+  </div>
+
+  {% set categories = [
+    ('biggest_loser',   'Biggest Loser',   'shame',                  'Shame pts'),
+    ('best_hater',      'Best Hater',      'trash_talk',             'Trash talk'),
+    ('top_informant',   'Top Informant',   'reporter',               'Reports'),
+    ('most_delusional', 'Most Delusional', 'most_delusional_score',  'Shame + defense'),
+    ('bragging_champ',  'Bragging Rights', 'bragging',               'Bragging pts'),
+  ] %}
+
+  {% for key, title, score_field, score_label in categories %}
+  {% set entries = leaderboards.get(key, []) %}
+  <section class="group-section" style="padding-top:1.5rem;border-top:1px solid var(--border)">
+    <div class="section-header" style="margin-bottom:0.75rem">
+      <div>
+        <span class="section-title">{{ title }}</span>
+        <span class="section-sub">{{ score_label }}</span>
+      </div>
+    </div>
+
+    {% if entries %}
+    <div class="lb-full-table">
+      {% for entry in entries %}
+      {% set score = (entry.shame + entry.defense) if key == 'most_delusional' else entry[score_field] %}
+      <div class="lb-full-row {% if loop.first %}lb-top{% endif %}">
+        <span class="lb-pos">{{ loop.index }}</span>
+        <span class="lb-name">{{ entry.user.display_name }}
+          {% if entry.member.role in ('owner', 'admin') %}
+          <span class="badge-role {{ entry.member.role }}" style="font-size:0.65rem;padding:1px 5px;vertical-align:middle">{{ entry.member.role }}</span>
+          {% endif %}
+        </span>
+        <span class="lb-score">{{ score }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="lb-empty">No activity yet.</div>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+</div>
+{% endblock %}

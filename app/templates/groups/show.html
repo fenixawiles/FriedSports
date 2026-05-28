@@ -102,84 +102,6 @@
     {% endif %}
   </section>
 
-  <!-- Leaderboards -->
-  <section class="leaderboard-section">
-    <div class="section-header" style="margin-bottom:0.85rem">
-      <div>
-        <span class="section-title">Leaderboards</span>
-        <span class="section-sub">Season standings</span>
-      </div>
-    </div>
-    <div class="leaderboard-grid">
-
-      <div class="lb-card">
-        <div class="lb-title">Biggest Loser</div>
-        {% for entry in leaderboards.get('biggest_loser', []) %}
-        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
-          <span class="lb-pos">{{ loop.index }}</span>
-          <span class="lb-name">{{ entry.user.display_name }}</span>
-          <span class="lb-score">{{ entry.shame }}</span>
-        </div>
-        {% else %}
-        <div class="lb-empty">No data yet</div>
-        {% endfor %}
-      </div>
-
-      <div class="lb-card">
-        <div class="lb-title">Best Hater</div>
-        {% for entry in leaderboards.get('best_hater', []) %}
-        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
-          <span class="lb-pos">{{ loop.index }}</span>
-          <span class="lb-name">{{ entry.user.display_name }}</span>
-          <span class="lb-score">{{ entry.trash_talk }}</span>
-        </div>
-        {% else %}
-        <div class="lb-empty">No data yet</div>
-        {% endfor %}
-      </div>
-
-      <div class="lb-card">
-        <div class="lb-title">Top Informant</div>
-        {% for entry in leaderboards.get('top_informant', []) %}
-        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
-          <span class="lb-pos">{{ loop.index }}</span>
-          <span class="lb-name">{{ entry.user.display_name }}</span>
-          <span class="lb-score">{{ entry.reporter }}</span>
-        </div>
-        {% else %}
-        <div class="lb-empty">No data yet</div>
-        {% endfor %}
-      </div>
-
-      <div class="lb-card">
-        <div class="lb-title">Most Delusional</div>
-        {% for entry in leaderboards.get('most_delusional', []) %}
-        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
-          <span class="lb-pos">{{ loop.index }}</span>
-          <span class="lb-name">{{ entry.user.display_name }}</span>
-          <span class="lb-score">{{ entry.shame + entry.defense }}</span>
-        </div>
-        {% else %}
-        <div class="lb-empty">No data yet</div>
-        {% endfor %}
-      </div>
-
-      <div class="lb-card">
-        <div class="lb-title">Bragging Rights</div>
-        {% for entry in leaderboards.get('bragging_champ', []) %}
-        <div class="lb-row {% if loop.first %}lb-top{% endif %}">
-          <span class="lb-pos">{{ loop.index }}</span>
-          <span class="lb-name">{{ entry.user.display_name }}</span>
-          <span class="lb-score">{{ entry.bragging }}</span>
-        </div>
-        {% else %}
-        <div class="lb-empty">No data yet</div>
-        {% endfor %}
-      </div>
-
-    </div>
-  </section>
-
   <!-- Members -->
   <section class="group-section">
     <div class="section-header" style="margin-bottom:0.85rem">
@@ -187,6 +109,7 @@
         <span class="section-title">Members</span>
         <span class="section-sub">Who's in this group</span>
       </div>
+      <a href="{{ url_for('groups.leaderboard', group_id=group.id) }}" class="btn-secondary-small">Leaderboard →</a>
     </div>
     <div class="member-table">
       <div class="member-row member-header">

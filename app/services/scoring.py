@@ -137,9 +137,10 @@ def apply_redemption_win(thread):
     db.session.commit()
 
 
-def compute_leaderboards(group_id):
+def compute_leaderboards(group_id, limit=3):
+    """Return leaderboard dicts for a group.
+    limit=3 for the compact view; limit=None for the full dedicated page."""
     from sqlalchemy.orm import joinedload
-    # Single query — joins users instead of N individual lookups
     members = (
         GroupMember.query
         .options(joinedload(GroupMember.user))
@@ -149,9 +150,8 @@ def compute_leaderboards(group_id):
     if not members:
         return {}
 
-    enriched = []
-    for m in members:
-        enriched.append({
+    enriched = [
+        {
             "member": m,
             "user": m.user,
             "shame": m.shame_score or 0,
@@ -159,14 +159,14 @@ def compute_leaderboards(group_id):
             "bragging": m.bragging_rights_score or 0,
             "defense": m.defense_score or 0,
             "reporter": m.reporter_score or 0,
-        })
+        }
+        for m in members
+    ]
 
     return {
-        "biggest_loser": sorted(enriched, key=lambda x: x["shame"], reverse=True)[:3],
-        "best_hater": sorted(enriched, key=lambda x: x["trash_talk"], reverse=True)[:3],
-        "top_informant": sorted(enriched, key=lambda x: x["reporter"], reverse=True)[:3],
-        "most_delusional": sorted(
-            enriched, key=lambda x: x["shame"] + x["defense"], reverse=True
-        )[:3],
-        "bragging_champ": sorted(enriched, key=lambda x: x["bragging"], reverse=True)[:3],
+        "biggest_loser":  sorted(enriched, key=lambda x: x["shame"],              reverse=True)[:limit],
+        "best_hater":     sorted(enriched, key=lambda x: x["trash_talk"],          reverse=True)[:limit],
+        "top_informant":  sorted(enriched, key=lambda x: x["reporter"],            reverse=True)[:limit],
+        "most_delusional":sorted(enriched, key=lambda x: x["shame"]+x["defense"],  reverse=True)[:limit],
+        "bragging_champ": sorted(enriched, key=lambda x: x["bragging"],            reverse=True)[:limit],
     }
