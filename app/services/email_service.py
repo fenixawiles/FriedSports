@@ -39,33 +39,41 @@ def _send(to, subject, html, text=None):
 
 
 # ── HTML wrapper ─────────────────────────────────────────────────────────────
+# Uses table + inline styles so the dark background survives Gmail's style-strip.
+# bgcolor="#0f0f17" is the Outlook-compatible fallback; inline style covers everything else.
 
 def _wrap(body_html):
-    """Wrap content in a minimal dark-themed email shell."""
+    """Wrap content in a dark-themed email shell (table layout, all inline styles)."""
     return f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  body {{ margin:0; padding:0; background:#0f0f17; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }}
-  .shell {{ max-width:520px; margin:0 auto; padding:32px 24px; }}
-  .logo {{ font-size:13px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#d93348; margin-bottom:28px; }}
-  .logo-dot {{ display:inline-block; width:6px; height:6px; border-radius:50%; background:#d93348; margin-right:6px; vertical-align:middle; }}
-  p {{ font-size:15px; line-height:1.65; color:#c8c8d8; margin:0 0 16px; }}
-  .btn {{ display:inline-block; background:#d93348; color:#fff !important; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:600; font-size:14px; margin:8px 0 24px; }}
-  .muted {{ font-size:12px; color:#72728a; margin-top:24px; }}
-  .divider {{ border:none; border-top:1px solid #2a2a3a; margin:24px 0; }}
-  .code-box {{ background:#1a1a2e; border:1px solid #2a2a3a; border-radius:6px; padding:20px; text-align:center; margin:16px 0 24px; }}
-  .code-box span {{ font-size:36px; font-weight:700; letter-spacing:.3em; color:#fff; font-family:monospace; }}
-</style>
 </head>
-<body>
-<div class="shell">
-  <div class="logo"><span class="logo-dot"></span>FriedSports</div>
-  {body_html}
-  <p class="muted">This email was sent by FriedSports. If you didn't expect it, ignore it.</p>
-</div>
+<body style="margin:0;padding:0;background-color:#0f0f17;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0f0f17"
+       style="background-color:#0f0f17;border-collapse:collapse;">
+  <tr>
+    <td align="center" style="padding:32px 16px;background-color:#0f0f17;">
+      <table width="520" cellpadding="0" cellspacing="0" border="0"
+             style="max-width:520px;width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="padding:0 0 28px;">
+            <span style="font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#d93348;">
+              <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background-color:#d93348;margin-right:5px;vertical-align:middle;"></span>FRIEDSPORTS
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="font-size:15px;line-height:1.65;color:#c8c8d8;">
+            {body_html}
+            <p style="font-size:12px;color:#72728a;margin:24px 0 0;line-height:1.5;">This email was sent by FriedSports. If you didn't expect it, ignore it.</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
 </body>
 </html>"""
 
@@ -78,9 +86,9 @@ def send_welcome_email(user):
 <p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
 <p>Welcome to FriedSports — where your team's disasters become your group's entertainment.</p>
 <p>Find your friends, start a group, and start holding each other accountable.</p>
-<a href="https://friedsports.com/dashboard" class="btn">Go to Dashboard →</a>
-<hr class="divider">
-<p class="muted">You're receiving this because you just created a FriedSports account.</p>
+<a href="https://friedsports.com/dashboard" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">Go to Dashboard →</a>
+<hr style="border:none;border-top:1px solid #2a2a3a;margin:24px 0;">
+<p style="font-size:12px;color:#72728a;margin:16px 0 0;line-height:1.5;">You're receiving this because you just created a FriedSports account.</p>
 """)
     text = f"Hey {user.display_name}, welcome to FriedSports. https://friedsports.com"
     return _send(user.email, subject, html, text)
@@ -92,7 +100,7 @@ def send_signin_code(user, code):
     subject = "Your FriedSports sign-in code"
     html = _wrap(f"""
 <p>Here's your sign-in code for FriedSports. It expires in 15 minutes.</p>
-<div class="code-box"><span>{code}</span></div>
+<div style="background:#1a1a2e;border:1px solid #2a2a3a;border-radius:6px;padding:20px;text-align:center;margin:16px 0 24px;"><span style="font-size:36px;font-weight:700;letter-spacing:.3em;color:#ffffff;font-family:monospace;display:block;">{code}</span></div>
 <p style="font-size:13px;color:#72728a">If you didn't request this, you can safely ignore this email.</p>
 """)
     text = f"Your FriedSports sign-in code is: {code}. It expires in 15 minutes."
@@ -105,7 +113,7 @@ def send_signup_code(user, code):
     html = _wrap(f"""
 <p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
 <p>You're almost in. Enter the code below to verify your email and finish creating your account.</p>
-<div class="code-box"><span>{code}</span></div>
+<div style="background:#1a1a2e;border:1px solid #2a2a3a;border-radius:6px;padding:20px;text-align:center;margin:16px 0 24px;"><span style="font-size:36px;font-weight:700;letter-spacing:.3em;color:#ffffff;font-family:monospace;display:block;">{code}</span></div>
 <p style="font-size:13px;color:#72728a">This code expires in 15 minutes. If you didn't sign up for FriedSports, ignore this.</p>
 """)
     text = f"Your FriedSports verification code is: {code}. Expires in 15 minutes."
@@ -171,9 +179,9 @@ def send_thread_notification(target_user, reporter, team, incident_type, group,
 in <strong style="color:#fff">{group.name}</strong>.</p>
 {desc_block}
 <p>The group is watching. Go defend yourself.</p>
-<a href="{cta_url}" class="btn">View Thread &amp; Respond →</a>
-<hr class="divider">
-<p class="muted">You're getting this because someone started a thread about your team in a group you're in.</p>
+<a href="{cta_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">View Thread &amp; Respond →</a>
+<hr style="border:none;border-top:1px solid #2a2a3a;margin:24px 0;">
+<p style="font-size:12px;color:#72728a;margin:16px 0 0;line-height:1.5;">You're getting this because someone started a thread about your team in a group you're in.</p>
 """)
     text = (
         f"{reporter.display_name} filed a {label} thread on your "
@@ -195,7 +203,7 @@ def send_invite_email(to_email, from_user, group, invite_url):
 <p>Hey,</p>
 <p><strong style="color:#fff">{from_user.display_name}</strong> wants you in
 <strong style="color:#fff">{group.name}</strong> on FriedSports — and honestly, your teams have earned this.</p>
-<hr class="divider">
+<hr style="border:none;border-top:1px solid #2a2a3a;margin:24px 0;">
 <p style="font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px">What is FriedSports?</p>
 <p>FriedSports is the sports accountability app your group chat was always trying to be.
 When your team blows a 20-point lead, gets blown out, or just embarrasses you — someone in your group
@@ -203,10 +211,10 @@ files a <em>formal report</em>. A thread opens. The receipts start piling up.</p
 <p>It's trash talk with structure. Evidence-based slander. Permanent receipts that follow your
 team's worst performances forever.</p>
 <p style="color:#fff;font-weight:600">Think: a courtroom for sports takes. Everyone's a prosecutor. Your teams are always the defendant.</p>
-<hr class="divider">
+<hr style="border:none;border-top:1px solid #2a2a3a;margin:24px 0;">
 <p>Join <strong style="color:#fff">{group.name}</strong> and find out what your friends already know about your team.</p>
-<a href="{invite_url}" class="btn">Accept the Charges →</a>
-<p class="muted">No account yet? The link above will get you set up in under a minute. Requires an email address and a willingness to face the truth about your team.</p>
+<a href="{invite_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">Accept the Charges →</a>
+<p style="font-size:12px;color:#72728a;margin:16px 0 0;line-height:1.5;">No account yet? The link above will get you set up in under a minute. Requires an email address and a willingness to face the truth about your team.</p>
 """)
     text = (
         f"{from_user.display_name} invited you to {group.name} on FriedSports — "
@@ -242,7 +250,7 @@ def send_password_reset_email(user, reset_url):
     html = _wrap(f"""
 <p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
 <p>A password reset was requested for your FriedSports account.</p>
-<a href="{reset_url}" class="btn">Reset Password →</a>
+<a href="{reset_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">Reset Password →</a>
 <p style="font-size:13px;color:#72728a">This link expires in 1 hour. If you didn't request a reset, ignore this.</p>
 """)
     text = f"Reset your FriedSports password: {reset_url}"
@@ -269,12 +277,12 @@ def send_ticket_received_user(ticket):
     html = _wrap(f"""
 <p>Hey <strong style="color:#fff">{ticket.user.display_name}</strong>,</p>
 <p>We got your report. Here's your reference number:</p>
-<div class="code-box"><span style="font-size:1.4rem;letter-spacing:.15em">{ticket.uid}</span></div>
+<div style="background:#1a1a2e;border:1px solid #2a2a3a;border-radius:6px;padding:20px;text-align:center;margin:16px 0 24px;"><span style="font-size:1.4rem;font-weight:700;letter-spacing:.15em;color:#ffffff;font-family:monospace;display:block;">{ticket.uid}</span></div>
 <p><strong style="color:#fff">Subject:</strong> {ticket.subject}</p>
 <p>We'll look into it and keep you posted. You'll get an email when the status changes.</p>
-<a href="{cta_url}" class="btn">View Your Ticket →</a>
-<hr class="divider">
-<p class="muted">Keep this email for your reference number.</p>
+<a href="{cta_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">View Your Ticket →</a>
+<hr style="border:none;border-top:1px solid #2a2a3a;margin:24px 0;">
+<p style="font-size:12px;color:#72728a;margin:16px 0 0;line-height:1.5;">Keep this email for your reference number.</p>
 """)
     text = f"Support ticket {ticket.uid} received: {ticket.subject}. View it: {cta_url}"
     return _send(ticket.user.email, f"Got it — {ticket.uid} received", html, text)
@@ -299,7 +307,7 @@ def send_ticket_received_admin(ticket):
 <div style="background:#1a1a2e;border-left:3px solid #d93348;padding:10px 14px;border-radius:0 4px 4px 0;margin:0 0 20px">
   <p style="margin:0;color:#c8c8d8;font-style:italic">{ticket.description}</p>
 </div>
-<a href="{cta_url}" class="btn">Manage Ticket →</a>
+<a href="{cta_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">Manage Ticket →</a>
 """)
     text = f"New ticket {ticket.uid} from {ticket.user.display_name}: {ticket.subject}"
     return _send(admin_email, f"[Support] {ticket.uid} — {ticket.subject}", html, text)
@@ -321,7 +329,7 @@ def send_ticket_status_update(ticket):
     note_block = ""
     if ticket.admin_note:
         note_block = f"""
-<p style="margin:0 0 8px;font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">Response from FriedSports</p>
+<p style="margin:0 0 8px;font-size:0.8rem;color:#72728a;text-transform:uppercase;letter-spacing:.06em;">Response from FriedSports</p>
 <div style="background:#1a1a2e;border-left:3px solid #34c77b;padding:10px 14px;border-radius:0 4px 4px 0;margin:0 0 20px">
   <p style="margin:0;color:#c8c8d8">{ticket.admin_note}</p>
 </div>"""
@@ -331,7 +339,7 @@ def send_ticket_status_update(ticket):
 <p>Update on your support ticket <strong style="color:#fff">{ticket.uid}</strong> — {ticket.subject}</p>
 <p>{status_line}</p>
 {note_block}
-<a href="{cta_url}" class="btn">View Ticket →</a>
+<a href="{cta_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">View Ticket →</a>
 """)
     text = f"Update on {ticket.uid}: {ticket.status_label}. View: {cta_url}"
     return _send(ticket.user.email, subject, html, text)
@@ -352,9 +360,9 @@ def send_missed_notifications_email(user, count):
 waiting for you — and if history is any guide, at least one of them involves your team doing
 something embarrassing.</p>
 <p>Come see what you missed before the receipts get worse.</p>
-<a href="{cta_url}" class="btn">Check Your Notifications →</a>
-<hr class="divider">
-<p class="muted">You're getting this because you haven't logged in while your groups have been active. Tap the button above to go straight in.</p>
+<a href="{cta_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">Check Your Notifications →</a>
+<hr style="border:none;border-top:1px solid #2a2a3a;margin:24px 0;">
+<p style="font-size:12px;color:#72728a;margin:16px 0 0;line-height:1.5;">You're getting this because you haven't logged in while your groups have been active. Tap the button above to go straight in.</p>
 """)
     text = (
         f"Hey {user.display_name}, you have {count} unread notifications on FriedSports. "
@@ -371,7 +379,7 @@ def send_admin_password_reset(user, reset_url):
     html = _wrap(f"""
 <p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
 <p>A password reset link has been created for your FriedSports account by an admin.</p>
-<a href="{reset_url}" class="btn">Set New Password →</a>
+<a href="{reset_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">Set New Password →</a>
 <p style="font-size:13px;color:#72728a">This link expires in 1 hour. If you didn't expect this, you can safely ignore it.</p>
 """)
     text = f"Reset your FriedSports password: {reset_url}. Expires in 1 hour."
@@ -384,7 +392,7 @@ def send_username_change_prompt(user, settings_url):
     html = _wrap(f"""
 <p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
 <p>You've been asked to update your username on FriedSports. Tap below to go to your settings and make the change.</p>
-<a href="{settings_url}" class="btn">Go to Settings →</a>
+<a href="{settings_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">Go to Settings →</a>
 <p style="font-size:13px;color:#72728a">This link logs you in automatically. If you have questions, reply to this email.</p>
 """)
     text = f"Please update your FriedSports username at: {settings_url}"
@@ -397,7 +405,7 @@ def send_email_change_prompt(user, settings_url):
     html = _wrap(f"""
 <p>Hey <strong style="color:#fff">{user.display_name}</strong>,</p>
 <p>You've been asked to update the email address on your FriedSports account. Tap below to go to your settings.</p>
-<a href="{settings_url}" class="btn">Go to Settings →</a>
+<a href="{settings_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">Go to Settings →</a>
 <p style="font-size:13px;color:#72728a">This link logs you in automatically. If you have questions, reply to this email.</p>
 """)
     text = f"Please update your FriedSports email address at: {settings_url}"

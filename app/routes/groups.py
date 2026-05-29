@@ -3,7 +3,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from app.models import (db, Group, GroupMember, GameThread, GameThreadMessage, Receipt,
-                        IncidentReport, GameEvent, GroupTrigger, MessageReaction, MessageReport)
+                        IncidentReport, GameEvent, GroupTrigger, MessageReaction, MessageReport,
+                        User, Notification)
 
 groups_bp = Blueprint("groups", __name__)
 
@@ -305,7 +306,7 @@ def invite_email(group_id):
     if not to_email or "@" not in to_email:
         flash("Enter a valid email address.", "error")
         return redirect(url_for("groups.show", group_id=group_id))
-    invite_url = f"{request.host_url.rstrip('/')}groups/join/{group.invite_code}"
+    invite_url = url_for("groups.join", invite_code=group.invite_code, _external=True)
     try:
         from app.services.email_service import send_invite_email
         send_invite_email(to_email, current_user, group, invite_url)
@@ -314,6 +315,19 @@ def invite_email(group_id):
         from flask import current_app
         current_app.logger.error(f"Invite email failed: {e}")
         flash("Couldn't send the invite right now. Copy the link instead.", "error")
+
+    # If the invitee already has an account, create an in-app notification as a fallback
+    existing_user = User.query.filter_by(email=to_email).first()
+    if existing_user and existing_user.id != current_user.id:
+        notif = Notification(
+            user_id=existing_user.id,
+            type="group_invite",
+            message=f"{current_user.shown_name} invited you to join {group.name}",
+            link_url=f"/groups/join/{group.invite_code}",
+        )
+        db.session.add(notif)
+        db.session.commit()
+
     return redirect(url_for("groups.show", group_id=group_id))
 
 
