@@ -306,7 +306,8 @@ def invite_email(group_id):
     if not to_email or "@" not in to_email:
         flash("Enter a valid email address.", "error")
         return redirect(url_for("groups.show", group_id=group_id))
-    invite_url = url_for("groups.join", invite_code=group.invite_code, _external=True)
+    # request.host_url always ends with '/', so no rstrip/slash-join needed
+    invite_url = f"{request.host_url}groups/join/{group.invite_code}"
     try:
         from app.services.email_service import send_invite_email
         send_invite_email(to_email, current_user, group, invite_url)
