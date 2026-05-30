@@ -1149,8 +1149,8 @@ body.receipt-page {
   /* Flip to visible — all positioning/size already declared above */
   .bottom-nav       { display: flex; }
   .bottom-nav-item  { display: flex; }
-  /* Hide top bell on mobile — notification count lives in bottom nav */
-  .nav-bell { display: none; }
+  /* Hide top bell and friends icon on mobile — both live in bottom nav */
+  .nav-bell, .nav-friends-icon { display: none; }
   /* Pad content so it doesn't hide behind the bar */
   .main-content { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
 
