@@ -44,6 +44,8 @@ def index():
                     User.email.ilike(f"%{q}%"),
                     User.uid.ilike(f"%{q}%"),
                     User.display_name.ilike(f"%{q}%"),
+                    User.first_name.ilike(f"%{q}%"),
+                    User.last_name.ilike(f"%{q}%"),
                 )
             )
             .limit(20)
