@@ -86,7 +86,8 @@
   {% block footer %}{% endblock %}
 
   {% if current_user.is_authenticated %}
-  <nav class="bottom-nav" id="bottom-nav" aria-label="Mobile navigation">
+  <nav class="bottom-nav" id="bottom-nav" aria-label="Mobile navigation"
+       style="position:fixed;bottom:0;left:0;right:0;z-index:9999;display:none">
     <a href="{{ url_for('auth.index') }}" class="bottom-nav-item" data-path="/">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -178,11 +179,25 @@
       });
     }
   })();
-  // Mark active bottom nav item
+  // Show bottom nav on mobile only, mark active item
   (function() {
-    var items = document.querySelectorAll('.bottom-nav-item[data-path]');
-    var path  = window.location.pathname;
-    items.forEach(function(el) {
+    var bnav = document.getElementById('bottom-nav');
+    if (!bnav) return;
+    // Show only on mobile-width screens
+    if (window.innerWidth <= 640) {
+      bnav.style.display = 'flex';
+      // Extra bottom padding so content isn't hidden behind it
+      var main = document.querySelector('.main-content');
+      if (main) main.style.paddingBottom = 'calc(72px + env(safe-area-inset-bottom))';
+      // Hide the top bell since the bottom nav has it
+      var bell = document.querySelector('.nav-bell');
+      if (bell) bell.style.display = 'none';
+      var friendsIcon = document.querySelector('.nav-friends-icon');
+      if (friendsIcon) friendsIcon.style.display = 'none';
+    }
+    // Mark active tab
+    var path = window.location.pathname;
+    bnav.querySelectorAll('[data-path]').forEach(function(el) {
       var p = el.getAttribute('data-path');
       if (p === '/' ? path === '/' : path.startsWith(p)) {
         el.classList.add('active');
