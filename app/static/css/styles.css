@@ -714,12 +714,20 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .reaction-count { font-size: 0.7rem; }
 .message-time { font-size: 0.68rem; color: var(--text-muted); margin-left: auto; }
 .delete-btn {
-  background: none; border: none; cursor: pointer; font-size: 0.7rem;
-  color: transparent; padding: 0.1rem 0.2rem; border-radius: 3px;
+  background: none; border: none; cursor: pointer; font-size: 0.75rem;
+  color: transparent; border-radius: 3px; padding: 0;
+  min-width: 44px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
   transition: color 0.12s;
+  -webkit-appearance: none; appearance: none;
 }
 .message-bubble:hover .delete-btn { color: var(--text-muted); }
-.delete-btn:hover { color: var(--accent) !important; }
+.delete-btn:hover  { color: var(--accent) !important; }
+.delete-btn:active { color: var(--accent) !important; }
+/* Touch screens: no hover available — always show at low opacity */
+@media (hover: none) {
+  .delete-btn { color: var(--text-muted); opacity: 0.45; }
+}
 
 /* Chat input */
 .chat-input-area {
@@ -1042,6 +1050,20 @@ body.receipt-page {
 }
 .site-footer a { color: var(--text-muted); text-decoration: none; }
 .site-footer a:hover { color: var(--text-secondary); }
+
+/* Minimal footer injected on all authenticated pages via base.html */
+.site-footer-minimal {
+  text-align: center;
+  padding: 1.5rem 1rem calc(1.5rem + env(safe-area-inset-bottom));
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.site-footer-minimal a { color: var(--text-muted); text-decoration: none; }
+.site-footer-minimal a:hover { color: var(--text-secondary); }
+.footer-sep { margin: 0 0.4rem; }
+@media (max-width: 640px) {
+  .site-footer-minimal { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+}
 
 /* ── Legal pages ── */
 .legal-container { max-width: 680px; margin: 0 auto; }

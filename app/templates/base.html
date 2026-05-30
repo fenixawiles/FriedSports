@@ -83,7 +83,17 @@
     {% block content %}{% endblock %}
   </main>
 
-  {% block footer %}{% endblock %}
+  {% block footer %}
+  <footer class="site-footer-minimal">
+    <a href="{{ url_for('legal.privacy') }}">Privacy Policy</a>
+    <span class="footer-sep">·</span>
+    <a href="{{ url_for('legal.terms') }}">Terms of Service</a>
+    {% if current_user.is_authenticated %}
+    <span class="footer-sep">·</span>
+    <a href="{{ url_for('support.index') }}">Support</a>
+    {% endif %}
+  </footer>
+  {% endblock %}
 
   {% if current_user.is_authenticated %}
   <nav class="bottom-nav" id="bottom-nav" aria-label="Mobile navigation"

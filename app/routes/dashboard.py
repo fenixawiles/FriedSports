@@ -222,28 +222,21 @@ def delete_account():
         flash("Incorrect password. Account not deleted.", "error")
         return redirect(url_for("dashboard.settings"))
 
-    user = current_user._get_current_object()
+    user    = current_user._get_current_object()
+    user_id = user.id
 
-    # Soft-delete all messages
-    GameThreadMessage.query.filter_by(user_id=user.id).update({"is_deleted": True})
-
-    # Remove group memberships
-    GroupMember.query.filter_by(user_id=user.id).delete()
-
-    # Remove favorite teams
-    UserFavoriteTeam.query.filter_by(user_id=user.id).delete()
-
-    # Remove device tokens
-    from app.models import DeviceToken
-    DeviceToken.query.filter_by(user_id=user.id).delete()
-
-    db.session.flush()
-
-    # Log out before deleting
+    # Log out first so Flask-Login releases the session reference
     logout_user()
 
-    # Delete the user record
-    db.session.delete(user)
+    # Full cascade — same helper used by admin delete
+    # (handles owned groups, friends, messages, receipts, notifications, etc.)
+    from app.routes.admin import _cascade_delete_user
+    _cascade_delete_user(user_id)
+
+    # Delete the user record itself
+    user_obj = db.session.get(User, user_id)
+    if user_obj:
+        db.session.delete(user_obj)
     db.session.commit()
 
     flash("Your account has been permanently deleted.", "info")

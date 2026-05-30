@@ -11,7 +11,7 @@ from app.utils import admin_required
 from app.models import (db, Team, User, UserFavoriteTeam, GroupMember, AdminAuditLog,
                         SupportTicket, Group, IncidentReport, GameEvent, GroupTrigger,
                         GameThread, GameThreadMessage, MessageReaction, MessageReport,
-                        Receipt, DeviceToken, LoginToken, Notification)
+                        Receipt, DeviceToken, LoginToken, Notification, FriendRequest)
 from app.analytics.models import (
     LabLeague, LabSeason, LabGame, LabPlayer,
     TeamGameStats, PlayerGameStats, DerivedGameMetrics, MetricDefinition,
@@ -493,6 +493,13 @@ def _cascade_delete_user(user_id):
     SupportTicket.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     UserFavoriteTeam.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     Notification.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    # Delete friend requests sent or received by this user
+    FriendRequest.query.filter(
+        db.or_(
+            FriendRequest.from_user_id == user_id,
+            FriendRequest.to_user_id   == user_id,
+        )
+    ).delete(synchronize_session=False)
     db.session.flush()
 
 
