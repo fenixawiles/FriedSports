@@ -1110,41 +1110,48 @@ body.receipt-page {
 }
 
 /* ── Mobile bottom navigation bar ───────────────────────────────────────── */
-.bottom-nav { display: none; } /* hidden on desktop */
+/* All layout/position on the base rule — only display toggles inside the query */
+.bottom-nav {
+  display: none;                          /* hidden by default (desktop) */
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 9999;
+  height: calc(54px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-top: 5px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  align-items: flex-start;
+}
+.bottom-nav-item {
+  display: none;                          /* also hidden by default */
+  flex: 1; flex-direction: column; align-items: center;
+  gap: 2px; text-decoration: none; color: var(--text-muted);
+  font-size: 0.6rem; letter-spacing: 0.02em;
+  min-height: 44px; padding-top: 4px;
+  background: none; border: none; cursor: pointer; position: relative;
+  transition: color 0.12s;
+  -webkit-appearance: none; appearance: none;
+  border-radius: 0; padding-left: 0; padding-right: 0;
+  font-family: inherit;
+}
+.bottom-nav-item svg { opacity: 0.55; transition: opacity 0.12s; }
+.bottom-nav-item.active { color: var(--accent); }
+.bottom-nav-item.active svg { opacity: 1; }
+.bottom-nav-badge {
+  position: absolute; top: 1px; right: calc(50% - 18px);
+  background: var(--accent); color: #fff; font-size: 0.55rem;
+  font-weight: 800; padding: 1px 4px; border-radius: 10px;
+  min-width: 14px; text-align: center; line-height: 1.4; pointer-events: none;
+}
 
 @media (max-width: 640px) {
-  .bottom-nav {
-    display: flex;
-    position: fixed; bottom: 0; left: 0; right: 0;
-    height: calc(54px + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
-    background: var(--bg-surface); border-top: 1px solid var(--border);
-    z-index: 200; align-items: flex-start; padding-top: 5px;
-  }
-  .bottom-nav-item {
-    flex: 1; display: flex; flex-direction: column; align-items: center;
-    gap: 2px; text-decoration: none; color: var(--text-muted);
-    font-size: 0.6rem; letter-spacing: 0.02em;
-    min-height: 44px; padding-top: 4px;
-    background: none; border: none; cursor: pointer; position: relative;
-    transition: color 0.12s;
-    /* Strip iOS native button appearance — critical for <button> elements */
-    -webkit-appearance: none; appearance: none;
-    border-radius: 0; padding-left: 0; padding-right: 0;
-    font-family: inherit;
-  }
-  .bottom-nav-item svg { opacity: 0.55; transition: opacity 0.12s; }
-  .bottom-nav-item.active { color: var(--accent); }
-  .bottom-nav-item.active svg { opacity: 1; }
-  .bottom-nav-badge {
-    position: absolute; top: 1px; right: calc(50% - 18px);
-    background: var(--accent); color: #fff; font-size: 0.55rem;
-    font-weight: 800; padding: 1px 4px; border-radius: 10px;
-    min-width: 14px; text-align: center; line-height: 1.4; pointer-events: none;
-  }
-  /* Hide top bell on mobile — shown in bottom nav */
+  /* Flip to visible — all positioning/size already declared above */
+  .bottom-nav       { display: flex; }
+  .bottom-nav-item  { display: flex; }
+  /* Hide top bell on mobile — notification count lives in bottom nav */
   .nav-bell { display: none; }
-  /* Extra bottom padding so content clears the bottom nav */
+  /* Pad content so it doesn't hide behind the bar */
   .main-content { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
 
   /* ── Mobile layout simplifications ── */
