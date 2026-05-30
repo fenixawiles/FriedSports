@@ -676,27 +676,32 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .message-user { padding: 0 0.85rem; }
 .message-mine  { justify-content: flex-end; }
 .message-theirs { justify-content: flex-start; }
-/* Incident strip — compact one-liner at top of chat */
+/* Incident strip — matches system message style */
 .incident-strip {
-  font-size: 0.72rem; color: var(--text-muted);
-  padding: 0 0.85rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 0.5rem;
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.1rem;
-  line-height: 1.7;
+  display: flex; flex-direction: column; align-items: center;
+  margin: 0.5rem 0 0.75rem;
 }
-.istrip-type { font-weight: 700; color: var(--accent); text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.06em; }
+.incident-strip-text {
+  font-size: 0.82rem; color: var(--text-muted); font-style: italic;
+  text-align: center; max-width: 88%; padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  line-height: 1.5; width: 100%;
+}
+.istrip-type { font-weight: 600; font-style: normal; }
 .istrip-sep  { margin: 0 0.3rem; opacity: 0.35; }
-.istrip-context { font-style: italic; }
-.istrip-action-btn {
-  background: none; border: none; padding: 0;
-  color: var(--text-muted); font-size: 0.72rem;
-  cursor: pointer; font-family: inherit; margin-left: 0.1rem;
-  text-decoration: underline; text-underline-offset: 2px;
-  transition: color 0.12s;
+.istrip-context { }
+.incident-strip-actions {
+  display: flex; gap: 0.5rem; justify-content: center;
+  padding: 0.5rem 0 0;
 }
-.istrip-action-btn:hover { color: var(--text-secondary); }
-.istrip-action-danger { color: var(--accent) !important; }
+.istrip-action-btn {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-muted); font-size: 0.72rem; padding: 0.2rem 0.65rem;
+  cursor: pointer; font-family: inherit;
+  transition: color 0.12s, border-color 0.12s;
+}
+.istrip-action-btn:hover { color: var(--text-secondary); border-color: var(--border-mid); }
+.istrip-action-danger { color: var(--accent) !important; border-color: rgba(217,51,72,0.35) !important; }
 
 .message-bubble {
   max-width: 88%;

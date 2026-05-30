@@ -73,32 +73,39 @@
     {# Incident strip — compact one-liner at top of chat #}
     {% if ir %}
     <div class="incident-strip">
-      <span class="istrip-type">{{ ir.incident_type.replace('_',' ').title() }}</span>
-      <span class="istrip-sep">·</span>
-      <span>Severity {{ ir.severity }}/5</span>
-      <span class="istrip-sep">·</span>
-      <span>by {{ ir.reporter.display_name }}</span>
-      {% if ir.reported_score_text %}
-      <span class="istrip-sep">·</span>
-      <span class="istrip-context">"{{ ir.reported_score_text }}"</span>
-      {% endif %}
-      {# Admin / owner actions as tiny inline links #}
-      {% if ir.status == 'active' and member and member.role in ('owner','admin') %}
-      <span class="istrip-sep">·</span>
-      <form action="{{ url_for('reports.confirm', report_id=ir.id) }}" method="post" style="display:inline">
-        <button class="istrip-action-btn">Confirm</button>
-      </form>
-      {% endif %}
-      {% if ir.status not in ('dismissed','redeemed') and member and member.role in ('owner','admin') %}
-      <form action="{{ url_for('reports.dismiss', report_id=ir.id) }}" method="post" style="display:inline"
-            onsubmit="return confirm('Dismiss this report? The reporter will lose 5 points.')">
-        <button class="istrip-action-btn istrip-action-danger">Dismiss</button>
-      </form>
-      {% endif %}
-      {% if ir.status not in ('redeemed',) and (current_user.id == thread.target_user_id or (member and member.role in ('owner','admin'))) %}
-      <form action="{{ url_for('reports.redeem', report_id=ir.id) }}" method="post" style="display:inline">
-        <button class="istrip-action-btn">Redeemed</button>
-      </form>
+      <div class="incident-strip-text">
+        <span class="istrip-type">{{ ir.incident_type.replace('_',' ').title() }}</span>
+        <span class="istrip-sep">·</span>
+        <span>Severity {{ ir.severity }}/5</span>
+        <span class="istrip-sep">·</span>
+        <span>by {{ ir.reporter.display_name }}</span>
+        {% if ir.reported_score_text %}
+        <span class="istrip-sep">·</span>
+        <span class="istrip-context">"{{ ir.reported_score_text }}"</span>
+        {% endif %}
+      </div>
+      {% set show_actions = (ir.status == 'active' and member and member.role in ('owner','admin'))
+                         or (ir.status not in ('dismissed','redeemed') and member and member.role in ('owner','admin'))
+                         or (ir.status not in ('redeemed',) and (current_user.id == thread.target_user_id or (member and member.role in ('owner','admin')))) %}
+      {% if show_actions %}
+      <div class="incident-strip-actions">
+        {% if ir.status == 'active' and member and member.role in ('owner','admin') %}
+        <form action="{{ url_for('reports.confirm', report_id=ir.id) }}" method="post">
+          <button class="istrip-action-btn">Confirm</button>
+        </form>
+        {% endif %}
+        {% if ir.status not in ('dismissed','redeemed') and member and member.role in ('owner','admin') %}
+        <form action="{{ url_for('reports.dismiss', report_id=ir.id) }}" method="post"
+              onsubmit="return confirm('Dismiss this report? The reporter will lose 5 points.')">
+          <button class="istrip-action-btn istrip-action-danger">Dismiss</button>
+        </form>
+        {% endif %}
+        {% if ir.status not in ('redeemed',) and (current_user.id == thread.target_user_id or (member and member.role in ('owner','admin'))) %}
+        <form action="{{ url_for('reports.redeem', report_id=ir.id) }}" method="post">
+          <button class="istrip-action-btn">Mark Redeemed</button>
+        </form>
+        {% endif %}
+      </div>
       {% endif %}
     </div>
     {% endif %}
