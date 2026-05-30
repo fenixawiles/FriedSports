@@ -1122,12 +1122,13 @@ body.receipt-page {
   .main-content { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
 
   .bottom-nav-item {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 4px;
+    flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px;
     text-decoration: none;
     color: #888;
     font-size: 0.62rem; font-weight: 500; letter-spacing: 0.01em;
-    padding: 6px 0 4px;
+    padding: 9px 0 3px;
+    min-width: 0; /* prevent any item from squeezing others */
     background: none; border: none; cursor: pointer; position: relative;
     -webkit-appearance: none; appearance: none;
     border-radius: 0;
