@@ -87,7 +87,7 @@
 
   {% if current_user.is_authenticated %}
   <nav class="bottom-nav" id="bottom-nav" aria-label="Mobile navigation"
-       style="position:fixed;bottom:0;left:0;right:0;z-index:9999;display:none">
+       style="position:fixed;bottom:0;left:0;right:0;z-index:9999;display:none;background:#1e1e1e;border-top:1px solid #2e2e3a;padding-bottom:env(safe-area-inset-bottom);height:calc(56px + env(safe-area-inset-bottom))">
     <a href="{{ url_for('auth.index') }}" class="bottom-nav-item" data-path="/">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -183,18 +183,21 @@
   (function() {
     var bnav = document.getElementById('bottom-nav');
     if (!bnav) return;
-    // Show only on mobile-width screens
-    if (window.innerWidth <= 640) {
-      bnav.style.display = 'flex';
-      // Extra bottom padding so content isn't hidden behind it
-      var main = document.querySelector('.main-content');
-      if (main) main.style.paddingBottom = 'calc(72px + env(safe-area-inset-bottom))';
-      // Hide the top bell since the bottom nav has it
-      var bell = document.querySelector('.nav-bell');
-      if (bell) bell.style.display = 'none';
-      var friendsIcon = document.querySelector('.nav-friends-icon');
-      if (friendsIcon) friendsIcon.style.display = 'none';
+    // Hard-hide on desktop — the CSS @media already does this but double-enforce via JS
+    if (window.innerWidth > 640) {
+      bnav.style.setProperty('display', 'none', 'important');
+      return; // stop — rest of logic is mobile-only
     }
+    // Mobile: make visible with proper flex alignment
+    bnav.style.display = 'flex';
+    bnav.style.alignItems = 'stretch';
+    // Extra bottom padding so content isn't hidden behind it
+    var main = document.querySelector('.main-content');
+    if (main) main.style.paddingBottom = 'calc(66px + env(safe-area-inset-bottom))';
+    // Hide the top bell + friends icon since the bottom nav has them
+    document.querySelectorAll('.nav-bell, .nav-friends-icon').forEach(function(el) {
+      el.style.display = 'none';
+    });
     // Mark active tab
     var path = window.location.pathname;
     bnav.querySelectorAll('[data-path]').forEach(function(el) {

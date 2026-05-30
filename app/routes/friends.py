@@ -1,5 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
+from sqlalchemy import or_, and_
 from app.models import db, User, FriendRequest, Notification
 
 friends_bp = Blueprint("friends", __name__)
@@ -12,10 +13,10 @@ def _friendship_status(user_id):
     if user_id == current_user.id:
         return "self"
     fr = FriendRequest.query.filter(
-        db.or_(
-            db.and_(FriendRequest.from_user_id == current_user.id,
+        or_(
+            and_(FriendRequest.from_user_id == current_user.id,
                     FriendRequest.to_user_id   == user_id),
-            db.and_(FriendRequest.from_user_id == user_id,
+            and_(FriendRequest.from_user_id == user_id,
                     FriendRequest.to_user_id   == current_user.id),
         )
     ).first()
@@ -38,12 +39,12 @@ def index():
         results = (
             User.query
             .filter(
-                db.or_(
+                User.id != current_user.id,
+                or_(
                     User.email.ilike(f"%{q}%"),
                     User.uid.ilike(f"%{q}%"),
                     User.display_name.ilike(f"%{q}%"),
-                ),
-                User.id != current_user.id,
+                )
             )
             .limit(20)
             .all()
@@ -70,10 +71,10 @@ def send_request(user_id):
 
     # Check if already a request/friend
     existing = FriendRequest.query.filter(
-        db.or_(
-            db.and_(FriendRequest.from_user_id == current_user.id,
+        or_(
+            and_(FriendRequest.from_user_id == current_user.id,
                     FriendRequest.to_user_id   == user_id),
-            db.and_(FriendRequest.from_user_id == user_id,
+            and_(FriendRequest.from_user_id == user_id,
                     FriendRequest.to_user_id   == current_user.id),
         )
     ).first()
@@ -147,10 +148,10 @@ def decline_request(request_id):
 @login_required
 def remove_friend(user_id):
     fr = FriendRequest.query.filter(
-        db.or_(
-            db.and_(FriendRequest.from_user_id == current_user.id,
+        or_(
+            and_(FriendRequest.from_user_id == current_user.id,
                     FriendRequest.to_user_id   == user_id),
-            db.and_(FriendRequest.from_user_id == user_id,
+            and_(FriendRequest.from_user_id == user_id,
                     FriendRequest.to_user_id   == current_user.id),
         ),
         FriendRequest.status == "accepted",
