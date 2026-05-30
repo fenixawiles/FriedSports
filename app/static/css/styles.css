@@ -689,13 +689,14 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .istrip-sep  { margin: 0 0.3rem; opacity: 0.35; }
 .istrip-context { font-style: italic; }
 .istrip-action-btn {
-  background: none; border: 1px solid var(--border); border-radius: 3px;
-  color: var(--text-muted); font-size: 0.65rem; padding: 0.1rem 0.4rem;
-  cursor: pointer; font-family: inherit; margin-left: 0.3rem;
-  transition: color 0.12s, border-color 0.12s;
+  background: none; border: none; padding: 0;
+  color: var(--text-muted); font-size: 0.72rem;
+  cursor: pointer; font-family: inherit; margin-left: 0.1rem;
+  text-decoration: underline; text-underline-offset: 2px;
+  transition: color 0.12s;
 }
-.istrip-action-btn:hover { color: var(--text-secondary); border-color: var(--border-mid); }
-.istrip-action-danger { color: var(--accent) !important; border-color: rgba(217,51,72,0.3) !important; }
+.istrip-action-btn:hover { color: var(--text-secondary); }
+.istrip-action-danger { color: var(--accent) !important; }
 
 .message-bubble {
   max-width: 88%;
@@ -731,17 +732,23 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .delete-btn {
   background: none; border: none; cursor: pointer; font-size: 0.75rem;
   color: transparent; border-radius: 3px; padding: 0;
-  min-width: 44px; min-height: 44px;
+  /* Desktop: compact, hover-reveal */
+  width: 20px; height: 20px;
   display: inline-flex; align-items: center; justify-content: center;
   transition: color 0.12s;
   -webkit-appearance: none; appearance: none;
+  flex-shrink: 0;
 }
 .message-bubble:hover .delete-btn { color: var(--text-muted); }
 .delete-btn:hover  { color: var(--accent) !important; }
 .delete-btn:active { color: var(--accent) !important; }
-/* Touch screens: no hover available — always show at low opacity */
+/* Touch: expand tap target + always visible */
 @media (hover: none) {
-  .delete-btn { color: var(--text-muted); opacity: 0.45; }
+  .delete-btn {
+    min-width: 44px; min-height: 44px;
+    width: auto; height: auto;
+    color: var(--text-muted); opacity: 0.45;
+  }
 }
 
 /* Chat input — iMessage style */
