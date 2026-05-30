@@ -637,7 +637,7 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .join-member-count { font-size: 0.82rem; color: var(--text-muted); }
 
 /* ── Thread page ── */
-.thread-container { max-width: 760px; margin: 0 auto; }
+.thread-container { width: 100%; }
 .back-link { font-size: 0.82rem; color: var(--text-muted); display: inline-block; margin-bottom: 1rem; transition: color 0.15s; }
 .back-link:hover { color: var(--text-secondary); }
 .thread-title-large { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.25; letter-spacing: -0.02em; }
@@ -677,8 +677,9 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .message-mine  { justify-content: flex-end; }
 .message-theirs { justify-content: flex-start; }
 .message-bubble {
-  padding: 0.25rem 0; max-width: 82%;
-  background: none; border: none;
+  padding: 0.15rem 0; max-width: 88%;
+  background: none !important; border: none !important;
+  border-radius: 0 !important; box-shadow: none !important;
 }
 .message-author {
   font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);
