@@ -1128,6 +1128,10 @@ body.receipt-page {
     min-height: 44px; padding-top: 4px;
     background: none; border: none; cursor: pointer; position: relative;
     transition: color 0.12s;
+    /* Strip iOS native button appearance — critical for <button> elements */
+    -webkit-appearance: none; appearance: none;
+    border-radius: 0; padding-left: 0; padding-right: 0;
+    font-family: inherit;
   }
   .bottom-nav-item svg { opacity: 0.55; transition: opacity 0.12s; }
   .bottom-nav-item.active { color: var(--accent); }
