@@ -677,16 +677,8 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .message-mine  { justify-content: flex-end; }
 .message-theirs { justify-content: flex-start; }
 .message-bubble {
-  border-radius: var(--radius-sm); padding: 0.45rem 0.65rem; max-width: 72%;
-}
-/* Own messages — subtle accent tint, right side */
-.message-mine .message-bubble {
-  background: rgba(217,51,72,0.13);
-  border: 1px solid rgba(217,51,72,0.2);
-}
-/* Others — slightly elevated dark, left side */
-.message-theirs .message-bubble {
-  background: var(--bg-elevated);
+  padding: 0.25rem 0; max-width: 82%;
+  background: none; border: none;
 }
 .message-author {
   font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);
@@ -735,6 +727,8 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   padding-top: 0.75rem;
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--bg-primary);
+  position: sticky;
+  bottom: 0;
 }
 .chat-form {
   display: flex; gap: 0.6rem; align-items: flex-end;
@@ -953,6 +947,10 @@ body.receipt-page {
   .chat-form { flex-direction: column; align-items: stretch; }
   .chat-form textarea { width: 100%; }
   .chat-submit { width: 100%; }
+  /* Lift chat input above the bottom nav bar */
+  .chat-input-area {
+    padding-bottom: calc(62px + env(safe-area-inset-bottom));
+  }
 
   /* Name grid — single column on narrow screens */
   .name-grid { grid-template-columns: 1fr; }
@@ -1054,15 +1052,29 @@ body.receipt-page {
 /* Minimal footer injected on all authenticated pages via base.html */
 .site-footer-minimal {
   text-align: center;
-  padding: 1.5rem 1rem calc(1.5rem + env(safe-area-inset-bottom));
+  padding: 2rem 1.5rem calc(2rem + env(safe-area-inset-bottom));
+  margin-top: 3rem;
+  border-top: 1px solid var(--border);
   font-size: 0.72rem;
   color: var(--text-muted);
+  letter-spacing: 0.02em;
 }
-.site-footer-minimal a { color: var(--text-muted); text-decoration: none; }
+.site-footer-minimal a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.12s;
+}
 .site-footer-minimal a:hover { color: var(--text-secondary); }
-.footer-sep { margin: 0 0.4rem; }
+.footer-sep { margin: 0 0.5rem; opacity: 0.4; }
+/* Hidden on mobile — Privacy/Terms live in the hamburger drawer instead */
 @media (max-width: 640px) {
-  .site-footer-minimal { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  .site-footer-minimal { display: none; }
+  /* Legal links in nav drawer shown only on mobile */
+  .nav-link-legal { display: flex; }
+}
+@media (min-width: 641px) {
+  /* Legal links already in footer on desktop — hide from drawer */
+  .nav-link-legal { display: none !important; }
 }
 
 /* ── Legal pages ── */

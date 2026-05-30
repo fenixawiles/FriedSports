@@ -51,6 +51,8 @@
         <a href="{{ url_for('groups.new') }}" class="nav-link">New Group</a>
         <a href="{{ url_for('groups.join_prompt') }}" class="nav-link">Join Group</a>
         <a href="{{ url_for('support.index') }}" class="nav-link">Support</a>
+        <a href="{{ url_for('legal.privacy') }}" class="nav-link nav-link-legal">Privacy Policy</a>
+        <a href="{{ url_for('legal.terms') }}" class="nav-link nav-link-legal">Terms of Service</a>
         {% if current_user.is_admin %}
         <a href="{{ url_for('admin.dashboard') }}" class="nav-link nav-link-admin">Lab</a>
         <a href="{{ url_for('admin.tools_dashboard') }}" class="nav-link nav-link-admin">Admin</a>
@@ -94,6 +96,7 @@
     {% endif %}
   </footer>
   {% endblock %}
+
 
   {% if current_user.is_authenticated %}
   <nav class="bottom-nav" id="bottom-nav" aria-label="Mobile navigation"
