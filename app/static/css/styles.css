@@ -1110,6 +1110,12 @@ body.receipt-page {
 }
 
 /* ── Mobile bottom navigation bar ───────────────────────────────────────── */
+/* Layout properties applied whenever nav is visible (display set by JS) */
+.bottom-nav {
+  width: 100%;
+  justify-content: space-evenly;
+  align-items: center;
+}
 /* Never rendered on desktop regardless of JS */
 @media (min-width: 641px) {
   .bottom-nav { display: none !important; }
