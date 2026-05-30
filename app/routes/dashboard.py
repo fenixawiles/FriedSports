@@ -253,18 +253,29 @@ def delete_account():
 @dashboard_bp.route("/notifications")
 @login_required
 def notifications():
-    from app.models import Notification
-    notifs = (
+    from app.models import Notification, FriendRequest
+    all_notifs = (
         Notification.query
         .filter_by(user_id=current_user.id)
         .order_by(Notification.created_at.desc())
-        .limit(50)
+        .limit(100)
         .all()
     )
-    # Mark all as read on page load
+    messages = [n for n in all_notifs if n.type in ("thread_started", "message_received")]
+    invites  = [n for n in all_notifs if n.type == "group_invite"]
+
+    pending_fr = (
+        FriendRequest.query
+        .filter_by(to_user_id=current_user.id, status="pending")
+        .order_by(FriendRequest.created_at.desc())
+        .all()
+    )
+
+    # Mark all notifications as read on page load
     Notification.query.filter_by(user_id=current_user.id, is_read=False).update({"is_read": True})
     db.session.commit()
-    return render_template("dashboard/notifications.html", notifications=notifs)
+    return render_template("dashboard/notifications.html",
+                           messages=messages, invites=invites, pending_fr=pending_fr)
 
 
 @dashboard_bp.route("/notifications/mark-read", methods=["POST"])

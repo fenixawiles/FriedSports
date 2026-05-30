@@ -6,9 +6,6 @@
   <div class="group-header">
     <div>
       <h1>Notifications</h1>
-      <div class="group-header-meta">
-        <span style="font-size:0.8rem;color:var(--text-muted)">Your recent activity</span>
-      </div>
     </div>
     <div class="group-actions">
       <form action="{{ url_for('dashboard.notifications_mark_read') }}" method="post" style="display:inline">
@@ -17,20 +14,94 @@
     </div>
   </div>
 
-  <section class="group-section" style="border-top:none;padding-top:0">
-    {% if notifications %}
+  <!-- Friend Requests (action-required — always shown first if any) -->
+  {% if pending_fr %}
+  <section class="group-section" style="border-top:none;padding-top:0;margin-bottom:0.5rem">
+    <div class="section-header" style="margin-bottom:0.75rem">
+      <span class="section-title">Friend Requests</span>
+      <span class="notif-count-chip">{{ pending_fr|length }}</span>
+    </div>
+    {% for fr in pending_fr %}
+    <div class="notif-fr-row">
+      <div class="notif-fr-info">
+        <span class="notif-fr-name">{{ fr.from_user.shown_name }}</span>
+        <span class="notif-fr-uid">{{ fr.from_user.uid }}</span>
+      </div>
+      <div class="notif-fr-actions">
+        <form action="{{ url_for('friends.accept_request', request_id=fr.id) }}" method="post" style="display:inline">
+          <button type="submit" class="btn-primary-small">Accept</button>
+        </form>
+        <form action="{{ url_for('friends.decline_request', request_id=fr.id) }}" method="post" style="display:inline">
+          <button type="submit" class="btn-secondary-small">Decline</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <!-- Tabs: Messages | Invites -->
+  <div class="notif-tabs">
+    <a href="#messages" class="notif-tab" id="tab-messages">
+      Messages
+      {% if messages %}<span class="notif-count-chip">{{ messages|length }}</span>{% endif %}
+    </a>
+    <a href="#invites" class="notif-tab" id="tab-invites">
+      Invites
+      {% if invites %}<span class="notif-count-chip">{{ invites|length }}</span>{% endif %}
+    </a>
+  </div>
+
+  <!-- Messages panel -->
+  <section id="panel-messages" class="notif-panel group-section" style="border-top:none;padding-top:0">
+    {% if messages %}
     <div class="notif-list">
-      {% for n in notifications %}
+      {% for n in messages %}
       <a href="{{ n.link_url or url_for('dashboard.dashboard') }}"
-         class="notif-item {% if not n.is_read %}notif-unread{% endif %}">
-        <div class="notif-message">{{ n.message }}</div>
-        <div class="notif-time">{{ n.created_at.strftime('%b %d at %I:%M %p') if n.created_at else '' }}</div>
+         class="notif-item{% if not n.is_read %} notif-unread{% endif %}">
+        <div class="notif-dot"></div>
+        <div class="notif-body">
+          <div class="notif-message">{{ n.message }}</div>
+          <div class="notif-time">{{ n.created_at.strftime('%-d %b at %-I:%M %p') if n.created_at else '' }}</div>
+        </div>
+        <svg class="notif-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
       </a>
       {% endfor %}
     </div>
     {% else %}
     <div class="empty-state">
-      <p>You're all caught up — no notifications yet.</p>
+      <p>No messages yet. When someone posts in a thread about your team, it'll show here.</p>
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- Invites panel -->
+  <section id="panel-invites" class="notif-panel group-section" style="border-top:none;padding-top:0;display:none">
+    {% if invites %}
+    <div class="notif-list">
+      {% for n in invites %}
+      <a href="{{ n.link_url or url_for('dashboard.dashboard') }}"
+         class="notif-item{% if not n.is_read %} notif-unread{% endif %}">
+        <div class="notif-dot"></div>
+        <div class="notif-body">
+          <div class="notif-message">{{ n.message }}</div>
+          <div class="notif-time">{{ n.created_at.strftime('%-d %b at %-I:%M %p') if n.created_at else '' }}</div>
+        </div>
+        <svg class="notif-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>No invites. Share a group invite link or ask a friend to send one.</p>
     </div>
     {% endif %}
   </section>
@@ -38,20 +109,80 @@
 </div>
 
 <style>
-.notif-list { display: flex; flex-direction: column; gap: 0; }
+/* ── Notification tabs ── */
+.notif-tabs {
+  display: flex; gap: 0; border-bottom: 1px solid var(--border);
+  margin-bottom: 0; padding: 0 0 0;
+}
+.notif-tab {
+  padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 600;
+  color: var(--text-muted); text-decoration: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  display: flex; align-items: center; gap: 0.4rem;
+  transition: color 0.12s;
+}
+.notif-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+.notif-count-chip {
+  font-size: 0.65rem; font-weight: 700; background: var(--bg-elevated);
+  padding: 1px 6px; border-radius: 10px; color: var(--text-secondary);
+}
+/* ── Notification items ── */
+.notif-list { display: flex; flex-direction: column; }
 .notif-item {
-  display: block; padding: 1rem 0; border-bottom: 1px solid var(--border);
-  text-decoration: none; transition: background 0.12s;
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.9rem 0; border-bottom: 1px solid var(--border);
+  text-decoration: none; transition: opacity 0.12s;
 }
 .notif-item:last-child { border-bottom: none; }
-.notif-item:hover { background: var(--bg-elevated); margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }
-.notif-unread .notif-message { color: var(--text-primary); font-weight: 500; }
-.notif-unread::before {
-  content: ''; display: inline-block; width: 6px; height: 6px;
-  border-radius: 50%; background: var(--accent);
-  margin-right: 0.5rem; vertical-align: middle; flex-shrink: 0;
+.notif-item:hover { opacity: 0.75; }
+.notif-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: transparent; flex-shrink: 0;
 }
-.notif-message { font-size: 0.9rem; color: var(--text-secondary); display: inline; }
-.notif-time { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; }
+.notif-unread .notif-dot { background: var(--accent); }
+.notif-body { flex: 1; min-width: 0; }
+.notif-message { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.4; }
+.notif-unread .notif-message { color: var(--text-primary); font-weight: 500; }
+.notif-time { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+.notif-chevron { color: var(--text-muted); flex-shrink: 0; }
+/* ── Friend request rows ── */
+.notif-fr-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border);
+}
+.notif-fr-row:last-child { border-bottom: none; }
+.notif-fr-info { display: flex; flex-direction: column; gap: 2px; }
+.notif-fr-name { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+.notif-fr-uid  { font-size: 0.72rem; color: var(--text-muted); font-family: monospace; }
+.notif-fr-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
 </style>
+
+<script>
+(function () {
+  var tabs   = document.querySelectorAll('.notif-tab');
+  var panels = document.querySelectorAll('.notif-panel');
+
+  function activate(hash) {
+    var target = (hash === '#invites') ? 'invites' : 'messages';
+    tabs.forEach(function (t) {
+      t.classList.toggle('active', t.id === 'tab-' + target);
+    });
+    panels.forEach(function (p) {
+      p.style.display = p.id === 'panel-' + target ? '' : 'none';
+    });
+  }
+
+  // Activate on load (support direct hash links)
+  activate(window.location.hash);
+
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function (e) {
+      e.preventDefault();
+      var hash = t.getAttribute('href');
+      history.replaceState(null, '', hash);
+      activate(hash);
+    });
+  });
+})();
+</script>
 {% endblock %}

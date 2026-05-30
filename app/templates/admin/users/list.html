@@ -30,12 +30,13 @@
     </form>
 
     <div class="member-table">
-      <div class="member-row member-header" style="grid-template-columns:2fr 2.5fr 1fr 1fr 1fr">
-        <span>Name</span><span>Email</span><span>Role</span><span>Joined</span><span></span>
+      <div class="member-row member-header" style="grid-template-columns:2fr 1.2fr 2fr 1fr 1fr 1fr">
+        <span>Name</span><span>UID</span><span>Email</span><span>Role</span><span>Joined</span><span></span>
       </div>
       {% for user in users.items %}
-      <div class="member-row" style="grid-template-columns:2fr 2.5fr 1fr 1fr 1fr">
+      <div class="member-row" style="grid-template-columns:2fr 1.2fr 2fr 1fr 1fr 1fr">
         <span class="member-name">{{ user.display_name }}</span>
+        <span style="font-family:monospace;font-size:0.75rem;color:var(--text-muted)">{{ user.uid }}</span>
         <span style="color:var(--text-secondary);font-size:0.82rem">{{ user.email }}</span>
         <span>
           <span class="badge-role {% if user.is_admin %}admin{% else %}member{% endif %}">

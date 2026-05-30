@@ -350,6 +350,7 @@ def users_list():
             db.or_(
                 User.display_name.ilike(f"%{search}%"),
                 User.email.ilike(f"%{search}%"),
+                User.uid.ilike(f"%{search}%"),
             )
         )
     users = query.paginate(page=page, per_page=50, error_out=False)

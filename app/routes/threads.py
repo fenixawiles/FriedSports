@@ -81,4 +81,20 @@ def post_message(thread_id):
     apply_thread_points(thread, msg)
     db.session.commit()
 
+    # Notify the thread's target user when someone else posts in their thread
+    if thread.target_user_id and thread.target_user_id != current_user.id:
+        try:
+            from app.models import Notification
+            title_preview = thread.title[:60] + ("…" if len(thread.title) > 60 else "")
+            notif = Notification(
+                user_id=thread.target_user_id,
+                type="message_received",
+                message=f"{current_user.shown_name} posted in \"{title_preview}\"",
+                link_url=f"/threads/{thread_id}",
+            )
+            db.session.add(notif)
+            db.session.commit()
+        except Exception:
+            pass  # never let notification failure block the message post
+
     return redirect(url_for("threads.show", thread_id=thread_id))

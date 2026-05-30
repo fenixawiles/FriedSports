@@ -462,3 +462,25 @@ class Notification(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
 
     user = db.relationship("User", backref=db.backref("notifications", lazy="dynamic"))
+
+
+class FriendRequest(db.Model):
+    """Friend request / friendship record. status='accepted' means an active friendship."""
+    __tablename__ = "friend_requests"
+
+    id           = db.Column(db.Integer, primary_key=True)
+    from_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    to_user_id   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    status       = db.Column(db.String(16), nullable=False, default="pending")
+    # "pending" | "accepted" | "declined"
+    created_at   = db.Column(db.DateTime(timezone=True), default=now_utc)
+    updated_at   = db.Column(db.DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+    from_user = db.relationship("User", foreign_keys=[from_user_id],
+                                backref=db.backref("sent_friend_requests", lazy="dynamic"))
+    to_user   = db.relationship("User", foreign_keys=[to_user_id],
+                                backref=db.backref("received_friend_requests", lazy="dynamic"))
+
+    __table_args__ = (
+        db.UniqueConstraint("from_user_id", "to_user_id", name="uq_friend_request"),
+    )

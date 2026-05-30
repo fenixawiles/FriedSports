@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Friends — FriedSports{% endblock %}
+{% block content %}
+<div class="group-container" style="max-width:680px">
+
+  <div class="group-header">
+    <div>
+      <h1>Friends</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ friends|length }} friend{% if friends|length != 1 %}s{% endif %}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <section class="group-section" style="border-top:none;padding-top:0">
+    <form method="get" action="{{ url_for('friends.index') }}" class="friend-search-form">
+      <input type="text" name="q" value="{{ q or '' }}"
+             placeholder="Search by name, email, or UID (FS-XXXXXX)…"
+             autocomplete="off" autocorrect="off" spellcheck="false"
+             style="font-size:16px">
+      <button type="submit" class="btn-primary-small">Search</button>
+      {% if q %}<a href="{{ url_for('friends.index') }}" class="btn-secondary-small">Clear</a>{% endif %}
+    </form>
+
+    <!-- Search results -->
+    {% if q %}
+    {% if results %}
+    <div class="member-table" style="margin-top:1rem">
+      <div class="member-row member-header" style="grid-template-columns:1fr auto auto">
+        <span>User</span><span>UID</span><span></span>
+      </div>
+      {% for item in results %}
+      <div class="member-row" style="grid-template-columns:1fr auto auto">
+        <span class="member-name">{{ item.user.shown_name }}</span>
+        <span style="font-family:monospace;font-size:0.75rem;color:var(--text-muted)">{{ item.user.uid }}</span>
+        <span>
+          {% if item.status == 'friends' %}
+          <span class="badge-role member">Friends</span>
+          {% elif item.status == 'pending_sent' %}
+          <span style="font-size:0.75rem;color:var(--text-muted)">Request sent</span>
+          {% elif item.status == 'pending_received' %}
+          <span style="font-size:0.75rem;color:var(--text-muted)">Wants to add you</span>
+          {% else %}
+          <form action="{{ url_for('friends.send_request', user_id=item.user.id) }}" method="post" style="display:inline">
+            <button type="submit" class="btn-secondary-small">Add Friend</button>
+          </form>
+          {% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="margin-top:1rem">
+      <p>No users found for "{{ q }}".</p>
+    </div>
+    {% endif %}
+    {% endif %}
+  </section>
+
+  <!-- Friends list -->
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Your Friends</span>
+    </div>
+    {% if friends %}
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:1fr auto auto">
+        <span>Name</span><span>UID</span><span></span>
+      </div>
+      {% for friend in friends %}
+      <div class="member-row" style="grid-template-columns:1fr auto auto">
+        <span class="member-name">{{ friend.shown_name }}</span>
+        <span style="font-family:monospace;font-size:0.75rem;color:var(--text-muted)">{{ friend.uid }}</span>
+        <span>
+          <form action="{{ url_for('friends.remove_friend', user_id=friend.id) }}" method="post" style="display:inline"
+                onsubmit="return confirm('Remove {{ friend.shown_name }} from friends?')">
+            <button type="submit" class="btn-danger-tiny">Remove</button>
+          </form>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>No friends yet. Search by name, email, or UID above to add someone.</p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+
+<style>
+.friend-search-form {
+  display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
+}
+.friend-search-form input {
+  flex: 1; min-width: 200px;
+}
+</style>
+{% endblock %}

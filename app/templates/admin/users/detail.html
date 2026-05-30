@@ -9,7 +9,7 @@
       <div class="group-header-meta">
         <span style="font-size:0.8rem;color:var(--text-muted)">{{ user.email }}</span>
         <span class="badge-role {% if user.is_admin %}admin{% else %}member{% endif %}">{{ user.role }}</span>
-        <span style="font-size:0.8rem;color:var(--text-muted)">ID {{ user.id }}</span>
+        <span style="font-size:0.8rem;color:var(--text-muted);font-family:monospace">{{ user.uid }}</span>
       </div>
     </div>
     <div class="group-actions">

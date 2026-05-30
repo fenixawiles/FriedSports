@@ -43,6 +43,7 @@ def create_app(config=None):
     from app.routes.admin import admin_bp
     from app.routes.legal import legal_bp
     from app.routes.support import support_bp
+    from app.routes.friends import friends_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -54,6 +55,7 @@ def create_app(config=None):
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(legal_bp)
     app.register_blueprint(support_bp, url_prefix="/support")
+    app.register_blueprint(friends_bp, url_prefix="/friends")
 
     # Inject unread notification count into every template for the nav bell
     from app.models import Notification as _Notif
