@@ -1,11 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ thread.title }} — FriedSports{% endblock %}
 
-{# Remove main-content bottom padding so iOS keyboard only needs to scroll
-   past the chat input itself when the textarea is focused #}
 {% block head %}
 <style>
-  /* Thread page: fill the viewport so the chat window gets all remaining space */
   html, body { height: 100%; }
   .main-content {
     flex: 1; min-height: 0;
@@ -15,89 +12,100 @@
   }
   .thread-container {
     display: flex; flex-direction: column;
-    flex: 1; min-height: 0;
-    overflow: hidden;
-    padding: 0; margin: 0;
-    max-width: 100%; width: 100%;
+    flex: 1; min-height: 0; overflow: hidden;
+    padding: 0; margin: 0; width: 100%;
   }
   .thread-header-wrap {
     flex-shrink: 0;
-    padding: 1rem 1.25rem 0;
+    padding: 0.85rem 0.85rem 0;
+    border-bottom: 1px solid var(--border);
   }
+  .thread-header { margin-bottom: 0.6rem; padding-bottom: 0; border-bottom: none; }
   .chat-window {
-    flex: 1; min-height: 0;
-    max-height: none !important;
-    padding: 0.5rem 1.25rem 0.5rem;
+    flex: 1; min-height: 0; max-height: none !important;
+    padding: 0.75rem 0 0.5rem;
     overflow-y: auto;
   }
   .chat-input-area {
     flex-shrink: 0;
-    padding: 0.5rem 1.25rem calc(0.5rem + env(safe-area-inset-bottom));
+    padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+  }
+  /* Force completely flat messages — no box whatsoever */
+  .message-bubble {
+    background: none !important; border: none !important;
+    border-radius: 0 !important; box-shadow: none !important;
+    padding: 0.1rem 0 !important;
   }
   @media (max-width: 640px) {
-    .thread-header-wrap { padding: 0.75rem 1rem 0; }
-    .chat-window { padding: 0.5rem 1rem 0.5rem; }
     .chat-input-area {
-      padding: 0.5rem 1rem calc(62px + env(safe-area-inset-bottom));
+      padding: 0.5rem 0.75rem calc(62px + env(safe-area-inset-bottom));
     }
   }
 </style>
 {% endblock %}
 
 {% block content %}
+{% set event = thread.group_trigger.game_event %}
+{% set ir = event.incident_report if event else none %}
+
 <div class="thread-container">
+
+  {# ── Compact header ── #}
   <div class="thread-header-wrap">
-  <div class="thread-header">
-    <a href="{{ url_for('groups.show', group_id=thread.group_id) }}" class="back-link">← {{ group.name }}</a>
-    <h1 class="thread-title-large">{{ thread.title }}</h1>
-    <div class="thread-header-meta">
-      <span class="team-chip-lg" style="color: {{ thread.target_team.primary_color }}; border-color: {{ thread.target_team.primary_color }}40">
-        {{ thread.target_team.abbreviation }} · {{ thread.target_team.name }}
-      </span>
-      <span class="target-label">{{ thread.target_user.display_name }}</span>
-      <span class="status-badge {{ thread.status }}">{{ thread.status }}</span>
+    <div class="thread-header">
+      <a href="{{ url_for('groups.show', group_id=thread.group_id) }}" class="back-link">← {{ group.name }}</a>
+      <h1 class="thread-title-large">{{ thread.title }}</h1>
+      <div class="thread-header-meta">
+        <span class="team-chip-lg" style="color:{{ thread.target_team.primary_color }};border-color:{{ thread.target_team.primary_color }}40">
+          {{ thread.target_team.abbreviation }} · {{ thread.target_team.name }}
+        </span>
+        <span class="target-label">{{ thread.target_user.display_name }}</span>
+        <span class="status-badge {{ thread.status }}">{{ thread.status }}</span>
+      </div>
     </div>
   </div>
 
-  {% set event = thread.group_trigger.game_event %}
-  {% set ir = event.incident_report if event else none %}
-  {% if ir %}
-  <div class="incident-header">
-    <div class="incident-meta-row">
-      <span class="incident-type-badge">{{ ir.incident_type.replace('_', ' ').title() }}</span>
-      <span class="incident-severity">Severity {{ ir.severity }}/5</span>
-      <span class="incident-status {{ ir.status }}">{{ ir.status }}</span>
-      <span class="incident-reporter">started by {{ ir.reporter.display_name }}</span>
-    </div>
-    {% if ir.reported_score_text %}
-    <div class="incident-context">"{{ ir.reported_score_text }}"</div>
-    {% endif %}
-    <div class="incident-actions">
-      {% if ir.status == 'active' and member and member.role in ('owner', 'admin') %}
+  {# ── Chat window ── #}
+  <div class="chat-window" id="chat-window">
+
+    {# Incident strip — compact one-liner at top of chat #}
+    {% if ir %}
+    <div class="incident-strip">
+      <span class="istrip-type">{{ ir.incident_type.replace('_',' ').title() }}</span>
+      <span class="istrip-sep">·</span>
+      <span>Severity {{ ir.severity }}/5</span>
+      <span class="istrip-sep">·</span>
+      <span>by {{ ir.reporter.display_name }}</span>
+      {% if ir.reported_score_text %}
+      <span class="istrip-sep">·</span>
+      <span class="istrip-context">"{{ ir.reported_score_text }}"</span>
+      {% endif %}
+      {# Admin / owner actions as tiny inline links #}
+      {% if ir.status == 'active' and member and member.role in ('owner','admin') %}
+      <span class="istrip-sep">·</span>
       <form action="{{ url_for('reports.confirm', report_id=ir.id) }}" method="post" style="display:inline">
-        <button class="btn-secondary-small">Confirm</button>
+        <button class="istrip-action-btn">Confirm</button>
       </form>
       {% endif %}
-      {% if ir.status not in ('dismissed', 'redeemed') and member and member.role in ('owner', 'admin') %}
+      {% if ir.status not in ('dismissed','redeemed') and member and member.role in ('owner','admin') %}
       <form action="{{ url_for('reports.dismiss', report_id=ir.id) }}" method="post" style="display:inline"
             onsubmit="return confirm('Dismiss this report? The reporter will lose 5 points.')">
-        <button class="btn-danger-small">Dismiss</button>
+        <button class="istrip-action-btn istrip-action-danger">Dismiss</button>
       </form>
       {% endif %}
-      {% if ir.status not in ('redeemed',) and (current_user.id == thread.target_user_id or (member and member.role in ('owner', 'admin'))) %}
+      {% if ir.status not in ('redeemed',) and (current_user.id == thread.target_user_id or (member and member.role in ('owner','admin'))) %}
       <form action="{{ url_for('reports.redeem', report_id=ir.id) }}" method="post" style="display:inline">
-        <button class="btn-secondary-small">Mark Redeemed</button>
+        <button class="istrip-action-btn">Redeemed</button>
       </form>
       {% endif %}
     </div>
-  </div>
-  {% endif %}
-  </div>{# /thread-header-wrap #}
+    {% endif %}
 
-  <div class="chat-window" id="chat-window">
+    {# Messages #}
     {% for msg in messages %}
     {% set mine = msg.message_type == 'user' and msg.user_id == current_user.id %}
-    <div class="message message-{{ msg.message_type }}{% if msg.message_type == 'user' %} {{ 'message-mine' if mine else 'message-theirs' }}{% endif %}" data-id="{{ msg.id }}" id="msg-{{ msg.id }}">
+    <div class="message message-{{ msg.message_type }}{% if msg.message_type == 'user' %} {{ 'message-mine' if mine else 'message-theirs' }}{% endif %}"
+         data-id="{{ msg.id }}" id="msg-{{ msg.id }}">
       {% if msg.message_type == 'system' %}
         <div class="message-system-body">{{ msg.body }}</div>
       {% else %}
@@ -115,8 +123,7 @@
             <div class="reaction-bar">
               {% for rtype, emoji in [('laugh','😂'),('cook','👨‍🍳'),('fraud','🚨'),('receipt','🧾')] %}
               <button class="reaction-btn {% if rtype in (msg.user_reaction(current_user.id)) %}reacted{% endif %}"
-                      data-message-id="{{ msg.id }}" data-reaction="{{ rtype }}"
-                      title="{{ rtype }}">
+                      data-message-id="{{ msg.id }}" data-reaction="{{ rtype }}" title="{{ rtype }}">
                 {{ emoji }} <span class="reaction-count">{{ msg.reaction_counts().get(rtype, 0) or '' }}</span>
               </button>
               {% endfor %}
@@ -130,7 +137,8 @@
       {% endif %}
     </div>
     {% endfor %}
-  </div>
+
+  </div>{# /chat-window #}
 
   {% if thread.status == 'active' %}
   <div class="chat-input-area">
@@ -162,7 +170,6 @@
 </script>
 <script src="{{ url_for('static', filename='js/threads.js') }}"></script>
 <script>
-  // Auto-grow textarea
   (function() {
     var ta = document.getElementById('chat-input');
     if (!ta) return;
@@ -171,7 +178,6 @@
       ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
     }
     ta.addEventListener('input', grow);
-    // Submit on Enter (not Shift+Enter)
     ta.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
