@@ -641,7 +641,7 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .back-link { font-size: 0.82rem; color: var(--text-muted); display: inline-block; margin-bottom: 1rem; transition: color 0.15s; }
 .back-link:hover { color: var(--text-secondary); }
 .thread-title-large { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.25; letter-spacing: -0.02em; }
-.thread-header { margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border); }
+.thread-header { margin-bottom: 0.85rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border); }
 .thread-header-meta { display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; margin-top: 0.6rem; }
 .team-chip-lg {
   padding: 0.2rem 0.65rem; border-radius: 3px;
@@ -721,30 +721,36 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   .delete-btn { color: var(--text-muted); opacity: 0.45; }
 }
 
-/* Chat input */
+/* Chat input — iMessage style */
 .chat-input-area {
   border-top: 1px solid var(--border);
-  padding-top: 0.75rem;
-  padding-bottom: env(safe-area-inset-bottom);
   background: var(--bg-primary);
-  position: sticky;
-  bottom: 0;
 }
 .chat-form {
-  display: flex; gap: 0.6rem; align-items: flex-end;
+  display: flex; gap: 0.5rem; align-items: flex-end;
   background: transparent; border: none; padding: 0;
 }
 .chat-form textarea {
   flex: 1; min-width: 0; resize: none;
   background: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); color: var(--text-primary);
-  padding: 0.55rem 0.75rem;
-  font-size: 16px; font-family: var(--font); line-height: 1.5;
+  border-radius: 20px; color: var(--text-primary);
+  padding: 0.5rem 0.85rem;
+  font-size: 16px; font-family: var(--font); line-height: 1.45;
+  overflow-y: hidden; max-height: 120px;
   transition: border-color 0.15s;
 }
 .chat-form textarea:focus { outline: none; border-color: var(--border-mid); }
 .chat-form textarea::placeholder { color: var(--text-muted); }
-.chat-submit { white-space: nowrap; flex-shrink: 0; }
+/* Circle send button */
+.chat-submit {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accent); color: #fff; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-appearance: none; appearance: none;
+  transition: opacity 0.15s;
+  margin-bottom: 1px; /* optical alignment with single-line textarea */
+}
+.chat-submit:active { opacity: 0.7; }
 .thread-closed-notice {
   text-align: center; padding: 1.25rem; color: var(--text-muted);
   font-size: 0.85rem; border: 1px solid var(--border); border-radius: var(--radius);
@@ -943,14 +949,9 @@ body.receipt-page {
   .member-header span:nth-child(n+4) { display: none; }
   .leaderboard-grid { grid-template-columns: 1fr 1fr; }
 
-  /* Thread chat — column layout: stretch items to full width */
-  .chat-form { flex-direction: column; align-items: stretch; }
-  .chat-form textarea { width: 100%; }
-  .chat-submit { width: 100%; }
-  /* Lift chat input above the bottom nav bar */
-  .chat-input-area {
-    padding-bottom: calc(62px + env(safe-area-inset-bottom));
-  }
+  /* Thread chat — keep row layout on mobile (pill + circle button) */
+  .chat-form { flex-direction: row; align-items: flex-end; }
+  .chat-form textarea { flex: 1; width: auto; }
 
   /* Name grid — single column on narrow screens */
   .name-grid { grid-template-columns: 1fr; }
