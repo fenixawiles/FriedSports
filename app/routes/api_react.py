@@ -247,51 +247,47 @@ def auth_reset_password(token):
 @bp.route("/dashboard")
 @login_required
 def dashboard():
+    from sqlalchemy import text
+    uid = current_user.id
+
+    # Query 1 — groups + member role (single JOIN, one round trip)
     memberships = (
         GroupMember.query
-        .filter_by(user_id=current_user.id)
+        .filter_by(user_id=uid)
         .options(joinedload(GroupMember.group))
         .all()
     )
+    if not memberships:
+        return ok(groups=[], active_threads=[], msg_counts={})
+
+    group_ids = [m.group_id for m in memberships]
     groups = [
         {"group": {"id": m.group.id, "name": m.group.name, "league_scope": m.group.league_scope},
          "member": {"role": m.role}}
         for m in memberships if m.group
     ]
-    group_ids = [m.group_id for m in memberships]
 
-    active_threads = (
-        GameThread.query
-        .filter(GameThread.group_id.in_(group_ids), GameThread.status == "active")
-        .options(joinedload(GameThread.group))
-        .all()
-    ) if group_ids else []
-
-    msg_counts = {}
-    if active_threads:
-        from sqlalchemy import func
-        counts = (
-            db.session.query(
-                GameThreadMessage.thread_id,
-                func.count(GameThreadMessage.id).label("cnt")
-            )
-            .filter(
-                GameThreadMessage.thread_id.in_([t.id for t in active_threads]),
-                GameThreadMessage.message_type == "user",
-                GameThreadMessage.is_deleted == False,
-            )
-            .group_by(GameThreadMessage.thread_id)
-            .all()
-        )
-        msg_counts = {row.thread_id: row.cnt for row in counts}
+    # Query 2 — active threads + message counts in one shot (was 2 separate queries)
+    rows = db.session.execute(text("""
+        SELECT
+            gt.id,
+            gt.title,
+            g.name  AS group_name,
+            COUNT(msg.id) FILTER (
+                WHERE msg.message_type = 'user' AND msg.is_deleted = false
+            ) AS msg_count
+        FROM game_threads gt
+        LEFT JOIN groups g              ON g.id = gt.group_id
+        LEFT JOIN game_thread_messages msg ON msg.thread_id = gt.id
+        WHERE gt.group_id = ANY(:gids) AND gt.status = 'active'
+        GROUP BY gt.id, gt.title, g.name
+        ORDER BY gt.updated_at DESC
+    """), {"gids": group_ids}).fetchall()
 
     return ok(
         groups=groups,
-        active_threads=[
-            {"id": t.id, "title": t.title, "group_name": t.group.name if t.group else ""}
-            for t in active_threads
-        ],
-        msg_counts=msg_counts,
+        active_threads=[{"id": r.id, "title": r.title, "group_name": r.group_name or ""} for r in rows],
+        msg_counts={r.id: r.msg_count for r in rows},
     )
 
 
@@ -766,59 +762,98 @@ def create_report(group_id):
 @bp.route("/threads")
 @login_required
 def threads_list():
-    from sqlalchemy import func
-    memberships = GroupMember.query.filter_by(user_id=current_user.id).all()
-    group_ids = [m.group_id for m in memberships]
-    if not group_ids:
-        return ok(threads=[], groups=[], last_msgs={})
+    from sqlalchemy import text
+    uid = current_user.id
 
-    threads = (
-        GameThread.query
-        .filter(GameThread.group_id.in_(group_ids), GameThread.status == "active")
-        .options(
-            joinedload(GameThread.group),
-            joinedload(GameThread.target_team),
-            joinedload(GameThread.target_user),
-            joinedload(GameThread.group_trigger).joinedload(GroupTrigger.game_event)
-            .joinedload(GameEvent.incident_report),
-        )
-        .order_by(GameThread.updated_at.desc())
+    # Query 1 — groups the user is in (for filter dropdown)
+    memberships = (
+        GroupMember.query
+        .filter_by(user_id=uid)
+        .options(joinedload(GroupMember.group))
         .all()
     )
+    if not memberships:
+        return ok(threads=[], groups=[], last_msgs={})
 
-    # Last message per thread (single query)
-    thread_ids = [t.id for t in threads]
+    group_ids = [m.group_id for m in memberships]
+    groups    = [{"id": m.group_id, "name": m.group.name} for m in memberships if m.group]
+
+    # Query 2 — all active thread data + last message in one CTE.
+    # Replaces: threads query (deep 3-level joinedload) + last-msg subquery +
+    #           last-msg fetch + redundant Group query  =  was 4 separate round trips.
+    rows = db.session.execute(text("""
+        WITH last_msgs AS (
+            SELECT DISTINCT ON (thread_id)
+                thread_id, body, created_at
+            FROM game_thread_messages
+            WHERE thread_id IN (
+                SELECT id FROM game_threads
+                WHERE group_id = ANY(:gids) AND status = 'active'
+            )
+            AND is_deleted = false
+            ORDER BY thread_id, id DESC
+        )
+        SELECT
+            gt.id,
+            gt.title,
+            gt.status,
+            gt.group_id,
+            gt.target_user_id,
+            gt.created_at,
+            g.name          AS group_name,
+            te.abbreviation AS team_abbr,
+            te.name         AS team_name,
+            te.primary_color AS team_color,
+            CASE
+                WHEN u.display_preference = 'real_name'
+                     AND u.first_name IS NOT NULL
+                     AND u.last_name  IS NOT NULL
+                THEN u.first_name || ' ' || u.last_name
+                ELSE u.display_name
+            END             AS target_user_name,
+            ir.incident_type,
+            lm.body         AS last_msg_body,
+            lm.created_at   AS last_msg_at
+        FROM game_threads gt
+        LEFT JOIN groups g              ON g.id  = gt.group_id
+        LEFT JOIN teams  te             ON te.id = gt.target_team_id
+        LEFT JOIN users  u              ON u.id  = gt.target_user_id
+        LEFT JOIN group_triggers  gtr   ON gtr.id = gt.group_trigger_id
+        LEFT JOIN game_events     ge    ON ge.id  = gtr.game_event_id
+        LEFT JOIN incident_reports ir   ON ir.id  = ge.incident_report_id
+        LEFT JOIN last_msgs        lm   ON lm.thread_id = gt.id
+        WHERE gt.group_id = ANY(:gids) AND gt.status = 'active'
+        ORDER BY gt.updated_at DESC
+    """), {"gids": group_ids}).fetchall()
+
+    threads   = []
     last_msgs = {}
-    if thread_ids:
-        subq = (
-            db.session.query(
-                GameThreadMessage.thread_id,
-                func.max(GameThreadMessage.id).label("max_id")
-            )
-            .filter(
-                GameThreadMessage.thread_id.in_(thread_ids),
-                GameThreadMessage.is_deleted == False,
-            )
-            .group_by(GameThreadMessage.thread_id)
-            .subquery()
-        )
-        rows = (
-            db.session.query(GameThreadMessage)
-            .join(subq, GameThreadMessage.id == subq.c.max_id)
-            .all()
-        )
-        last_msgs = {m.thread_id: m for m in rows}
+    for r in rows:
+        threads.append({
+            "id":               r.id,
+            "title":            r.title,
+            "status":           r.status,
+            "group_id":         r.group_id,
+            "group_name":       r.group_name   or "",
+            "target_user_id":   r.target_user_id,
+            "target_user_name": r.target_user_name or "",
+            "team_abbr":        r.team_abbr    or "",
+            "team_name":        r.team_name    or "",
+            "team_color":       r.team_color   or "#333",
+            "incident_type":    r.incident_type,
+            "created_at":       r.created_at.isoformat() if r.created_at else None,
+            "last_msg": {
+                "body":       r.last_msg_body,
+                "created_at": r.last_msg_at.isoformat() if r.last_msg_at else None,
+            } if r.last_msg_body else None,
+        })
+        if r.last_msg_body:
+            last_msgs[r.id] = {
+                "body":       r.last_msg_body,
+                "created_at": r.last_msg_at.isoformat() if r.last_msg_at else None,
+            }
 
-    groups = Group.query.filter(Group.id.in_(group_ids)).all()
-
-    return ok(
-        threads=[_serialize_thread(t, last_msgs.get(t.id)) for t in threads],
-        last_msgs={
-            tid: {"body": m.body, "created_at": m.created_at.isoformat() if m.created_at else None}
-            for tid, m in last_msgs.items()
-        },
-        groups=[{"id": g.id, "name": g.name} for g in groups],
-    )
+    return ok(threads=threads, last_msgs=last_msgs, groups=groups)
 
 
 @bp.route("/threads/<int:thread_id>")
