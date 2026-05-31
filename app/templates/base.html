@@ -6,7 +6,10 @@
   <title>{% block title %}FriedSports{% endblock %}</title>
   <!-- Apply theme before CSS paints to prevent flash of wrong theme -->
   <script>(function(){var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}());</script>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=7">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/fs-logo.png') }}">
+  <link rel="shortcut icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=8">
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -15,7 +18,7 @@
   <nav class="navbar" id="main-nav">
     <div class="nav-inner">
       <a href="{{ url_for('auth.index') }}" class="nav-logo">
-        <span class="logo-dot"></span>
+        <img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS">
         FriedSports
       </a>
       {% if current_user.is_authenticated %}
@@ -48,7 +51,7 @@
       <div class="nav-links" id="nav-links">
         {# ── Drawer header ── #}
         <div class="nav-drawer-header">
-          <span class="nav-drawer-logo"><span class="logo-dot"></span> FriedSports</span>
+          <span class="nav-drawer-logo"><img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS"> FriedSports</span>
           <button class="nav-drawer-close" id="nav-drawer-close" aria-label="Close menu">✕</button>
         </div>
         {# ── Nav items ── #}
@@ -86,7 +89,7 @@
       {% else %}
       <div class="nav-links" id="nav-links">
         <div class="nav-drawer-header">
-          <span class="nav-drawer-logo"><span class="logo-dot"></span> FriedSports</span>
+          <span class="nav-drawer-logo"><img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS"> FriedSports</span>
           <button class="nav-drawer-close" id="nav-drawer-close" aria-label="Close menu">✕</button>
         </div>
         <a href="{{ url_for('auth.login') }}" class="nav-link">Log in</a>
