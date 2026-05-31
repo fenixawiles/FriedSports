@@ -8,3 +8,10 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>
 )
+
+// Tell Capacitor to hide the splash screen once React has rendered.
+// Using the low-level window.Capacitor bridge so we don't need to add
+// @capacitor/splash-screen as an npm dep in the frontend package.
+if (window.Capacitor?.isNativePlatform()) {
+  window.Capacitor.Plugins?.SplashScreen?.hide()
+}
