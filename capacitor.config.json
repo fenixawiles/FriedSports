@@ -3,10 +3,11 @@
   "appName": "FriedSports",
   "webDir": "frontend/dist",
   "server": {
-    "url": "https://web-production-449c1.up.railway.app",
+    "url": "https://www.friedsports.com",
     "cleartext": false,
     "allowNavigation": [
-      "web-production-449c1.up.railway.app"
+      "www.friedsports.com",
+      "friedsports.com"
     ]
   },
   "ios": {
