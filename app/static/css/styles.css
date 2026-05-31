@@ -162,7 +162,8 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   font-size: 1rem; color: var(--text-secondary);
   background: none; border: none; border-bottom: 1px solid var(--border);
   cursor: pointer; font-family: var(--font); text-align: left;
-  -webkit-appearance: none;
+  -webkit-appearance: none; appearance: none;
+  border-radius: 0; outline: none;
 }
 .nav-group-toggle:hover { color: var(--text-primary); }
 .nav-chevron { transition: transform 0.2s; flex-shrink: 0; }
@@ -730,9 +731,9 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 }
 .incident-strip-text {
   font-size: 0.82rem; color: var(--text-muted); font-style: italic;
-  text-align: center; max-width: 88%; padding: 0.5rem 0.75rem;
+  text-align: center; max-width: 92%; padding: 0.5rem 1rem;
   border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
-  line-height: 1.5; width: 100%;
+  line-height: 1.5; width: 100%; margin: 0 auto;
 }
 .istrip-type { font-weight: 600; font-style: normal; }
 .istrip-sep  { margin: 0 0.3rem; opacity: 0.35; }
@@ -741,17 +742,31 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   display: flex; gap: 0.5rem; justify-content: center;
   padding: 0.5rem 0 0;
 }
+/* High-specificity selector + !important on browser-overrideable props */
+.incident-strip-actions .istrip-action-btn,
 .istrip-action-btn {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-mid);
-  border-radius: 6px; color: var(--text-secondary);
-  font-size: 0.78rem; font-weight: 500;
-  padding: 0.35rem 0.85rem;
-  cursor: pointer; font-family: inherit;
-  transition: background 0.12s, color 0.12s;
-  -webkit-appearance: none; appearance: none;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-mid) !important;
+  border-radius: 6px !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
+  padding: 0.35rem 0.85rem !important;
+  cursor: pointer !important;
+  font-family: var(--font) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  line-height: 1.4 !important;
+  text-decoration: none !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.istrip-action-btn:hover { background: var(--bg-input); color: var(--text-primary); }
+.incident-strip-actions .istrip-action-btn:hover,
+.istrip-action-btn:hover { background: var(--bg-input) !important; color: var(--text-primary) !important; }
 .istrip-action-danger { color: var(--accent) !important; border-color: rgba(217,51,72,0.4) !important; }
 .istrip-action-danger:hover { background: rgba(217,51,72,0.1) !important; }
 
@@ -814,34 +829,32 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   background: var(--bg-primary);
 }
 .chat-form {
-  display: flex; gap: 0; align-items: stretch;
+  display: flex; align-items: flex-end;
   background: transparent; border: none; padding: 0;
 }
-/* Pill container wraps textarea + send button */
+/* Pill wraps textarea + send button using natural flex (no absolute) */
 .chat-input-pill {
-  flex: 1; position: relative;
+  flex: 1;
+  display: flex; align-items: flex-end; gap: 6px;
   background: var(--bg-surface);
   border: 1px solid var(--border); border-radius: 22px;
-  display: flex; align-items: flex-end;
-  padding: 0 44px 0 0;
-  overflow: hidden;
+  padding: 5px 6px 5px 14px;
   transition: border-color 0.15s;
 }
 .chat-input-pill:focus-within { border-color: var(--border-mid); }
 .chat-input-pill textarea {
   flex: 1; min-width: 0; background: none; border: none; resize: none;
-  padding: 10px 14px; font-size: 16px; font-family: var(--font);
-  line-height: 1.45; color: var(--text-primary);
-  overflow-y: hidden; max-height: 120px;
+  padding: 4px 0; font-size: 16px; font-family: var(--font);
+  line-height: 1.5; color: var(--text-primary);
+  overflow-y: hidden; max-height: 120px; min-height: 24px;
+  align-self: flex-end;
 }
 .chat-input-pill textarea:focus { outline: none; }
 .chat-input-pill textarea::placeholder { color: var(--text-muted); }
-/* Neutralize old standalone textarea rule — pill provides the border */
-.chat-form textarea { background: none; border: none; border-radius: 0; }
-/* Circle send button — absolute inside pill */
+/* Circle send button — natural flex item, no absolute positioning */
 .chat-submit {
-  position: absolute; right: 5px; bottom: 5px;
-  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  flex-shrink: 0; align-self: flex-end;
+  width: 34px; height: 34px; border-radius: 50%;
   background: var(--accent); color: #fff; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   -webkit-appearance: none; appearance: none;
@@ -1047,9 +1060,8 @@ body.receipt-page {
   .member-header span:nth-child(n+4) { display: none; }
   .leaderboard-grid { grid-template-columns: 1fr 1fr; }
 
-  /* Thread chat — keep row layout on mobile (pill + circle button) */
-  .chat-form { flex-direction: row; align-items: flex-end; }
-  .chat-form textarea { flex: 1; width: auto; }
+  /* Thread chat — pill + circle button, both handled globally now */
+  .chat-input-pill textarea { min-height: 24px; }
 
   /* Name grid — single column on narrow screens */
   .name-grid { grid-template-columns: 1fr; }

@@ -34,6 +34,12 @@
   }
   /* Edge-to-edge on desktop — remove global max-width centering */
   .main-content { max-width: 100% !important; margin: 0 !important; }
+  /* Desktop: add horizontal breathing room without reintroducing a max-width */
+  @media (min-width: 641px) {
+    .thread-header-wrap { padding: 1rem 2.5rem 0; }
+    .chat-window { padding-left: 2.5rem; padding-right: 2.5rem; }
+    .chat-input-area { padding-left: 2.5rem; padding-right: 2.5rem; }
+  }
   /* Force completely flat messages — no box whatsoever */
   .message-bubble {
     background: none !important; border: none !important;
