@@ -57,7 +57,12 @@
         btn.setAttribute('data-message-id', msg.id);
         btn.setAttribute('data-reaction', rtype);
         const count = msg.reactions[rtype] || '';
-        btn.innerHTML = emoji + ' <span class="reaction-count">' + count + '</span>';
+        btn.textContent = '';
+        const countSpan = document.createElement('span');
+        countSpan.className = 'reaction-count';
+        countSpan.textContent = count;
+        btn.appendChild(document.createTextNode(emoji + ' '));
+        btn.appendChild(countSpan);
         btn.addEventListener('click', handleReaction);
         reactionBar.appendChild(btn);
       });
@@ -89,7 +94,7 @@
 
   function pollMessages() {
     fetch('/api/threads/' + THREAD_ID + '/messages.json?after=' + lastId)
-      .then(function (r) { return r.json(); })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (data) {
         if (!data.length) return;
         const wasAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 60;
@@ -118,7 +123,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reaction_type: reactionType }),
     })
-      .then(function (r) { return r.json(); })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (data) {
         // Update all reaction buttons in this message's bar
         const msgEl = document.getElementById('msg-' + messageId);
@@ -126,7 +131,7 @@
         const btns = msgEl.querySelectorAll('.reaction-btn');
         btns.forEach(function (b) {
           const rt = b.getAttribute('data-reaction');
-          const count = data.counts[rt] || '';
+          const count = (data.counts && data.counts[rt]) || '';
           const countEl = b.querySelector('.reaction-count');
           if (countEl) countEl.textContent = count;
         });
@@ -137,7 +142,12 @@
           btn.classList.remove('reacted');
         }
       })
-      .catch(function () {});
+      .catch(function () {
+        // Revert the optimistic class toggle so the UI stays consistent
+        btn.classList.toggle('reacted');
+        btn.style.opacity = '0.4';
+        setTimeout(function () { btn.style.opacity = ''; }, 1500);
+      });
   }
 
   // Wire up existing reaction buttons
@@ -151,28 +161,31 @@
     const messageId = btn.getAttribute('data-message-id');
     if (!confirm('Delete this message?')) return;
     fetch('/api/messages/' + messageId + '/delete', { method: 'POST' })
-      .then(function (r) { return r.json(); })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (data) {
         if (data.success) {
           const msgEl = document.getElementById('msg-' + messageId);
           if (msgEl) msgEl.remove();
         }
       })
-      .catch(function () {});
+      .catch(function () {
+        // Show a brief inline error on the message — no alert()
+        const msgEl = document.getElementById('msg-' + messageId);
+        const footer = msgEl && msgEl.querySelector('.message-footer');
+        if (footer) {
+          const errSpan = document.createElement('span');
+          errSpan.style.cssText = 'color:var(--accent);font-size:0.75rem;margin-left:0.35rem';
+          errSpan.textContent = 'Delete failed';
+          footer.appendChild(errSpan);
+          setTimeout(function () { errSpan.remove(); }, 2500);
+        }
+      });
   }
 
   document.querySelectorAll('.delete-btn').forEach(function (btn) {
     btn.addEventListener('click', handleDelete);
   });
 
-  // Submit form via enter (shift+enter for newline)
-  const chatInput = document.getElementById('chat-input');
-  if (chatInput) {
-    chatInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        document.getElementById('chat-form').submit();
-      }
-    });
-  }
+  // Enter-to-send is handled by the inline script in show.html (uses
+  // requestSubmit() with trim check). Nothing to do here.
 })();

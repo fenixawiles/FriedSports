@@ -210,5 +210,45 @@
       }
     });
   })();
+
+  // ── Keyboard / navbar hide ──────────────────────────────────────────
+  // When the virtual keyboard opens on mobile, hide both the top navbar
+  // and the bottom tab bar so the chat input has the full visible space.
+  (function () {
+    var mainNav = document.getElementById('main-nav');
+    var bottomNav = document.getElementById('bottom-nav');
+    var keyboardOpen = false;
+
+    function onKeyboardOpen() {
+      if (keyboardOpen) return;
+      keyboardOpen = true;
+      if (mainNav)   mainNav.style.display   = 'none';
+      if (bottomNav) bottomNav.style.display = 'none';
+    }
+    function onKeyboardClose() {
+      if (!keyboardOpen) return;
+      keyboardOpen = false;
+      if (mainNav)   mainNav.style.display   = '';
+      // Restore bottom nav only on mobile widths
+      if (bottomNav && window.innerWidth <= 640) bottomNav.style.display = 'flex';
+    }
+
+    if (window.visualViewport) {
+      // visualViewport is the most reliable signal on iOS WKWebView / Capacitor
+      window.visualViewport.addEventListener('resize', function () {
+        var ratio = window.visualViewport.height / window.innerHeight;
+        if (ratio < 0.75) { onKeyboardOpen(); } else { onKeyboardClose(); }
+      });
+    } else {
+      // Fallback for browsers without visualViewport
+      var chatInput = document.getElementById('chat-input');
+      if (chatInput) {
+        chatInput.addEventListener('focus', onKeyboardOpen);
+        chatInput.addEventListener('blur', function () {
+          setTimeout(onKeyboardClose, 200);
+        });
+      }
+    }
+  })();
 </script>
 {% endblock %}

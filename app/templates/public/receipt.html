@@ -66,16 +66,29 @@
     </div>
 
     <div class="receipt-footer">
-      <button class="btn-primary" onclick="copyReceiptLink()">📋 Copy Share Link</button>
+      <button class="btn-primary" id="copy-btn" onclick="copyReceiptLink()">📋 Copy Share Link</button>
       <a href="{{ url_for('auth.index') }}" class="btn-secondary" style="margin-left: 0.75rem">Open FriedSports</a>
       <p class="receipt-timestamp">Issued by FriedSports · {{ receipt.created_at.strftime('%B %d, %Y') if receipt.created_at else '' }}</p>
+      <p id="copy-fallback" style="display:none;font-size:0.8rem;color:var(--text-muted);word-break:break-all;margin-top:0.75rem"></p>
     </div>
   </div>
 
   <script>
     function copyReceiptLink() {
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        alert('Receipt link copied!');
+      var btn = document.getElementById('copy-btn');
+      navigator.clipboard.writeText(window.location.href).then(function () {
+        if (btn) {
+          var orig = btn.textContent;
+          btn.textContent = '✓ Copied!';
+          setTimeout(function () { btn.textContent = orig; }, 2000);
+        }
+      }).catch(function () {
+        // Clipboard blocked (WKWebView sandboxed context) — show the URL inline
+        var fb = document.getElementById('copy-fallback');
+        if (fb) {
+          fb.textContent = window.location.href;
+          fb.style.display = 'block';
+        }
       });
     }
   </script>
