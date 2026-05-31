@@ -18,7 +18,7 @@
   <nav class="navbar" id="main-nav">
     <div class="nav-inner">
       <a href="{{ url_for('auth.index') }}" class="nav-logo">
-        <img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS">
+        <img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS" width="24" height="24">
         FriedSports
       </a>
       {% if current_user.is_authenticated %}
@@ -51,7 +51,7 @@
       <div class="nav-links" id="nav-links">
         {# ── Drawer header ── #}
         <div class="nav-drawer-header">
-          <span class="nav-drawer-logo"><img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS"> FriedSports</span>
+          <span class="nav-drawer-logo"><img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS" width="24" height="24"> FriedSports</span>
           <button class="nav-drawer-close" id="nav-drawer-close" aria-label="Close menu">✕</button>
         </div>
         {# ── Nav items ── #}
@@ -89,7 +89,7 @@
       {% else %}
       <div class="nav-links" id="nav-links">
         <div class="nav-drawer-header">
-          <span class="nav-drawer-logo"><img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS"> FriedSports</span>
+          <span class="nav-drawer-logo"><img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS" width="24" height="24"> FriedSports</span>
           <button class="nav-drawer-close" id="nav-drawer-close" aria-label="Close menu">✕</button>
         </div>
         <a href="{{ url_for('auth.login') }}" class="nav-link">Log in</a>
