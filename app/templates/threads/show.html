@@ -4,6 +4,8 @@
 {% block head %}
 <style>
   html, body { height: 100%; }
+  /* Dynamic viewport height fixes the chat input being buried under Safari's tab bar */
+  @supports (height: 100dvh) { html, body { height: 100dvh; } }
   /* Thread has its own back link — suppress the global one */
   #page-back { display: none !important; }
   .main-content {
@@ -68,7 +70,8 @@
   {# ── Compact header ── #}
   <div class="thread-header-wrap">
     <div class="thread-header">
-      <a href="{{ url_for('groups.show', group_id=thread.group_id) }}" class="back-link">← {{ group.name }}</a>
+      <a href="{{ url_for('dashboard.threads_list') }}" class="back-link"
+         id="thread-back-link">← {{ group.name }}</a>
       <h1 class="thread-title-large">{{ thread.title }}</h1>
       <div class="thread-header-meta">
         <span class="team-chip-lg" style="color:{{ thread.target_team.primary_color }};border-color:{{ thread.target_team.primary_color }}40">
@@ -214,6 +217,17 @@
         if (form && ta.value.trim()) form.requestSubmit();
       }
     });
+  })();
+
+  // ── Back link — use history.back() when there's history ────────────
+  (function() {
+    var backLink = document.getElementById('thread-back-link');
+    if (backLink && history.length > 1) {
+      backLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        history.back();
+      });
+    }
   })();
 
   // ── Keyboard / navbar hide ──────────────────────────────────────────

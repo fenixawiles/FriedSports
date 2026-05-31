@@ -15,6 +15,13 @@
       <span>Profile &amp; Settings</span>
       <span class="more-chevron">›</span>
     </a>
+    <label class="more-row more-row-toggle" for="theme-toggle-check">
+      <span>Dark Mode</span>
+      <span class="theme-switch">
+        <input type="checkbox" id="theme-toggle-check">
+        <span class="theme-switch-track"></span>
+      </span>
+    </label>
   </div>
 
   {# ── Groups ── #}
@@ -74,4 +81,22 @@
   </div>
 
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function() {
+  var check = document.getElementById('theme-toggle-check');
+  if (!check) return;
+  check.checked = document.documentElement.getAttribute('data-theme') === 'dark';
+  check.addEventListener('change', function() {
+    if (this.checked) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('theme', 'light');
+    }
+  });
+})();
+</script>
 {% endblock %}

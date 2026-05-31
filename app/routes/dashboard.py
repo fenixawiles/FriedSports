@@ -285,11 +285,20 @@ def notifications_mark_read():
 def threads_list():
     """All active threads across every group the current user belongs to."""
     from sqlalchemy.orm import joinedload
-    memberships = GroupMember.query.filter_by(user_id=current_user.id).all()
+    from datetime import date, timedelta
+
+    memberships = (
+        GroupMember.query
+        .options(joinedload(GroupMember.group))
+        .filter_by(user_id=current_user.id)
+        .all()
+    )
     group_ids = [m.group_id for m in memberships]
 
     threads = []
     msg_counts = {}
+    last_msgs = {}
+
     if group_ids:
         threads = (
             GameThread.query
@@ -306,6 +315,7 @@ def threads_list():
         )
         if threads:
             thread_ids = [t.id for t in threads]
+            # Message counts
             counts = (
                 db.session.query(
                     GameThreadMessage.thread_id,
@@ -320,7 +330,38 @@ def threads_list():
             )
             msg_counts = {tid: cnt for tid, cnt in counts}
 
-    return render_template("dashboard/threads.html", threads=threads, msg_counts=msg_counts)
+            # Last message per thread (for preview row)
+            last_id_subq = (
+                db.session.query(
+                    GameThreadMessage.thread_id,
+                    func.max(GameThreadMessage.id).label("max_id"),
+                )
+                .filter(
+                    GameThreadMessage.thread_id.in_(thread_ids),
+                    GameThreadMessage.is_deleted == False,
+                )
+                .group_by(GameThreadMessage.thread_id)
+                .subquery()
+            )
+            last_msg_rows = (
+                GameThreadMessage.query
+                .join(last_id_subq, GameThreadMessage.id == last_id_subq.c.max_id)
+                .all()
+            )
+            last_msgs = {m.thread_id: m for m in last_msg_rows}
+
+    today     = date.today()
+    yesterday = today - timedelta(days=1)
+
+    return render_template(
+        "dashboard/threads.html",
+        threads=threads,
+        msg_counts=msg_counts,
+        last_msgs=last_msgs,
+        memberships=memberships,
+        today=today,
+        yesterday=yesterday,
+    )
 
 
 @dashboard_bp.route("/more")

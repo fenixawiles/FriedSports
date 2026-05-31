@@ -169,15 +169,6 @@ if (taglineEl) {
   taglineEl.textContent = TAGLINES[Math.floor(Math.random() * TAGLINES.length)];
 }
 
-function toggleThreadSelect() {
-  var checks = document.querySelectorAll('.thread-check');
-  var batchActions = document.getElementById('batch-actions');
-  var btn = document.getElementById('thread-select-btn');
-  var isActive = checks.length > 0 && checks[0].style.display !== 'none';
-  checks.forEach(function(c) { c.style.display = isActive ? 'none' : 'inline-block'; });
-  if (batchActions) batchActions.style.display = isActive ? 'none' : 'block';
-  if (btn) btn.textContent = isActive ? 'Select' : 'Cancel';
-}
 
 const INVITE_CODE = document.getElementById('invite-code') ? document.getElementById('invite-code').textContent.trim() : '';
 const INVITE_URL = window.location.origin + '/groups/join/' + INVITE_CODE;

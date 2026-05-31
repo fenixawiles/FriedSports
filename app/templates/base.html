@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <title>{% block title %}FriedSports{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=5">
+  <!-- Apply theme before CSS paints to prevent flash of wrong theme -->
+  <script>(function(){var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}());</script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=6">
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -103,12 +105,9 @@
   </div>
 
   <main class="main-content">
-    {% set _back_href = self.page_back_href() | trim %}
     <div id="page-back" style="display:none" class="page-back-wrap">
-      <a href="{{ _back_href if _back_href else '#' }}" class="page-back-btn"
-         {% if not _back_href %}onclick="history.back();return false;"{% endif %}>← Back</a>
+      <button type="button" class="page-back-btn" onclick="history.back()">← Back</button>
     </div>
-    {% block page_back_href %}{% endblock %}
     {% block content %}{% endblock %}
   </main>
 
@@ -127,7 +126,7 @@
 
   {% if current_user.is_authenticated %}
   <nav class="bottom-nav" id="bottom-nav" aria-label="Mobile navigation"
-       style="position:fixed;bottom:0;left:0;right:0;z-index:9999;display:none;background:#1e1e1e;border-top:1px solid #2e2e3a;padding-bottom:env(safe-area-inset-bottom);height:calc(56px + env(safe-area-inset-bottom))">
+       style="position:fixed;bottom:0;left:0;right:0;z-index:9999;display:none;background:var(--bottom-nav-bg);border-top:1px solid var(--bottom-nav-border);padding-bottom:env(safe-area-inset-bottom);height:calc(56px + env(safe-area-inset-bottom))">
     <a href="{{ url_for('auth.index') }}" class="bottom-nav-item" data-path="/">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -174,11 +173,12 @@
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
   <script>
-  // Global back button — show on every page except primary destinations
+  // Global back button — only show when there's history and we're not on a primary tab
   (function() {
-    var hide = ['/', '/login', '/signup', '/dashboard', '/threads', '/more'];
+    var primaryTabs = ['/', '/login', '/signup', '/dashboard', '/threads', '/more', '/friends', '/notifications'];
     var path = window.location.pathname;
-    if (hide.indexOf(path) < 0) {
+    var isPrimary = primaryTabs.some(function(p) { return path === p; });
+    if (!isPrimary && history.length > 1) {
       var el = document.getElementById('page-back');
       if (el) el.style.display = '';
     }

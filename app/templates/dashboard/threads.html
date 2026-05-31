@@ -3,34 +3,88 @@
 {% block content %}
 <div class="threads-page-container">
 
-  <div class="section-header">
+  {# ── Header row with filter menu ── #}
+  <div class="threads-header-wrap">
     <div>
       <span class="section-title">Active Threads</span>
-      <span class="section-sub">Across all your groups</span>
     </div>
+    {% if threads %}
+    <div class="threads-filter-wrap">
+      <button class="threads-filter-btn" id="threads-filter-btn"
+              aria-label="Filter threads" aria-expanded="false">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+        Filter
+      </button>
+      <div class="threads-filter-menu" id="threads-filter-menu" hidden>
+        <button class="threads-filter-item active" data-group="all">
+          <span class="threads-filter-checkmark">✓</span>All Groups
+        </button>
+        {% for m in memberships %}
+        <button class="threads-filter-item" data-group="{{ m.group_id }}">
+          <span class="threads-filter-checkmark"></span>{{ m.group.name }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </div>
 
+  {# ── Thread rows ── #}
   {% if threads %}
-  <div class="thread-list">
+  <div class="threads-list-wrap" id="threads-list">
     {% for thread in threads %}
     {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
-    <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="thread-card">
-      <div class="thread-card-left">
-        <div class="thread-title">{{ thread.title }}</div>
-        <div class="thread-meta">
-          <span class="thread-group-chip">{{ thread.group.name }}</span>
-          &middot;
-          {{ msg_counts.get(thread.id, 0) }} messages
-          &middot;
-          <span class="team-chip" style="color: {{ thread.target_team.primary_color }}">{{ thread.target_team.abbreviation }}</span>
-          {% if ir %}
-          &middot; <span style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em">{{ ir.status }}</span>
+    {% set lm = last_msgs.get(thread.id) %}
+    {# Format timestamp iMessage-style #}
+    {% if lm %}
+      {% set lm_date = lm.created_at.date() %}
+      {% if lm_date == today %}
+        {% set ts = lm.created_at.strftime('%I:%M %p').lstrip('0') %}
+      {% elif lm_date == yesterday %}
+        {% set ts = 'Yesterday' %}
+      {% elif (today - lm_date).days < 7 %}
+        {% set ts = lm.created_at.strftime('%a') %}
+      {% else %}
+        {% set ts = lm.created_at.strftime('%-m/%-d') %}
+      {% endif %}
+    {% else %}
+      {% set ts = thread.created_at.strftime('%-m/%-d') %}
+    {% endif %}
+    <a href="{{ url_for('threads.show', thread_id=thread.id) }}"
+       class="thread-row-item"
+       data-group-id="{{ thread.group_id }}">
+      {# Team-colored avatar #}
+      <div class="thread-avatar-circle"
+           style="background-color:{{ thread.target_team.primary_color }}20;border-color:{{ thread.target_team.primary_color }}">
+        <span style="color:{{ thread.target_team.primary_color }}">
+          {{ thread.target_team.abbreviation[:3] }}
+        </span>
+      </div>
+      {# Text column #}
+      <div class="thread-preview-col">
+        <div class="thread-preview-top">
+          <span class="thread-preview-name">
+            {{ thread.group.name }}
+            {% if ir %}
+            <span class="thread-type-sep">·</span>
+            <span class="thread-type-label">{{ ir.incident_type.replace('_',' ').title() }}</span>
+            {% endif %}
+          </span>
+          <span class="thread-preview-ts">{{ ts }}</span>
+        </div>
+        <div class="thread-preview-msg">
+          {% if lm %}
+            {{ lm.body | truncate(75, True, '…') }}
+          {% else %}
+            No messages yet
           {% endif %}
         </div>
-      </div>
-      <div class="thread-card-right">
-        <span class="thread-target">{{ thread.target_user.display_name }}</span>
-        <span class="thread-arrow">→</span>
       </div>
     </a>
     {% endfor %}
@@ -42,5 +96,95 @@
   </div>
   {% endif %}
 
+  {# ── FAB (start thread) ── #}
+  {% if memberships %}
+  <button class="threads-fab" id="threads-fab" aria-label="Start a thread">
+    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2.5"
+         stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/>
+      <line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
+
+  <div class="threads-fab-backdrop" id="threads-fab-backdrop" hidden></div>
+  <div class="threads-fab-sheet" id="threads-fab-sheet" hidden>
+    <div class="threads-fab-sheet-handle"></div>
+    <div class="threads-fab-sheet-title">Start a thread — which group?</div>
+    {% for m in memberships %}
+    <a href="{{ url_for('groups.report_incident', group_id=m.group_id) }}"
+       class="threads-fab-group-row">
+      {{ m.group.name }}
+      <span style="color:var(--text-muted);font-size:1rem">›</span>
+    </a>
+    {% endfor %}
+    <button class="threads-fab-cancel" id="threads-fab-cancel">Cancel</button>
+  </div>
+  {% endif %}
+
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // ── Filter dropdown ──────────────────────────────────────────────────
+  var filterBtn  = document.getElementById('threads-filter-btn');
+  var filterMenu = document.getElementById('threads-filter-menu');
+
+  if (filterBtn && filterMenu) {
+    filterBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = !filterMenu.hidden;
+      filterMenu.hidden = open;
+      filterBtn.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', function () {
+      if (!filterMenu.hidden) filterMenu.hidden = true;
+    });
+    filterMenu.addEventListener('click', function(e) { e.stopPropagation(); });
+
+    filterMenu.querySelectorAll('.threads-filter-item').forEach(function (item) {
+      item.addEventListener('click', function () {
+        var groupId = item.getAttribute('data-group');
+        // Update active state + checkmarks
+        filterMenu.querySelectorAll('.threads-filter-item').forEach(function (i) {
+          i.classList.remove('active');
+          i.querySelector('.threads-filter-checkmark').textContent = '';
+        });
+        item.classList.add('active');
+        item.querySelector('.threads-filter-checkmark').textContent = '✓';
+        filterMenu.hidden = true;
+        filterBtn.setAttribute('aria-expanded', 'false');
+        // Apply filter
+        document.querySelectorAll('.thread-row-item[data-group-id]').forEach(function (row) {
+          row.style.display = (groupId === 'all' || row.getAttribute('data-group-id') === groupId)
+            ? '' : 'none';
+        });
+      });
+    });
+  }
+
+  // ── FAB sheet ────────────────────────────────────────────────────────
+  var fab      = document.getElementById('threads-fab');
+  var backdrop = document.getElementById('threads-fab-backdrop');
+  var sheet    = document.getElementById('threads-fab-sheet');
+  var cancel   = document.getElementById('threads-fab-cancel');
+
+  function openSheet() {
+    if (!sheet) return;
+    sheet.hidden = false;
+    if (backdrop) backdrop.hidden = false;
+  }
+  function closeSheet() {
+    if (!sheet) return;
+    sheet.hidden = true;
+    if (backdrop) backdrop.hidden = true;
+  }
+
+  if (fab) fab.addEventListener('click', openSheet);
+  if (cancel) cancel.addEventListener('click', closeSheet);
+  if (backdrop) backdrop.addEventListener('click', closeSheet);
+})();
+</script>
 {% endblock %}
