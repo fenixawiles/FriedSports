@@ -188,3 +188,45 @@
 {% endblock %}
 
 {% block page_back_href %}{{ url_for("dashboard.dashboard") }}{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  // Fetch-based accept / decline — no page reload needed for binary actions
+  var frSection = document.querySelector('.notif-fr-row') && document.querySelector('.notif-fr-row').closest('section');
+  var countChip = frSection && frSection.querySelector('.notif-count-chip');
+  var remaining = document.querySelectorAll('.notif-fr-row').length;
+
+  document.querySelectorAll('.notif-fr-row').forEach(function (row) {
+    row.querySelectorAll('form').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.45'; }
+
+        fetch(form.action, { method: 'POST', headers: { 'X-Fetch': '1' } })
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+          .then(function () {
+            // Fade out and remove the row
+            row.style.transition = 'opacity 0.22s';
+            row.style.opacity = '0';
+            setTimeout(function () {
+              row.remove();
+              remaining -= 1;
+              if (countChip) countChip.textContent = remaining || '';
+              // If no more requests, remove the section header too
+              if (remaining <= 0 && frSection) {
+                frSection.style.transition = 'opacity 0.22s';
+                frSection.style.opacity = '0';
+                setTimeout(function () { frSection.remove(); }, 230);
+              }
+            }, 230);
+          })
+          .catch(function () {
+            if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+          });
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

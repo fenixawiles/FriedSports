@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload
 from app.models import db, GameThread, GameThreadMessage, Group, GroupMember
@@ -53,19 +53,25 @@ def show(thread_id):
 @threads_bp.route("/<int:thread_id>/messages", methods=["POST"])
 @login_required
 def post_message(thread_id):
+    _fetch = request.headers.get("X-Fetch") == "1"
+
     thread = GameThread.query.get_or_404(thread_id)
     group = Group.query.get(thread.group_id)
     if not group.is_member(current_user.id):
+        if _fetch: return jsonify({"error": "forbidden"}), 403
         abort(403)
     if thread.status != "active":
+        if _fetch: return jsonify({"error": "closed"}), 400
         flash("This thread is closed.", "error")
         return redirect(url_for("threads.show", thread_id=thread_id))
 
     body = request.form.get("body", "").strip()
     if not body:
+        if _fetch: return jsonify({"error": "empty"}), 400
         flash("Message cannot be empty.", "error")
         return redirect(url_for("threads.show", thread_id=thread_id))
     if len(body) > 1000:
+        if _fetch: return jsonify({"error": "too_long"}), 400
         flash("Message too long (max 1000 chars).", "error")
         return redirect(url_for("threads.show", thread_id=thread_id))
 
@@ -97,4 +103,10 @@ def post_message(thread_id):
         except Exception:
             pass  # never let notification failure block the message post
 
+    if _fetch:
+        return jsonify({
+            "success": True,
+            "id": msg.id,
+            "created_at": msg.created_at.isoformat() if msg.created_at else None,
+        })
     return redirect(url_for("threads.show", thread_id=thread_id))

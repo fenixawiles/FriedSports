@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import or_, and_
 from app.models import db, User, FriendRequest, Notification
@@ -99,6 +99,8 @@ def send_request(user_id):
             except Exception:
                 pass
             flash(f"Friend request sent to {target.shown_name}.", "success")
+        if request.headers.get("X-Fetch") == "1":
+            return jsonify({"ok": True, "status": "pending_sent"})
         return redirect(request.referrer or url_for("friends.index"))
 
     fr = FriendRequest(from_user_id=current_user.id, to_user_id=user_id)
@@ -122,6 +124,8 @@ def send_request(user_id):
     except Exception:
         pass
 
+    if request.headers.get("X-Fetch") == "1":
+        return jsonify({"ok": True, "status": "pending_sent"})
     flash(f"Friend request sent to {target.shown_name}.", "success")
     return redirect(request.referrer or url_for("friends.index"))
 
@@ -144,6 +148,8 @@ def accept_request(request_id):
     db.session.add(notif)
     db.session.commit()
 
+    if request.headers.get("X-Fetch") == "1":
+        return jsonify({"ok": True, "name": fr.from_user.shown_name})
     flash(f"You're now friends with {fr.from_user.shown_name}.", "success")
     return redirect(request.referrer or url_for("friends.index"))
 
@@ -156,6 +162,8 @@ def decline_request(request_id):
         abort(403)
     db.session.delete(fr)
     db.session.commit()
+    if request.headers.get("X-Fetch") == "1":
+        return jsonify({"ok": True})
     return redirect(request.referrer or url_for("dashboard.notifications"))
 
 

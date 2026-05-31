@@ -14,19 +14,22 @@
 
   <!-- Search -->
   <section class="group-section" style="border-top:none;padding-top:0">
-    <form method="get" action="{{ url_for('friends.index') }}" class="friend-search-form">
-      <input type="text" name="q" value="{{ q or '' }}"
+    <form method="get" action="{{ url_for('friends.index') }}" class="friend-search-form" id="friend-search-form">
+      <input type="text" name="q" value="{{ q or '' }}" id="friend-search-input"
              placeholder="Search by name, email, or UID (FS-XXXXXX)…"
              autocomplete="off" autocorrect="off" spellcheck="false"
              style="font-size:16px">
       <button type="submit" class="btn-primary-small">Search</button>
-      {% if q %}<a href="{{ url_for('friends.index') }}" class="btn-secondary-small">Clear</a>{% endif %}
+      {% if q %}<a href="{{ url_for('friends.index') }}" class="btn-secondary-small" id="friend-search-clear">Clear</a>{% endif %}
     </form>
 
-    <!-- Search results -->
+    <!-- JS live-search results go here; server-rendered results below as fallback -->
+    <div id="friend-live-results"></div>
+
+    <!-- Search results (server-rendered fallback) -->
     {% if q %}
     {% if results %}
-    <div class="member-table" style="margin-top:1rem">
+    <div class="member-table" style="margin-top:1rem" id="friend-server-results">
       <div class="member-row member-header" style="grid-template-columns:1fr auto auto">
         <span>User</span><span>UID</span><span></span>
       </div>
@@ -101,3 +104,119 @@
 {% endblock %}
 
 {% block page_back_href %}{{ url_for("dashboard.dashboard") }}{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var searchForm    = document.getElementById('friend-search-form');
+  var searchInput   = document.getElementById('friend-search-input');
+  var liveResults   = document.getElementById('friend-live-results');
+  var serverResults = document.getElementById('friend-server-results');
+  if (!searchInput || !liveResults) return;
+
+  var _debounceTimer = null;
+  var _lastQuery = '';
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function renderResults(items, query) {
+    if (!query || query.length < 2) {
+      liveResults.innerHTML = '';
+      if (serverResults) serverResults.style.display = '';
+      return;
+    }
+    // Hide server-rendered results while live results are shown
+    if (serverResults) serverResults.style.display = 'none';
+
+    if (!items.length) {
+      liveResults.innerHTML = '<div class="empty-state" style="margin-top:1rem"><p>No users found.</p></div>';
+      return;
+    }
+
+    var html = '<div class="member-table" style="margin-top:1rem">';
+    html += '<div class="member-row member-header" style="grid-template-columns:1fr auto auto">';
+    html += '<span>User</span><span>UID</span><span></span></div>';
+
+    items.forEach(function (item) {
+      var action = '';
+      if (item.status === 'friends') {
+        action = '<span class="badge-role member">Friends</span>';
+      } else if (item.status === 'pending_sent') {
+        action = '<span style="font-size:0.75rem;color:var(--text-muted)">Request sent</span>';
+      } else if (item.status === 'pending_received') {
+        action = '<span style="font-size:0.75rem;color:var(--text-muted)">Wants to add you</span>';
+      } else {
+        action = '<button class="btn-secondary-small friend-add-btn"'
+               + ' data-user-id="' + esc(item.id) + '"'
+               + ' data-user-name="' + esc(item.name) + '">Add Friend</button>';
+      }
+      html += '<div class="member-row" style="grid-template-columns:1fr auto auto">';
+      html += '<span class="member-name">' + esc(item.name) + '</span>';
+      html += '<span style="font-family:monospace;font-size:0.75rem;color:var(--text-muted)">' + esc(item.uid) + '</span>';
+      html += '<span>' + action + '</span></div>';
+    });
+
+    html += '</div>';
+    liveResults.innerHTML = html;
+  }
+
+  function doSearch(query) {
+    if (query === _lastQuery) return;
+    _lastQuery = query;
+    if (query.length < 2) { renderResults([], query); return; }
+    fetch('/api/users/search?q=' + encodeURIComponent(query), { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (data) { if (_lastQuery === query) renderResults(data, query); })
+      .catch(function () {});
+  }
+
+  // Debounced live search on input
+  searchInput.addEventListener('input', function () {
+    var q = searchInput.value.trim();
+    clearTimeout(_debounceTimer);
+    _debounceTimer = setTimeout(function () { doSearch(q); }, 280);
+  });
+
+  // Intercept form submit — run live search instead of reloading
+  if (searchForm) {
+    searchForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      clearTimeout(_debounceTimer);
+      doSearch(searchInput.value.trim());
+    });
+  }
+
+  // Event delegation — handle "Add Friend" clicks inside live results
+  liveResults.addEventListener('click', function (e) {
+    var btn = e.target.closest('.friend-add-btn');
+    if (!btn) return;
+    var userId = btn.getAttribute('data-user-id');
+    if (!userId) return;
+
+    btn.disabled = true;
+    btn.textContent = '···';
+
+    fetch('/friends/request/' + userId, {
+      method: 'POST',
+      headers: { 'X-Fetch': '1' },
+      credentials: 'same-origin',
+    })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function () {
+        var cell = btn.closest('span');
+        if (cell) cell.innerHTML = '<span style="font-size:0.75rem;color:var(--text-muted)">Request sent</span>';
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Add Friend';
+      });
+  });
+
+  // On page load with a pre-filled query, trigger live search immediately
+  if (searchInput.value.trim().length >= 2) {
+    doSearch(searchInput.value.trim());
+  }
+})();
+</script>
+{% endblock %}

@@ -226,3 +226,60 @@ def group_members(group_id):
 def _is_admin(user_id, group_id):
     member = GroupMember.query.filter_by(group_id=group_id, user_id=user_id).first()
     return member and member.role in ("owner", "admin")
+
+
+@api_bp.route("/users/search")
+@login_required
+def search_users():
+    """Live user search for friends page. Returns JSON list with friendship status."""
+    from app.models import User, FriendRequest
+    from sqlalchemy import or_, and_
+
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify([])
+
+    users = (
+        User.query
+        .filter(
+            User.id != current_user.id,
+            or_(
+                User.email.ilike(f"%{q}%"),
+                User.uid.ilike(f"%{q}%"),
+                User.display_name.ilike(f"%{q}%"),
+                User.first_name.ilike(f"%{q}%"),
+                User.last_name.ilike(f"%{q}%"),
+            ),
+        )
+        .limit(20)
+        .all()
+    )
+
+    result = []
+    for user in users:
+        fr = FriendRequest.query.filter(
+            or_(
+                and_(FriendRequest.from_user_id == current_user.id,
+                     FriendRequest.to_user_id   == user.id),
+                and_(FriendRequest.from_user_id == user.id,
+                     FriendRequest.to_user_id   == current_user.id),
+            )
+        ).first()
+
+        if fr is None:
+            status = "none"
+        elif fr.status == "accepted":
+            status = "friends"
+        elif fr.status == "pending":
+            status = "pending_sent" if fr.from_user_id == current_user.id else "pending_received"
+        else:
+            status = "none"
+
+        result.append({
+            "id":   user.id,
+            "name": user.shown_name,
+            "uid":  user.uid,
+            "status": status,
+        })
+
+    return jsonify(result)

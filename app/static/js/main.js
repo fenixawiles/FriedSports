@@ -74,3 +74,50 @@ document.addEventListener('click', function (e) {
   // Visually arm anchor links that look like buttons
   if (a.className && a.className.match(/btn-/)) _armButton(a);
 });
+
+// ── Link prefetching — warm the next page on hover / focus / touchstart ──────
+// Fires before the user clicks, giving the browser a head start fetching the
+// destination HTML. On mobile, touchstart fires ~60-100ms before click.
+(function () {
+  if (typeof document.createElement('link').relList === 'undefined') return;
+  var prefetched = new Set();
+
+  function prefetch(url) {
+    if (!url || typeof url !== 'string') return;
+    if (url.startsWith('#') || url.startsWith('javascript:') || url.startsWith('mailto:')) return;
+    var abs = url.startsWith('http') ? url : window.location.origin + url;
+    if (!abs.startsWith(window.location.origin)) return;
+    if (prefetched.has(abs)) return;
+    prefetched.add(abs);
+    var link = document.createElement('link');
+    link.rel  = 'prefetch';
+    link.as   = 'document';
+    link.href = abs;
+    document.head.appendChild(link);
+  }
+
+  function wireEl(el) {
+    var href = el.getAttribute('href');
+    if (!href) return;
+    el.addEventListener('mouseenter',  function () { prefetch(href); });
+    el.addEventListener('focus',       function () { prefetch(href); });
+    el.addEventListener('touchstart',  function () { prefetch(href); }, { passive: true });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    // Primary navigation tabs
+    document.querySelectorAll('.bottom-nav-item[href]').forEach(wireEl);
+    // Side drawer nav links
+    document.querySelectorAll('.nav-link[href]').forEach(wireEl);
+    // Thread list rows  → thread pages
+    document.querySelectorAll('.thread-row-item[href]').forEach(wireEl);
+    // Classic thread cards (group page, dashboard)
+    document.querySelectorAll('.thread-card[href]').forEach(wireEl);
+    // Group cards
+    document.querySelectorAll('.group-card a[href]').forEach(wireEl);
+    // More page rows
+    document.querySelectorAll('.more-row[href]').forEach(wireEl);
+    // Back link
+    document.querySelectorAll('.back-link[href]').forEach(wireEl);
+  });
+})();
