@@ -130,6 +130,7 @@ def auth_signup():
     # Send OTP
     token = LoginToken(
         user_id=u.id,
+        token=secrets.token_urlsafe(16),
         purpose="signup_code",
         code="".join(secrets.choice(string.digits) for _ in range(8)),
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
@@ -152,6 +153,7 @@ def auth_login():
 
     token = LoginToken(
         user_id=u.id,
+        token=secrets.token_urlsafe(16),
         purpose="signin_code",
         code="".join(secrets.choice(string.digits) for _ in range(8)),
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
@@ -172,6 +174,7 @@ def auth_send_code():
         return ok()
     token = LoginToken(
         user_id=u.id,
+        token=secrets.token_urlsafe(16),
         purpose="signin_code",
         code="".join(secrets.choice(string.digits) for _ in range(8)),
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
