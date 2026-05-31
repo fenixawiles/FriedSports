@@ -1,0 +1,17 @@
+import client from './client'
+
+export const getDashboard  = ()          => client.get('/dashboard').then(r => r.data)
+export const getGroup      = (id)        => client.get(`/groups/${id}`).then(r => r.data)
+export const createGroup   = (data)      => client.post('/groups', data).then(r => r.data)
+export const joinGroup     = (code)      => client.post(`/groups/join/${code}`).then(r => r.data)
+export const getJoinInfo   = (code)      => client.get(`/groups/join/${code}`).then(r => r.data)
+export const inviteEmail   = (id, email) => client.post(`/groups/${id}/invite-email`, { email }).then(r => r.data)
+export const regenerateInvite = (id)     => client.post(`/groups/${id}/regenerate-invite`).then(r => r.data)
+export const muteGroup     = (id)        => client.post(`/groups/${id}/mute`).then(r => r.data)
+export const leaveGroup    = (id)        => client.post(`/groups/${id}/leave`).then(r => r.data)
+export const deleteGroup   = (id)        => client.delete(`/groups/${id}`).then(r => r.data)
+export const removeMember  = (gid, uid)  => client.post(`/groups/${gid}/remove/${uid}`).then(r => r.data)
+export const transferOwner = (gid, uid)  => client.post(`/groups/${gid}/transfer-owner/${uid}`).then(r => r.data)
+export const getMembers    = (id)        => client.get(`/groups/${id}/members`).then(r => r.data)
+export const startThread   = (id, data)  => client.post(`/groups/${id}/report`, data).then(r => r.data)
+export const getReportForm = (id)        => client.get(`/groups/${id}/report`).then(r => r.data)

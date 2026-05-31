@@ -1,0 +1,126 @@
+import { useState, useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { getThreadsList } from '../api/threads'
+import Loading from '../components/Loading'
+
+function fmtTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+  const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+
+  if (msgDay.getTime() === today.getTime()) {
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/^0/, '')
+  }
+  if (msgDay.getTime() === yesterday.getTime()) return 'Yesterday'
+  const diff = (today - msgDay) / 86400000
+  if (diff < 7) return d.toLocaleDateString('en-US', { weekday: 'short' })
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+export default function Threads() {
+  const navigate = useNavigate()
+  const { data, isLoading } = useQuery({
+    queryKey: ['threads'],
+    queryFn: getThreadsList,
+    refetchInterval: 10_000,
+  })
+
+  const [filterGroup, setFilterGroup]       = useState('all')
+  const [filterOpen, setFilterOpen]         = useState(false)
+  const [fabOpen, setFabOpen]               = useState(false)
+
+  const threads   = data?.threads    ?? []
+  const groups    = data?.groups     ?? []
+  const lastMsgs  = data?.last_msgs  ?? {}
+
+  const filtered = useMemo(() => {
+    if (filterGroup === 'all') return threads
+    return threads.filter(t => String(t.group_id) === String(filterGroup))
+  }, [threads, filterGroup])
+
+  return (
+    <div className="threads-page-container">
+      <div className="threads-header-wrap">
+        <span className="section-title">Active Threads</span>
+        <div className="threads-filter-wrap">
+          <button className="threads-filter-btn" onClick={() => setFilterOpen(o => !o)}
+            aria-expanded={filterOpen}>
+            ☰
+          </button>
+          {filterOpen && (
+            <div className="threads-filter-menu">
+              <button className={`threads-filter-item${filterGroup === 'all' ? ' active' : ''}`}
+                onClick={() => { setFilterGroup('all'); setFilterOpen(false) }}>
+                All Groups
+              </button>
+              {groups.map(g => (
+                <button key={g.id}
+                  className={`threads-filter-item${String(filterGroup) === String(g.id) ? ' active' : ''}`}
+                  onClick={() => { setFilterGroup(String(g.id)); setFilterOpen(false) }}>
+                  {g.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isLoading ? <Loading /> : (
+        <div className="threads-list-wrap" id="threads-list">
+          {filtered.length === 0 ? (
+            <div className="empty-state"><p>No active threads yet.</p></div>
+          ) : filtered.map(thread => {
+            const last = lastMsgs[thread.id]
+            const typeLabel = thread.incident_type
+              ? thread.incident_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+              : 'Thread'
+
+            return (
+              <Link key={thread.id} to={`/threads/${thread.id}`}
+                className="thread-row-item" data-group-id={thread.group_id}>
+                <div className="thread-avatar-circle"
+                  style={{ background: thread.team_color || 'var(--accent)' }}>
+                  {thread.team_abbr || '?'}
+                </div>
+                <div className="thread-preview-col">
+                  <div className="thread-preview-top">
+                    <span className="thread-preview-name">
+                      {thread.group_name} · {typeLabel}
+                    </span>
+                    <span className="thread-preview-ts">{fmtTime(last?.created_at)}</span>
+                  </div>
+                  <div className="thread-preview-msg">
+                    {last?.body || thread.title}
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      )}
+
+      {/* FAB */}
+      <button className="threads-fab" onClick={() => setFabOpen(true)} aria-label="New thread">+</button>
+
+      {fabOpen && (
+        <>
+          <div className="threads-fab-backdrop" onClick={() => setFabOpen(false)} />
+          <div className="threads-fab-sheet">
+            <div className="threads-fab-sheet-title">Start a thread in…</div>
+            {groups.map(g => (
+              <button key={g.id} className="threads-fab-group-row"
+                onClick={() => { setFabOpen(false); navigate(`/groups/${g.id}/report`) }}>
+                {g.name}
+              </button>
+            ))}
+            <button className="threads-fab-cancel" onClick={() => setFabOpen(false)}>Cancel</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

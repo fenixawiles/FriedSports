@@ -1,8 +1,10 @@
-from flask import Flask
+import os
+from flask import Flask, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager, current_user
 from flask_compress import Compress
+from flask_cors import CORS
 
 from config import get_config
 from app.models import db, User
@@ -32,6 +34,14 @@ def create_app(config=None):
     login_manager.init_app(app)
     compress.init_app(app)
 
+    # CORS — allow the Vite dev server (localhost:5173) to make credentialled
+    # requests to Flask. In production Capacitor and the built React SPA are
+    # same-origin, so this only matters in development.
+    CORS(app,
+         supports_credentials=True,
+         origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+         allow_headers=["Content-Type", "X-Fetch"])
+
     # Blueprints
     from app.routes.auth import auth_bp
     from app.routes.dashboard import dashboard_bp
@@ -39,6 +49,7 @@ def create_app(config=None):
     from app.routes.threads import threads_bp
     from app.routes.public import public_bp
     from app.routes.api import api_bp
+    from app.routes.api_react import bp as api_react_bp
     from app.routes.reports import reports_bp
     from app.routes.admin import admin_bp
     from app.routes.legal import legal_bp
@@ -51,11 +62,28 @@ def create_app(config=None):
     app.register_blueprint(threads_bp, url_prefix="/threads")
     app.register_blueprint(public_bp, url_prefix="/public")
     app.register_blueprint(api_bp, url_prefix="/api")
+    app.register_blueprint(api_react_bp)   # prefix /api defined on blueprint
     app.register_blueprint(reports_bp, url_prefix="/reports")
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(legal_bp)
     app.register_blueprint(support_bp, url_prefix="/support")
     app.register_blueprint(friends_bp, url_prefix="/friends")
+
+    # Serve the React SPA for all non-API, non-admin, non-static routes.
+    # In production (Railway), Flask serves both the API and the built React bundle.
+    # The React build lives at frontend/dist/ relative to the repo root.
+    _react_build = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "frontend", "dist"
+    )
+
+    @app.route("/app/", defaults={"path": ""})
+    @app.route("/app/<path:path>")
+    def serve_react(path):
+        """Serve React SPA — catch-all for client-side routes."""
+        full = os.path.join(_react_build, path)
+        if path and os.path.exists(full) and not os.path.isdir(full):
+            return send_from_directory(_react_build, path)
+        return send_from_directory(_react_build, "index.html")
 
     # Inject unread notification count into every template for the nav bell
     from app.models import Notification as _Notif

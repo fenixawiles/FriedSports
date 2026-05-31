@@ -9,3 +9,4 @@ gunicorn==22.0.0
 pg8000==1.31.5
 httpx[http2]==0.27.0
 PyJWT==2.8.0
+flask-cors==4.0.1
