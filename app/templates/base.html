@@ -11,6 +11,8 @@
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=8">
   <!-- Turbo Drive — app-shell navigation (content swap without full page reload) -->
+  <!-- no-preview: never show stale cached snapshots before fresh data arrives -->
+  <meta name="turbo-cache-control" content="no-preview">
   <script type="module" src="{{ url_for('static', filename='js/turbo.js') }}"></script>
   {% block head %}{% endblock %}
 </head>
