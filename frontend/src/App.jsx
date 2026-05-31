@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import Shell from './components/Shell'
@@ -43,10 +45,18 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       staleTime: 5 * 60_000,       // 5 min — show cached data, refresh silently in bg
-      gcTime:    10 * 60_000,       // Keep unused data in memory 10 min
-      refetchOnWindowFocus: false,  // Don't blast the API every time the user alt-tabs back
+      gcTime:    24 * 60 * 60_000, // Keep in memory 24 hrs so persisted cache survives app reopen
+      refetchOnWindowFocus: false,
     },
   },
+})
+
+// Persist the query cache to localStorage so the app shows last session's
+// data instantly on reopen — zero spinner on any cached screen.
+// In Capacitor (WKWebView) localStorage survives app close/reopen.
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
+  key: 'FRIEDSPORTS_QUERY_CACHE',
 })
 
 // Route guard — redirects to /login if not authenticated
@@ -67,7 +77,14 @@ function RedirectIfAuthed({ children }) {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        buster: 'v1',                 // bump this string to wipe old caches after breaking changes
+      }}
+    >
       <AuthProvider>
         <ThemeProvider>
           <BrowserRouter>
@@ -117,6 +134,6 @@ export default function App() {
           </BrowserRouter>
         </ThemeProvider>
       </AuthProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   )
 }
