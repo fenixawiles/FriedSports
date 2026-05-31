@@ -1,16 +1,31 @@
 import { Outlet, NavLink, Link, useNavigate, useMatch } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { getNotifications } from '../api/notifications'
+import { getDashboard } from '../api/groups'
+import { getThreadsList } from '../api/threads'
+import { getFriends } from '../api/friends'
 import logo from '../logo.png'
 
 export default function Shell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const qc = useQueryClient()
 
   // Thread chat is a focused full-screen view — hide all navigation chrome.
   // useMatch returns a truthy object when the current path matches the pattern.
   const isThreadChat = !!useMatch('/threads/:id')
+
+  // Prefetch all main tab data the moment the user is authenticated.
+  // Fires 4 parallel requests in the background so every first tab tap is instant.
+  useEffect(() => {
+    if (!user) return
+    qc.prefetchQuery({ queryKey: ['dashboard'],     queryFn: getDashboard })
+    qc.prefetchQuery({ queryKey: ['threads'],        queryFn: getThreadsList })
+    qc.prefetchQuery({ queryKey: ['friends'],        queryFn: getFriends })
+    qc.prefetchQuery({ queryKey: ['notifications'],  queryFn: getNotifications })
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: notifData } = useQuery({
     queryKey: ['notifications'],

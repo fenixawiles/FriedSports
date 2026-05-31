@@ -42,7 +42,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      staleTime: 30_000,
+      staleTime: 5 * 60_000,       // 5 min — show cached data, refresh silently in bg
+      gcTime:    10 * 60_000,       // Keep unused data in memory 10 min
+      refetchOnWindowFocus: false,  // Don't blast the API every time the user alt-tabs back
     },
   },
 })
