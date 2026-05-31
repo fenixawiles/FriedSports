@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <title>{% block title %}FriedSports{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=5">
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -144,16 +144,12 @@
       </svg>
       <span class="bottom-nav-label">Groups</span>
     </a>
-    <a href="{{ url_for('dashboard.notifications') }}" class="bottom-nav-item" data-path="/notifications">
+    <a href="{{ url_for('dashboard.threads_list') }}" class="bottom-nav-item" data-path="/threads">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
-      {% if unread_notification_count > 0 %}
-      <span class="bottom-nav-badge">{{ '9+' if unread_notification_count >= 10 else unread_notification_count }}</span>
-      {% endif %}
-      <span class="bottom-nav-label">Alerts</span>
+      <span class="bottom-nav-label">Threads</span>
     </a>
     <a href="{{ url_for('friends.index') }}" class="bottom-nav-item" data-path="/friends">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
@@ -165,24 +161,22 @@
       </svg>
       <span class="bottom-nav-label">Friends</span>
     </a>
-    <button class="bottom-nav-item" id="bottom-nav-more" aria-label="More">
+    <a href="{{ url_for('dashboard.more') }}" class="bottom-nav-item" data-path="/more">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="3" y1="12" x2="21" y2="12"/>
-        <line x1="3" y1="6"  x2="21" y2="6"/>
-        <line x1="3" y1="18" x2="21" y2="18"/>
+        <circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>
       </svg>
       <span class="bottom-nav-label">More</span>
-    </button>
+    </a>
   </nav>
   {% endif %}
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
   <script>
-  // Global back button — show on every page except home/auth/dashboard
+  // Global back button — show on every page except primary destinations
   (function() {
-    var hide = ['/', '/login', '/signup', '/dashboard'];
+    var hide = ['/', '/login', '/signup', '/dashboard', '/threads', '/more'];
     var path = window.location.pathname;
     if (hide.indexOf(path) < 0) {
       var el = document.getElementById('page-back');
@@ -230,15 +224,6 @@
       if (e.target.tagName === 'A' || e.target.closest('form')) closeDrawer();
     });
 
-    // Bottom nav "More" button opens the drawer
-    var moreBtn = document.getElementById('bottom-nav-more');
-    if (moreBtn) {
-      moreBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (nav.classList.contains('nav-mobile-open')) { closeDrawer(); } else { openDrawer(); }
-      });
-    }
-
     // Groups accordion
     var groupToggle = document.getElementById('nav-group-toggle');
     var groupItems  = document.getElementById('nav-group-items');
@@ -270,8 +255,8 @@
     // Extra bottom padding so content isn't hidden behind it
     var main = document.querySelector('.main-content');
     if (main) main.style.paddingBottom = 'calc(66px + env(safe-area-inset-bottom))';
-    // Hide the top bell + friends icon since the bottom nav has them
-    document.querySelectorAll('.nav-bell, .nav-friends-icon').forEach(function(el) {
+    // Hide top friends icon on mobile (it lives in the bottom nav); keep bell visible
+    document.querySelectorAll('.nav-friends-icon').forEach(function(el) {
       el.style.display = 'none';
     });
     // Mark active tab

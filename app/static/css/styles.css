@@ -1269,9 +1269,11 @@ body.receipt-page {
 }
 
 @media (max-width: 640px) {
-  /* Hide top bell and friends icon — they live in the bottom nav on mobile */
-  .nav-bell, .nav-friends-icon { display: none; }
-  /* Pad content so it clears the nav bar */
+  /* On mobile: show the notification bell top-right; hide the friends icon (it's in bottom nav);
+     hide the hamburger (navigation is via bottom bar + More page) */
+  .nav-friends-icon { display: none; }
+  .nav-hamburger { display: none !important; }
+  /* Pad content so it clears the bottom nav */
   .main-content { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
 
   .bottom-nav-item {
@@ -1336,3 +1338,59 @@ body.receipt-page {
 .settings-section { margin-bottom: 2.5rem; padding-bottom: 2.5rem; }
 /* Friends list rows */
 .friend-row, .friend-result { padding: 0.85rem 0; }
+
+/* ── Threads destination page ── */
+.threads-page-container { max-width: 920px; margin: 0 auto; }
+/* Group name chip inside thread meta on the cross-group threads page */
+.thread-group-chip {
+  font-weight: 600; color: var(--text-secondary); font-size: 0.78rem;
+}
+
+/* ── More destination page ── */
+.more-container { max-width: 520px; margin: 0 auto; padding-bottom: 2.5rem; }
+
+.more-user-card {
+  padding: 1.25rem 0 1.75rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+.more-user-name {
+  font-size: 1.15rem; font-weight: 700; color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+.more-user-uid {
+  font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;
+}
+
+.more-section {
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* Each row in the More page — link or button */
+.more-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.95rem 1rem;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  text-decoration: none;
+  border: none; width: 100%; text-align: left;
+  cursor: pointer; font-family: var(--font);
+  -webkit-appearance: none; appearance: none;
+  transition: background 0.12s;
+}
+.more-row + .more-row { border-top: 1px solid var(--border); }
+.more-row:hover { background: var(--bg-elevated); text-decoration: none; }
+.more-row:active { background: var(--bg-elevated); }
+
+.more-chevron {
+  font-size: 1.1rem; color: var(--text-muted);
+  font-weight: 300; line-height: 1;
+}
+
+.more-row-admin { color: var(--text-secondary); }
+.more-row-danger { color: var(--accent) !important; }
+.more-row-danger:hover { background: rgba(217,51,72,0.06) !important; }

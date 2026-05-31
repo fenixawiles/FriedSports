@@ -34,6 +34,11 @@
   }
   /* Edge-to-edge on desktop — remove global max-width centering */
   .main-content { max-width: 100% !important; margin: 0 !important; }
+  /* Thread is a focused conversation — hide all navigation chrome on mobile */
+  @media (max-width: 640px) {
+    #main-nav  { display: none !important; }
+    #bottom-nav { display: none !important; }
+  }
   /* Desktop: add horizontal breathing room without reintroducing a max-width */
   @media (min-width: 641px) {
     .thread-header-wrap { padding: 1rem 2.5rem 0; }

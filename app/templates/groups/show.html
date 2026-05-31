@@ -68,86 +68,20 @@
   </div>
   {% endif %}
 
-  <!-- Active Threads -->
+  <!-- Threads — start a new conversation; browse active threads in the Threads tab -->
   <section class="group-section">
     <div class="section-header" style="margin-bottom:0.85rem">
       <div>
-        <span class="section-title">Active Threads</span>
-        <span class="section-sub">Current discussions — tap to join</span>
+        <span class="section-title">Threads</span>
+        <span class="section-sub">Start a thread to call someone out</span>
         {% if member %}
         <div class="thread-tagline" id="thread-tagline"></div>
         {% endif %}
       </div>
       {% if member %}
-      {% if member.role in ('owner', 'admin') and threads %}
-      <button type="button" id="thread-select-btn" class="btn-secondary-small" onclick="toggleThreadSelect()">Select</button>
-      {% endif %}
       <a href="{{ url_for('groups.report_incident', group_id=group.id) }}" class="btn-primary">Start A Thread</a>
       {% endif %}
     </div>
-    {% if threads %}
-    {% if member and member.role in ('owner', 'admin') %}
-    <form id="thread-batch-form" action="{{ url_for('groups.delete_threads_batch', group_id=group.id) }}" method="post">
-    {% endif %}
-    <div class="thread-list">
-      {% for thread in threads %}
-      {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
-      {% set can_delete = member and (member.role in ('owner', 'admin') or (ir and ir.reporter_user_id == current_user.id)) %}
-      <div class="thread-row">
-        {% if member and member.role in ('owner', 'admin') %}
-        <input type="checkbox" name="thread_ids" value="{{ thread.id }}" class="thread-check" style="display:none">
-        {% endif %}
-        <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="thread-card">
-          <div class="thread-card-left">
-            <div class="thread-title">{{ thread.title }}</div>
-            <div class="thread-meta">
-              {{ msg_counts.get(thread.id, 0) }} messages &middot;
-              <span class="team-chip" style="color: {{ thread.target_team.primary_color }}">{{ thread.target_team.abbreviation }}</span>
-              {% if ir %}
-              &middot; <span style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em">{{ ir.status }}</span>
-              {% endif %}
-            </div>
-          </div>
-          <div class="thread-card-right">
-            <span class="thread-target">{{ thread.target_user.display_name }}</span>
-            <span class="thread-arrow">→</span>
-          </div>
-        </a>
-        {% if can_delete %}
-        <button type="submit" form="del-thread-{{ thread.id }}"
-                class="thread-delete-btn" title="Delete thread"
-                onclick="return confirm('Delete this thread? This cannot be undone.')">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-          </svg>
-        </button>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </div>
-    {% if member and member.role in ('owner', 'admin') %}
-    <div id="batch-actions" style="display:none;margin-top:0.75rem">
-      <button type="submit" class="btn-danger-small">Delete Selected</button>
-    </div>
-    </form>
-    {% endif %}
-    <!-- Individual delete forms (outside batch form — HTML doesn't allow nested forms) -->
-    {% for thread in threads %}
-    {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
-    {% if member and (member.role in ('owner', 'admin') or (ir and ir.reporter_user_id == current_user.id)) %}
-    <form id="del-thread-{{ thread.id }}"
-          action="{{ url_for('groups.delete_thread', thread_id=thread.id) }}"
-          method="post" style="display:none"></form>
-    {% endif %}
-    {% endfor %}
-    {% else %}
-    <div class="empty-state">
-      <p>No threads yet. Start one above.</p>
-    </div>
-    {% endif %}
   </section>
 
   <!-- Members (lazy-loaded when section scrolls into view) -->

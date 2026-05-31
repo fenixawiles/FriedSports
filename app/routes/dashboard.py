@@ -278,3 +278,53 @@ def notifications_mark_read():
     Notification.query.filter_by(user_id=current_user.id, is_read=False).update({"is_read": True})
     db.session.commit()
     return redirect(url_for("dashboard.notifications"))
+
+
+@dashboard_bp.route("/threads")
+@login_required
+def threads_list():
+    """All active threads across every group the current user belongs to."""
+    from sqlalchemy.orm import joinedload
+    memberships = GroupMember.query.filter_by(user_id=current_user.id).all()
+    group_ids = [m.group_id for m in memberships]
+
+    threads = []
+    msg_counts = {}
+    if group_ids:
+        threads = (
+            GameThread.query
+            .options(
+                joinedload(GameThread.target_user),
+                joinedload(GameThread.target_team),
+            )
+            .filter(
+                GameThread.group_id.in_(group_ids),
+                GameThread.status == "active",
+            )
+            .order_by(GameThread.created_at.desc())
+            .all()
+        )
+        if threads:
+            thread_ids = [t.id for t in threads]
+            counts = (
+                db.session.query(
+                    GameThreadMessage.thread_id,
+                    func.count(GameThreadMessage.id).label("cnt"),
+                )
+                .filter(
+                    GameThreadMessage.thread_id.in_(thread_ids),
+                    GameThreadMessage.is_deleted == False,
+                )
+                .group_by(GameThreadMessage.thread_id)
+                .all()
+            )
+            msg_counts = {tid: cnt for tid, cnt in counts}
+
+    return render_template("dashboard/threads.html", threads=threads, msg_counts=msg_counts)
+
+
+@dashboard_bp.route("/more")
+@login_required
+def more():
+    """More hub — settings, support, legal, admin, logout."""
+    return render_template("dashboard/more.html")

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Threads — FriedSports{% endblock %}
+{% block content %}
+<div class="threads-page-container">
+
+  <div class="section-header">
+    <div>
+      <span class="section-title">Active Threads</span>
+      <span class="section-sub">Across all your groups</span>
+    </div>
+  </div>
+
+  {% if threads %}
+  <div class="thread-list">
+    {% for thread in threads %}
+    {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
+    <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="thread-card">
+      <div class="thread-card-left">
+        <div class="thread-title">{{ thread.title }}</div>
+        <div class="thread-meta">
+          <span class="thread-group-chip">{{ thread.group.name }}</span>
+          &middot;
+          {{ msg_counts.get(thread.id, 0) }} messages
+          &middot;
+          <span class="team-chip" style="color: {{ thread.target_team.primary_color }}">{{ thread.target_team.abbreviation }}</span>
+          {% if ir %}
+          &middot; <span style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em">{{ ir.status }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="thread-card-right">
+        <span class="thread-target">{{ thread.target_user.display_name }}</span>
+        <span class="thread-arrow">→</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <p>No active threads yet.</p>
+    <p>Open a group and start one to get things going.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

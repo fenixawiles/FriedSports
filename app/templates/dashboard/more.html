@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}More — FriedSports{% endblock %}
+{% block content %}
+<div class="more-container">
+
+  {# ── Identity card ── #}
+  <div class="more-user-card">
+    <div class="more-user-name">{{ current_user.shown_name }}</div>
+    <div class="more-user-uid">@{{ current_user.uid }}</div>
+  </div>
+
+  {# ── Account ── #}
+  <div class="more-section">
+    <a href="{{ url_for('dashboard.settings') }}" class="more-row">
+      <span>Profile &amp; Settings</span>
+      <span class="more-chevron">›</span>
+    </a>
+  </div>
+
+  {# ── Groups ── #}
+  <div class="more-section">
+    <a href="{{ url_for('dashboard.dashboard') }}" class="more-row">
+      <span>My Groups</span>
+      <span class="more-chevron">›</span>
+    </a>
+    <a href="{{ url_for('groups.new') }}" class="more-row">
+      <span>New Group</span>
+      <span class="more-chevron">›</span>
+    </a>
+    <a href="{{ url_for('groups.join_prompt') }}" class="more-row">
+      <span>Join Group</span>
+      <span class="more-chevron">›</span>
+    </a>
+  </div>
+
+  {# ── App ── #}
+  <div class="more-section">
+    <a href="{{ url_for('support.index') }}" class="more-row">
+      <span>Support</span>
+      <span class="more-chevron">›</span>
+    </a>
+    <a href="{{ url_for('legal.privacy') }}" class="more-row">
+      <span>Privacy Policy</span>
+      <span class="more-chevron">›</span>
+    </a>
+    <a href="{{ url_for('legal.terms') }}" class="more-row">
+      <span>Terms of Service</span>
+      <span class="more-chevron">›</span>
+    </a>
+  </div>
+
+  {% if current_user.is_admin %}
+  {# ── Admin ── #}
+  <div class="more-section">
+    <a href="{{ url_for('admin.dashboard') }}" class="more-row more-row-admin">
+      <span>Lab</span>
+      <span class="more-chevron">›</span>
+    </a>
+    <a href="{{ url_for('admin.tools_dashboard') }}" class="more-row more-row-admin">
+      <span>Admin</span>
+      <span class="more-chevron">›</span>
+    </a>
+  </div>
+  {% endif %}
+
+  {# ── Logout ── #}
+  <div class="more-section">
+    <form action="{{ url_for('auth.logout') }}" method="post" style="width:100%">
+      <button type="submit" class="more-row more-row-danger">
+        <span>Log out</span>
+        <span class="more-chevron">›</span>
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
