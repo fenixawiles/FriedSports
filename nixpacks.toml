@@ -1,0 +1,14 @@
+# Railway / Nixpacks build configuration
+# Adds Node.js so the frontend can be compiled before Flask starts.
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "python311"]
+
+[phases.build]
+cmds = [
+  "cd frontend && npm ci && npm run build",
+  "pip install -r requirements.txt"
+]
+
+[start]
+cmd = "gunicorn wsgi:app"

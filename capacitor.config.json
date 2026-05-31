@@ -1,7 +1,7 @@
 {
   "appId": "com.friedsports.app",
   "appName": "FriedSports",
-  "webDir": ".",
+  "webDir": "frontend/dist",
   "server": {
     "url": "https://YOUR-RAILWAY-DOMAIN.railway.app",
     "cleartext": false,

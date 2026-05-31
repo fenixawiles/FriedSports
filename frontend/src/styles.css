@@ -742,6 +742,44 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 
 /* ── Thread page ── */
 .thread-container { width: 100%; }
+
+/* Thread chat — focused full-screen layout.
+   Shell applies .thread-main to <main> when on /threads/:id and omits both
+   navbars, so the entire viewport is available for the conversation. */
+[data-thread] { height: 100%; }
+[data-thread] body { height: 100%; min-height: 0; }
+@supports (height: 100dvh) {
+  [data-thread], [data-thread] body { height: 100dvh; }
+}
+.thread-main {
+  flex: 1; min-height: 0;
+  padding: 0 !important; max-width: 100% !important; margin: 0 !important;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.thread-main .thread-container {
+  display: flex; flex-direction: column;
+  flex: 1; min-height: 0; overflow: hidden;
+  padding: 0; margin: 0; width: 100%;
+}
+.thread-main .thread-header-wrap {
+  flex-shrink: 0;
+  padding: 0.85rem 0.85rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.thread-main .thread-header { margin-bottom: 0.6rem; padding-bottom: 0; border-bottom: none; }
+.thread-main .chat-window {
+  flex: 1; min-height: 0; max-height: none !important;
+  padding: 0.75rem 0 0.5rem; overflow-y: auto;
+}
+.thread-main .chat-input-area {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 641px) {
+  .thread-main .thread-header-wrap { padding: 1rem 2.5rem 0; }
+  .thread-main .chat-window { padding-left: 2.5rem; padding-right: 2.5rem; }
+  .thread-main .chat-input-area { padding-left: 2.5rem; padding-right: 2.5rem; }
+}
 .back-link { font-size: 0.82rem; color: var(--text-muted); display: inline-block; margin-bottom: 1rem; transition: color 0.15s; }
 .back-link:hover { color: var(--text-secondary); }
 .thread-title-large { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.25; letter-spacing: -0.02em; }

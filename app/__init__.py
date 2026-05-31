@@ -78,8 +78,21 @@ def create_app(config=None):
 
     @app.route("/app/", defaults={"path": ""})
     @app.route("/app/<path:path>")
+    @app.route("/", defaults={"path": ""})
     def serve_react(path):
-        """Serve React SPA — catch-all for client-side routes."""
+        """Serve React SPA — root entry point + /app/* catch-all.
+
+        The root "/" route is the Capacitor entry point.  Every subsequent
+        navigation is handled client-side by React Router, so the server only
+        needs to return index.html for the initial load.  Static build assets
+        (JS/CSS chunks) are served by path when they exist on disk.
+        """
+        if not os.path.exists(_react_build):
+            # Build not present (local dev without a Vite build).
+            # Let Flask fall through to its own 404 handler; the dev server
+            # on port 5173 serves React directly in this case.
+            from flask import abort
+            abort(404)
         full = os.path.join(_react_build, path)
         if path and os.path.exists(full) and not os.path.isdir(full):
             return send_from_directory(_react_build, path)

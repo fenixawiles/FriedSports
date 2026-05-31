@@ -19,6 +19,13 @@ export default function ThreadChat() {
   const [body, setBody]     = useState('')
   const [sending, setSending] = useState(false)
 
+  // Apply full-height focused layout: sets data-thread on <html> so CSS can
+  // override height on html+body without affecting other pages.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-thread', '')
+    return () => document.documentElement.removeAttribute('data-thread')
+  }, [])
+
   // Fetch thread once on mount; messages polled separately
   const { data, isLoading } = useQuery({
     queryKey: ['thread', id],

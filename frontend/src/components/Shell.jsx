@@ -1,4 +1,4 @@
-import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Link, useNavigate, useMatch } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import { getNotifications } from '../api/notifications'
@@ -7,6 +7,10 @@ import logo from '../logo.png'
 export default function Shell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+
+  // Thread chat is a focused full-screen view — hide all navigation chrome.
+  // useMatch returns a truthy object when the current path matches the pattern.
+  const isThreadChat = !!useMatch('/threads/:id')
 
   const { data: notifData } = useQuery({
     queryKey: ['notifications'],
@@ -24,36 +28,38 @@ export default function Shell() {
 
   return (
     <>
-      {/* ── Top navbar ── */}
-      <nav className="navbar" id="main-nav">
-        <div className="nav-inner">
-          <Link to="/" className="nav-logo">
-            <img src={logo} className="nav-logo-img" alt="FS" width="24" height="24" />
-            FriedSports
-          </Link>
-
-          {user && (
-            <Link to="/notifications" className="nav-bell" aria-label="Notifications">
-              <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              </svg>
-              {unread > 0 && (
-                <span className="notif-badge">{unread >= 10 ? '9+' : unread}</span>
-              )}
+      {/* ── Top navbar — hidden on thread chat (focused conversation view) ── */}
+      {!isThreadChat && (
+        <nav className="navbar" id="main-nav">
+          <div className="nav-inner">
+            <Link to="/" className="nav-logo">
+              <img src={logo} className="nav-logo-img" alt="FS" width="24" height="24" />
+              FriedSports
             </Link>
-          )}
-        </div>
-      </nav>
+
+            {user && (
+              <Link to="/notifications" className="nav-bell" aria-label="Notifications">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                {unread > 0 && (
+                  <span className="notif-badge">{unread >= 10 ? '9+' : unread}</span>
+                )}
+              </Link>
+            )}
+          </div>
+        </nav>
+      )}
 
       {/* ── Page content ── */}
-      <main className="main-content">
+      <main className={`main-content${isThreadChat ? ' thread-main' : ''}`}>
         <Outlet />
       </main>
 
-      {/* ── Bottom nav (mobile only) ── */}
-      {user && (
+      {/* ── Bottom nav — hidden on thread chat ── */}
+      {user && !isThreadChat && (
         <nav className="bottom-nav" id="bottom-nav" aria-label="Mobile navigation">
           <NavLink to="/" end className={({ isActive }) => 'bottom-nav-item' + (isActive ? ' active' : '')}>
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"

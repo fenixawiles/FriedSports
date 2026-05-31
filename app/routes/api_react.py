@@ -428,7 +428,7 @@ def delete_account():
     d = request.get_json(silent=True) or {}
     if not current_user.check_password(d.get("password", "")):
         return err("Incorrect password", 401)
-    from ..routes.dashboard import _cascade_delete_user
+    from ..routes.admin import _cascade_delete_user
     _cascade_delete_user(current_user.id)
     logout_user()
     return ok()
@@ -738,7 +738,7 @@ def create_report(group_id):
         return err("Team not found", 404)
 
     # Import and call the existing service
-    from ..routes.groups import create_incident_thread
+    from ..services.incident_service import create_incident_thread
     ir = IncidentReport(
         reporter_user_id=current_user.id,
         group_id=group_id,
