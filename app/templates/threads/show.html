@@ -2,6 +2,7 @@
 {% block title %}{{ thread.title }} — FriedSports{% endblock %}
 
 {% block head %}
+<meta name="turbo-cache-control" content="no-cache">
 <style>
   html, body { height: 100%; }
   /* Dynamic viewport height fixes the chat input being buried under Safari's tab bar */
@@ -254,10 +255,12 @@
 
     if (window.visualViewport) {
       // visualViewport is the most reliable signal on iOS WKWebView / Capacitor
-      window.visualViewport.addEventListener('resize', function () {
+      // Named function stored on window so Turbo can remove it before navigating away
+      window._vpListener = function () {
         var ratio = window.visualViewport.height / window.innerHeight;
         if (ratio < 0.75) { onKeyboardOpen(); } else { onKeyboardClose(); }
-      });
+      };
+      window.visualViewport.addEventListener('resize', window._vpListener);
     } else {
       // Fallback for browsers without visualViewport
       var chatInput = document.getElementById('chat-input');

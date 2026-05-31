@@ -125,9 +125,11 @@
   function startPoll() {
     if (_pollTimer) clearInterval(_pollTimer);
     _pollTimer = setInterval(pollMessages, 3000);
+    window._threadPollTimer = _pollTimer; // exposed for Turbo cleanup
   }
   function pausePoll() {
     if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    window._threadPollTimer = null;
   }
   startPoll();
   // Pause polling when the tab is backgrounded; resume (+ immediate fetch) when it comes back

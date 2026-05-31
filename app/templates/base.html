@@ -10,6 +10,8 @@
   <link rel="shortcut icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=8">
+  <!-- Turbo Drive — app-shell navigation (content swap without full page reload) -->
+  <script type="module" src="{{ url_for('static', filename='js/turbo.js') }}"></script>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -175,6 +177,40 @@
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
+  <!-- ── Turbo Drive lifecycle hooks ───────────────────────────────────────── -->
+  <script>
+  // Before any Turbo navigation: stop all long-running background work
+  document.addEventListener('turbo:before-render', function () {
+    // Dashboard alert poller
+    if (window._dashboardPollTimer) {
+      clearInterval(window._dashboardPollTimer);
+      window._dashboardPollTimer = null;
+    }
+    // Thread message poller (threads.js)
+    if (window._threadPollTimer) {
+      clearInterval(window._threadPollTimer);
+      window._threadPollTimer = null;
+    }
+    // Members IntersectionObserver (groups/show)
+    if (window._membersObserver) {
+      window._membersObserver.disconnect();
+      window._membersObserver = null;
+    }
+    // visualViewport keyboard listener (threads/show)
+    if (window._vpListener && window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', window._vpListener);
+      window._vpListener = null;
+    }
+  });
+
+  // After each Turbo navigation: finish loading bar, re-dismiss flashes,
+  // re-wire prefetch on the fresh DOM
+  document.addEventListener('turbo:load', function () {
+    if (typeof _finishLoad === 'function') _finishLoad();
+    if (typeof _dismissFlashes === 'function') _dismissFlashes();
+    if (typeof window._rewirePrefetch === 'function') window._rewirePrefetch();
+  });
+  </script>
   <script>
   // Global back button — only show when there's history and we're not on a primary tab
   (function() {

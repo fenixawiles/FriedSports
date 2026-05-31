@@ -282,6 +282,7 @@ function copyInvitePanel() {
       }
     }, { rootMargin: '200px' });  // start loading 200px before it enters view
     observer.observe(section);
+    window._membersObserver = observer; // exposed for Turbo cleanup
   } else {
     loadMembers();
   }

@@ -112,6 +112,6 @@
       .catch(() => {});
   }
   pollAlerts();
-  setInterval(pollAlerts, 20000);
+  window._dashboardPollTimer = setInterval(pollAlerts, 20000);
 </script>
 {% endblock %}
