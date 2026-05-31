@@ -1,15 +1,33 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getDashboard } from '../api/groups'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { getDashboard, getGroup } from '../api/groups'
+import { getThread } from '../api/threads'
 import { useAuth } from '../context/AuthContext'
 import Loading from '../components/Loading'
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const qc = useQueryClient()
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
   })
+
+  // Eagerly prefetch every group and active thread visible on this page.
+  // By the time the user taps a card the data is already in cache — no spinner.
+  useEffect(() => {
+    const groups = data?.groups ?? []
+    const threads = data?.active_threads ?? []
+    groups.forEach(({ group }) => {
+      const sid = String(group.id)
+      qc.prefetchQuery({ queryKey: ['group', sid], queryFn: () => getGroup(sid) })
+    })
+    threads.forEach(thread => {
+      const sid = String(thread.id)
+      qc.prefetchQuery({ queryKey: ['thread', sid], queryFn: () => getThread(sid) })
+    })
+  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <Loading full />
   if (error) return <div className="empty-state"><p>Could not load dashboard.</p></div>

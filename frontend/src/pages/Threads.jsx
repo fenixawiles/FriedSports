@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getThreadsList } from '../api/threads'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { getThreadsList, getThread } from '../api/threads'
 import Loading from '../components/Loading'
 
 function fmtTime(iso) {
@@ -23,11 +23,21 @@ function fmtTime(iso) {
 
 export default function Threads() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['threads'],
     queryFn: getThreadsList,
     refetchInterval: 10_000,
   })
+
+  // Eagerly prefetch the first 8 threads so tapping any row is instant.
+  useEffect(() => {
+    const threads = data?.threads ?? []
+    threads.slice(0, 8).forEach(thread => {
+      const sid = String(thread.id)
+      qc.prefetchQuery({ queryKey: ['thread', sid], queryFn: () => getThread(sid) })
+    })
+  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [filterGroup, setFilterGroup]       = useState('all')
   const [filterOpen, setFilterOpen]         = useState(false)
