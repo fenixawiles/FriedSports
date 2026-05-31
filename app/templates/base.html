@@ -206,11 +206,13 @@
   });
 
   // After each Turbo navigation: finish loading bar, re-dismiss flashes,
-  // re-wire prefetch on the fresh DOM
+  // re-wire hover/focus prefetch listeners, and eagerly prefetch all
+  // visible nav targets so the very next tap loads from cache.
   document.addEventListener('turbo:load', function () {
     if (typeof _finishLoad === 'function') _finishLoad();
     if (typeof _dismissFlashes === 'function') _dismissFlashes();
     if (typeof window._rewirePrefetch === 'function') window._rewirePrefetch();
+    if (typeof window._eagerPrefetch === 'function') window._eagerPrefetch();
   });
   </script>
   <script>

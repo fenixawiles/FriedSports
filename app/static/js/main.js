@@ -70,12 +70,16 @@ document.addEventListener('click', function (e) {
   if (a.className && a.className.match(/btn-/)) _armButton(a);
 });
 
-// ── Link prefetching — warm the next page on hover / focus / touchstart ──────
+// ── Prefetching ───────────────────────────────────────────────────────────────
+// _prefetchUrl(url)  — inject a <link rel="prefetch"> once per unique URL
+// _rewirePrefetch()  — wire hover/focus/touchstart listeners on nav elements
+// _eagerPrefetch()   — immediately prefetch all visible content-area links
+//                      (called after every page render so the next tap is instant)
 (function () {
   if (typeof document.createElement('link').relList === 'undefined') return;
   var prefetched = new Set();
 
-  function prefetch(url) {
+  window._prefetchUrl = function (url) {
     if (!url || typeof url !== 'string') return;
     if (url.startsWith('#') || url.startsWith('javascript:') || url.startsWith('mailto:')) return;
     var abs = url.startsWith('http') ? url : window.location.origin + url;
@@ -87,16 +91,17 @@ document.addEventListener('click', function (e) {
     link.as   = 'document';
     link.href = abs;
     document.head.appendChild(link);
-  }
+  };
 
   function wireEl(el) {
     var href = el.getAttribute('href');
     if (!href) return;
-    el.addEventListener('mouseenter',  function () { prefetch(href); });
-    el.addEventListener('focus',       function () { prefetch(href); });
-    el.addEventListener('touchstart',  function () { prefetch(href); }, { passive: true });
+    el.addEventListener('mouseenter',  function () { window._prefetchUrl(href); });
+    el.addEventListener('focus',       function () { window._prefetchUrl(href); });
+    el.addEventListener('touchstart',  function () { window._prefetchUrl(href); }, { passive: true });
   }
 
+  // Re-wire event-based prefetch listeners on newly rendered elements
   window._rewirePrefetch = function () {
     document.querySelectorAll('.bottom-nav-item[href]').forEach(wireEl);
     document.querySelectorAll('.nav-link[href]').forEach(wireEl);
@@ -107,5 +112,27 @@ document.addEventListener('click', function (e) {
     document.querySelectorAll('.back-link[href]').forEach(wireEl);
   };
 
+  // Eagerly prefetch the most likely next taps without waiting for hover.
+  // Bottom nav tabs are always on screen — always warm them.
+  // Content-area links (thread rows, group cards) are warmed the moment they render.
+  window._eagerPrefetch = function () {
+    // Shell: bottom nav is always visible
+    document.querySelectorAll('.bottom-nav-item[href]').forEach(function (el) {
+      window._prefetchUrl(el.getAttribute('href'));
+    });
+    // Content: whatever is on the current page
+    [
+      '.thread-row-item[href]',
+      '.group-card[href]',
+      '.group-card a[href]',
+      '.alert-banner[href]',
+    ].forEach(function (sel) {
+      document.querySelectorAll(sel).forEach(function (el) {
+        window._prefetchUrl(el.getAttribute('href'));
+      });
+    });
+  };
+
   window._rewirePrefetch();
+  window._eagerPrefetch();
 })();
