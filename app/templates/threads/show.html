@@ -32,6 +32,8 @@
     flex-shrink: 0;
     padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
   }
+  /* Edge-to-edge on desktop — remove global max-width centering */
+  .main-content { max-width: 100% !important; margin: 0 !important; }
   /* Force completely flat messages — no box whatsoever */
   .message-bubble {
     background: none !important; border: none !important;
@@ -152,17 +154,19 @@
   {% if thread.status == 'active' %}
   <div class="chat-input-area">
     <form method="post" action="{{ url_for('threads.post_message', thread_id=thread.id) }}" class="chat-form" id="chat-form">
-      <textarea name="body" id="chat-input"
-                placeholder="Say something…" maxlength="1000" rows="1" required
-                style="font-size:16px" enterkeyhint="send"></textarea>
-      <button type="submit" class="chat-submit" aria-label="Send">
-        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2.5"
-             stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="19" x2="12" y2="5"/>
-          <polyline points="5 12 12 5 19 12"/>
-        </svg>
-      </button>
+      <div class="chat-input-pill">
+        <textarea name="body" id="chat-input"
+                  placeholder="Say something…" maxlength="1000" rows="1" required
+                  style="font-size:16px" enterkeyhint="send"></textarea>
+        <button type="submit" class="chat-submit" id="chat-send" disabled aria-label="Send">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="19" x2="12" y2="5"/>
+            <polyline points="5 12 12 5 19 12"/>
+          </svg>
+        </button>
+      </div>
     </form>
   </div>
   {% else %}
@@ -182,11 +186,16 @@
   (function() {
     var ta = document.getElementById('chat-input');
     if (!ta) return;
+    var sendBtn = document.getElementById('chat-send');
+    if (sendBtn) sendBtn.disabled = true;
     function grow() {
       ta.style.height = 'auto';
       ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
     }
-    ta.addEventListener('input', grow);
+    ta.addEventListener('input', function() {
+      grow();
+      if (sendBtn) sendBtn.disabled = !ta.value.trim();
+    });
     ta.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();

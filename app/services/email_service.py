@@ -371,6 +371,23 @@ something embarrassing.</p>
     return _send(user.email, subject, html, text)
 
 
+# ── Friend request email ─────────────────────────────────────────────────────
+
+def send_friend_request_email(from_user, to_user):
+    """Notify a user when they receive a new friend request."""
+    cta_url = "https://friedsports.com/notifications"
+    subject = f"{from_user.shown_name} wants to connect on FriedSports"
+    html = _wrap(f"""
+<p>Hey <strong style="color:#fff">{to_user.shown_name}</strong>,</p>
+<p><strong style="color:#fff">{from_user.shown_name}</strong> sent you a friend request on FriedSports.</p>
+<p>Accept to see each other's activity and add each other to groups.</p>
+<a href="{cta_url}" style="display:inline-block;background:#d93348;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px;margin:8px 0 24px;line-height:1;">View Request →</a>
+<p style="font-size:12px;color:#72728a;margin:16px 0 0;line-height:1.5;">You're getting this because someone on FriedSports wants to connect with you.</p>
+""")
+    text = f"{from_user.shown_name} sent you a friend request on FriedSports. View it: {cta_url}"
+    return _send(to_user.email, subject, html, text)
+
+
 # ── Admin-initiated user email actions ───────────────────────────────────────
 
 def send_admin_password_reset(user, reset_url):

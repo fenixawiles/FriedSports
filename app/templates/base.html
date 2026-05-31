@@ -9,6 +9,7 @@
 </head>
 <body>
   <div id="page-loading-bar"></div>
+  <div id="nav-overlay" class="nav-overlay"></div>
   <nav class="navbar" id="main-nav">
     <div class="nav-inner">
       <a href="{{ url_for('auth.index') }}" class="nav-logo">
@@ -43,13 +44,32 @@
       </button>
       {% if current_user.is_authenticated %}
       <div class="nav-links" id="nav-links">
+        {# ── Drawer header ── #}
+        <div class="nav-drawer-header">
+          <span class="nav-drawer-logo"><span class="logo-dot"></span> FriedSports</span>
+          <button class="nav-drawer-close" id="nav-drawer-close" aria-label="Close menu">✕</button>
+        </div>
+        {# ── Nav items ── #}
+        <a href="{{ url_for('auth.index') }}" class="nav-link">Home</a>
         <a href="{{ url_for('dashboard.settings') }}" class="nav-link nav-link-account">
           {{ current_user.shown_name }}
         </a>
-        <a href="{{ url_for('auth.index') }}" class="nav-link">Home</a>
-        <a href="{{ url_for('dashboard.dashboard') }}" class="nav-link">Dashboard</a>
-        <a href="{{ url_for('groups.new') }}" class="nav-link">New Group</a>
-        <a href="{{ url_for('groups.join_prompt') }}" class="nav-link">Join Group</a>
+        {# ── Groups accordion ── #}
+        <div class="nav-group-section">
+          <button class="nav-group-toggle" id="nav-group-toggle" aria-expanded="false">
+            Groups
+            <svg class="nav-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div class="nav-group-items" id="nav-group-items" hidden>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="nav-link nav-sub-link">My Groups</a>
+            <a href="{{ url_for('groups.new') }}" class="nav-link nav-sub-link">New Group</a>
+            <a href="{{ url_for('groups.join_prompt') }}" class="nav-link nav-sub-link">Join Group</a>
+          </div>
+        </div>
         <a href="{{ url_for('support.index') }}" class="nav-link">Support</a>
         <a href="{{ url_for('legal.privacy') }}" class="nav-link nav-link-legal">Privacy Policy</a>
         <a href="{{ url_for('legal.terms') }}" class="nav-link nav-link-legal">Terms of Service</a>
@@ -57,14 +77,18 @@
         <a href="{{ url_for('admin.dashboard') }}" class="nav-link nav-link-admin">Lab</a>
         <a href="{{ url_for('admin.tools_dashboard') }}" class="nav-link nav-link-admin">Admin</a>
         {% endif %}
-        <form action="{{ url_for('auth.logout') }}" method="post" style="display:inline">
+        <form action="{{ url_for('auth.logout') }}" method="post" style="width:100%">
           <button type="submit" class="nav-link btn-link">Log out</button>
         </form>
       </div>
       {% else %}
       <div class="nav-links" id="nav-links">
+        <div class="nav-drawer-header">
+          <span class="nav-drawer-logo"><span class="logo-dot"></span> FriedSports</span>
+          <button class="nav-drawer-close" id="nav-drawer-close" aria-label="Close menu">✕</button>
+        </div>
         <a href="{{ url_for('auth.login') }}" class="nav-link">Log in</a>
-        <a href="{{ url_for('auth.signup') }}" class="btn-primary-small">Sign up</a>
+        <a href="{{ url_for('auth.signup') }}" class="nav-link btn-primary-small" style="margin:0.5rem 1.25rem;width:auto">Sign up</a>
       </div>
       {% endif %}
     </div>
@@ -79,9 +103,12 @@
   </div>
 
   <main class="main-content">
+    {% set _back_href = self.page_back_href() | trim %}
     <div id="page-back" style="display:none" class="page-back-wrap">
-      <a href="#" class="page-back-btn" onclick="history.back();return false;">← Back</a>
+      <a href="{{ _back_href if _back_href else '#' }}" class="page-back-btn"
+         {% if not _back_href %}onclick="history.back();return false;"{% endif %}>← Back</a>
     </div>
+    {% block page_back_href %}{% endblock %}
     {% block content %}{% endblock %}
   </main>
 
@@ -166,29 +193,63 @@
     var nav = document.getElementById('main-nav');
     var btn = document.getElementById('nav-hamburger');
     if (!btn) return;
-    btn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      var open = nav.classList.toggle('nav-mobile-open');
-      btn.setAttribute('aria-expanded', open);
-    });
-    document.addEventListener('click', function(e) {
-      if (!nav.contains(e.target)) {
-        nav.classList.remove('nav-mobile-open');
-        btn.setAttribute('aria-expanded', 'false');
-      }
-    });
-    // Close on nav link tap
-    document.getElementById('nav-links').addEventListener('click', function() {
+
+    function closeDrawer() {
       nav.classList.remove('nav-mobile-open');
       btn.setAttribute('aria-expanded', 'false');
+    }
+    function openDrawer() {
+      nav.classList.add('nav-mobile-open');
+      btn.setAttribute('aria-expanded', 'true');
+    }
+
+    // Hamburger toggles the drawer
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (nav.classList.contains('nav-mobile-open')) { closeDrawer(); } else { openDrawer(); }
     });
-    // Bottom nav "More" button opens the hamburger drawer
+
+    // Overlay (dark backdrop) closes the drawer
+    var overlay = document.getElementById('nav-overlay');
+    if (overlay) {
+      overlay.addEventListener('click', closeDrawer);
+    }
+
+    // Close (✕) button inside the drawer
+    var closeBtn = document.getElementById('nav-drawer-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeDrawer();
+      });
+    }
+
+    // Close on nav link tap (but not on group toggle button)
+    document.getElementById('nav-links').addEventListener('click', function(e) {
+      if (e.target.closest('.nav-group-toggle') || e.target.closest('#nav-drawer-close')) return;
+      if (e.target.tagName === 'A' || e.target.closest('form')) closeDrawer();
+    });
+
+    // Bottom nav "More" button opens the drawer
     var moreBtn = document.getElementById('bottom-nav-more');
     if (moreBtn) {
       moreBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        var open = nav.classList.toggle('nav-mobile-open');
-        btn.setAttribute('aria-expanded', open);
+        if (nav.classList.contains('nav-mobile-open')) { closeDrawer(); } else { openDrawer(); }
+      });
+    }
+
+    // Groups accordion
+    var groupToggle = document.getElementById('nav-group-toggle');
+    var groupItems  = document.getElementById('nav-group-items');
+    if (groupToggle && groupItems) {
+      groupToggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var isOpen = !groupItems.hidden;
+        groupItems.hidden = isOpen;
+        groupToggle.setAttribute('aria-expanded', String(!isOpen));
+        var chevron = groupToggle.querySelector('.nav-chevron');
+        if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
       });
     }
   })();

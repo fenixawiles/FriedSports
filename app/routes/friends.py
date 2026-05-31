@@ -92,6 +92,12 @@ def send_request(user_id):
             existing.from_user_id = current_user.id
             existing.to_user_id   = user_id
             db.session.commit()
+            # Email the recipient (best-effort)
+            try:
+                from app.services.email_service import send_friend_request_email
+                send_friend_request_email(current_user, target)
+            except Exception:
+                pass
             flash(f"Friend request sent to {target.shown_name}.", "success")
         return redirect(request.referrer or url_for("friends.index"))
 
@@ -108,6 +114,13 @@ def send_request(user_id):
     )
     db.session.add(notif)
     db.session.commit()
+
+    # Email the recipient (best-effort — failure must not block the request)
+    try:
+        from app.services.email_service import send_friend_request_email
+        send_friend_request_email(current_user, target)
+    except Exception:
+        pass
 
     flash(f"Friend request sent to {target.shown_name}.", "success")
     return redirect(request.referrer or url_for("friends.index"))
