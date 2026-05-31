@@ -80,14 +80,49 @@ body {
   display: flex;
   flex-direction: column;
 }
-/* Subtle content-appear animation — makes every page load feel like an intentional
-   transition rather than a raw DOM paint. 120ms is fast enough to feel instant. */
-.main-content {
-  animation: _content-appear 0.12s ease-out both;
+/* ── Page transition ──────────────────────────────────────────────────────────
+   Applied to a keyed wrapper inside Shell so it fires on every navigation,
+   not just the initial mount. 160ms feels native without being distracting. */
+@keyframes _page-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0);   }
 }
+.page-enter {
+  animation: _page-enter 0.16s ease-out both;
+  /* Thread-main layout needs the page-enter wrapper to be a flex child */
+  display: contents;
+}
+.thread-main .page-enter {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+/* Legacy one-shot animation kept for the shell itself */
 @keyframes _content-appear {
   from { opacity: 0; transform: translateY(3px); }
   to   { opacity: 1; transform: translateY(0);   }
+}
+
+/* ── Skeleton shimmer ────────────────────────────────────────────────────────
+   Use <Skeleton /> component for placeholder shapes while data is loading.
+   Colors pull from CSS vars so they automatically respect dark mode.       */
+@keyframes _skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-elevated) 25%,
+    var(--bg-input)    50%,
+    var(--bg-elevated) 75%
+  );
+  background-size: 200% 100%;
+  animation: _skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+  display: block;
 }
 /* ── Loading bar ─────────────────────────────────────────────────── */
 #page-loading-bar {

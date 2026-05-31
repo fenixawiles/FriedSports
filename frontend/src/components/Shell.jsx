@@ -1,4 +1,4 @@
-import { Outlet, NavLink, Link, useNavigate, useMatch } from 'react-router-dom'
+import { Outlet, NavLink, Link, useNavigate, useMatch, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
@@ -16,6 +16,7 @@ export default function Shell() {
   // Thread chat is a focused full-screen view — hide all navigation chrome.
   // useMatch returns a truthy object when the current path matches the pattern.
   const isThreadChat = !!useMatch('/threads/:id')
+  const location     = useLocation()
 
   // Prefetch all main tab data the moment the user is authenticated.
   // Fires 4 parallel requests in the background so every first tab tap is instant.
@@ -70,7 +71,10 @@ export default function Shell() {
 
       {/* ── Page content ── */}
       <main className={`main-content${isThreadChat ? ' thread-main' : ''}`}>
-        <Outlet />
+        {/* key=location.key forces remount on every navigation → CSS enter animation fires */}
+        <div key={location.key} className="page-enter">
+          <Outlet />
+        </div>
       </main>
 
       {/* ── Bottom nav — hidden on thread chat ── */}

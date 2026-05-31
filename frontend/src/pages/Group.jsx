@@ -5,7 +5,7 @@ import { getGroup, getMembers, muteGroup, leaveGroup, deleteGroup,
          removeMember, transferOwner, inviteEmail, regenerateInvite } from '../api/groups'
 import { useAuth } from '../context/AuthContext'
 import BackButton from '../components/BackButton'
-import Loading from '../components/Loading'
+import { Skeleton } from '../components/Skeleton'
 
 const TAGLINES = [
   'Trash talk is one click away.',
@@ -45,7 +45,28 @@ export default function Group() {
   const removeMut  = useMutation({ mutationFn: (uid) => removeMember(id, uid), ...mutOpts })
   const transferMut = useMutation({ mutationFn: (uid) => transferOwner(id, uid), ...mutOpts })
 
-  if (isLoading) return <Loading full />
+  if (isLoading) return (
+    <div className="group-container">
+      <Skeleton w="48px" h="0.8rem" mb="1.25rem" />
+      <div className="group-header">
+        <div style={{ flex: 1 }}>
+          <Skeleton w="55%" h="1.6rem" mb="0.6rem" />
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <Skeleton w="60px" h="1.2rem" radius="20px" />
+            <Skeleton w="80px" h="1.2rem" radius="20px" />
+          </div>
+        </div>
+      </div>
+      <section className="group-section" style={{ marginTop: '1.5rem' }}>
+        {[1, 2, 3].map(i => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0', borderBottom: '1px solid var(--border)' }}>
+            <Skeleton w="40%" h="0.85rem" />
+            <Skeleton w="15%" h="0.75rem" />
+          </div>
+        ))}
+      </section>
+    </div>
+  )
 
   const { group, member, receipts = [] } = data ?? {}
   if (!group) return <div className="empty-state"><p>Group not found.</p></div>

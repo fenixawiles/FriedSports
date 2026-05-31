@@ -4,7 +4,32 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getDashboard, getGroup } from '../api/groups'
 import { getThread } from '../api/threads'
 import { useAuth } from '../context/AuthContext'
-import Loading from '../components/Loading'
+import { Skeleton } from '../components/Skeleton'
+
+function DashboardSkeleton() {
+  return (
+    <div className="dashboard-container">
+      <div className="dashboard-header">
+        <Skeleton w="160px" h="1.8rem" mb="1.5rem" />
+      </div>
+      <section className="dashboard-section">
+        <div className="section-header" style={{ marginBottom: '0.85rem' }}>
+          <Skeleton w="90px" h="1rem" />
+        </div>
+        <div className="group-list">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="group-card" style={{ pointerEvents: 'none', gap: '0.5rem' }}>
+              <div style={{ flex: 1 }}>
+                <Skeleton w="55%" h="0.95rem" mb="0.45rem" />
+                <Skeleton w="30%" h="0.72rem" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -29,7 +54,7 @@ export default function Dashboard() {
     })
   }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (isLoading) return <Loading full />
+  if (isLoading) return <DashboardSkeleton />
   if (error) return <div className="empty-state"><p>Could not load dashboard.</p></div>
 
   const { groups = [], active_threads = [], msg_counts = {} } = data

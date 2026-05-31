@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getFriends, searchUsers, sendRequest, removeFriend } from '../api/friends'
-import Loading from '../components/Loading'
+import { Skeleton } from '../components/Skeleton'
 
 export default function Friends() {
   const qc = useQueryClient()
@@ -90,7 +90,17 @@ export default function Friends() {
         <div className="section-header" style={{ marginBottom: '0.85rem' }}>
           <span className="section-title">Your Friends</span>
         </div>
-        {isLoading ? <Loading /> : friends.length === 0 ? (
+        {isLoading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {[1,2,3].map(i => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0' }}>
+                <Skeleton circle size={36} />
+                <div style={{ flex: 1 }}><Skeleton w="45%" h="0.85rem" /></div>
+                <Skeleton w="20%" h="0.75rem" />
+              </div>
+            ))}
+          </div>
+        ) : friends.length === 0 ? (
           <div className="empty-state">
             <p>No friends yet. Search above to add someone.</p>
           </div>

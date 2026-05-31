@@ -2,7 +2,26 @@ import { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getThreadsList, getThread } from '../api/threads'
-import Loading from '../components/Loading'
+import { Skeleton } from '../components/Skeleton'
+
+function ThreadsSkeleton() {
+  return (
+    <div className="threads-list-wrap">
+      {[1, 2, 3, 4, 5].map(i => (
+        <div key={i} className="thread-row-item" style={{ pointerEvents: 'none' }}>
+          <Skeleton circle size={42} style={{ marginRight: '0.85rem' }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+              <Skeleton w="45%" h="0.82rem" />
+              <Skeleton w="12%" h="0.72rem" />
+            </div>
+            <Skeleton w="70%" h="0.75rem" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function fmtTime(iso) {
   if (!iso) return ''
@@ -79,7 +98,7 @@ export default function Threads() {
         </div>
       </div>
 
-      {isLoading ? <Loading /> : (
+      {isLoading ? <ThreadsSkeleton /> : (
         <div className="threads-list-wrap" id="threads-list">
           {filtered.length === 0 ? (
             <div className="empty-state"><p>No active threads yet.</p></div>
