@@ -7,8 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import Loading from '../components/Loading'
 
 const REACTIONS = [['laugh','😂'],['cook','👨‍🍳'],['fraud','🚨'],['receipt','🧾']]
-// Approximate picker width per button so we can keep it on-screen
-const BTN_W = 52
+const BTN_W = 52   // approximate picker button width for on-screen clamping
 
 export default function ThreadChat() {
   const { id } = useParams()
@@ -26,8 +25,7 @@ export default function ThreadChat() {
   // activeMenu: { id, can_delete, top, left } | null
   const [activeMenu, setActiveMenu] = useState(null)
 
-  // Apply full-height focused layout: sets data-thread on <html> so CSS can
-  // override height on html+body without affecting other pages.
+  // Apply full-height focused layout
   useEffect(() => {
     document.documentElement.setAttribute('data-thread', '')
     return () => document.documentElement.removeAttribute('data-thread')
@@ -50,7 +48,6 @@ export default function ThreadChat() {
     const el = chatWindowRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [])
-
   useEffect(() => { scrollToBottom() }, [messages.length, scrollToBottom])
 
   // Textarea auto-grow
@@ -85,35 +82,44 @@ export default function ThreadChat() {
     }
   }
 
-  // ── Long-press reaction picker ────────────────────────────────────────────
+  // ── Shared picker open logic ───────────────────────────────────────────────
+  // Computes position from an element's bounding rect and opens the menu.
+  function openPickerAt(anchorRect, msg) {
+    const btnCount = REACTIONS.length + (msg.can_delete ? 1 : 0)
+    const pickerW  = btnCount * BTN_W + 16
+    const pickerH  = 52
+
+    // Prefer above the anchor; fall back to below if near top of screen
+    const top = anchorRect.top > pickerH + 12
+      ? anchorRect.top - pickerH - 6
+      : anchorRect.bottom + 6
+
+    // Center horizontally on the anchor, clamped to viewport
+    let left = anchorRect.left + anchorRect.width / 2 - pickerW / 2
+    left = Math.max(8, Math.min(left, window.innerWidth - pickerW - 8))
+
+    setActiveMenu({ id: msg.id, can_delete: msg.can_delete, top, left })
+  }
+
+  // ── Desktop: click the hover-revealed react button ────────────────────────
+  function onReactBtnClick(e, msg) {
+    e.stopPropagation()
+    openPickerAt(e.currentTarget.getBoundingClientRect(), msg)
+  }
+
+  // ── Mobile: long-press the bubble (500 ms) ────────────────────────────────
   function startPress(e, msg) {
-    // Let taps on inner buttons/links pass through normally
+    // Let clicks on inner buttons/links pass through
     if (e.target.closest('button, a, input, textarea')) return
     pressOrigin.current = { x: e.clientX, y: e.clientY }
     clearTimeout(pressTimer.current)
-
     const el = e.currentTarget
     pressTimer.current = setTimeout(() => {
-      const rect = el.getBoundingClientRect()
-      const btnCount = REACTIONS.length + (msg.can_delete ? 1 : 0)
-      const pickerW  = btnCount * BTN_W + 16  // buttons + padding
-      const pickerH  = 52
-
-      // Show above bubble; fall back to below if near top of screen
-      const top = rect.top > pickerH + 12
-        ? rect.top - pickerH - 6
-        : rect.bottom + 6
-
-      // Horizontally center on bubble, clamp to viewport
-      let left = rect.left + rect.width / 2 - pickerW / 2
-      left = Math.max(8, Math.min(left, window.innerWidth - pickerW - 8))
-
-      setActiveMenu({ id: msg.id, can_delete: msg.can_delete, top, left })
+      openPickerAt(el.getBoundingClientRect(), msg)
     }, 500)
   }
 
   function cancelPress(e) {
-    // Cancel if the finger has moved more than 8px (user is scrolling)
     if (e && pressOrigin.current) {
       const dx = Math.abs(e.clientX - pressOrigin.current.x)
       const dy = Math.abs(e.clientY - pressOrigin.current.y)
@@ -223,7 +229,7 @@ export default function ThreadChat() {
 
         {/* Messages */}
         {messages.map(msg => {
-          const mine = msg.is_mine
+          const mine  = msg.is_mine
           if (msg.message_type === 'system') {
             return (
               <div key={msg.id} className="message message-system" data-id={msg.id}>
@@ -232,13 +238,36 @@ export default function ThreadChat() {
             )
           }
 
-          // Only show reaction chips that have at least one count
+          // Passive reaction chips — only shown when count > 0
           const chips = Object.entries(msg.reactions || {}).filter(([, c]) => c > 0)
+
+          // Desktop react button — placed as a flex sibling of the bubble.
+          // For "mine" (right-aligned) it goes BEFORE the bubble → sits on the left.
+          // For "theirs" (left-aligned) it goes AFTER the bubble → sits on the right.
+          const reactBtn = (
+            <button
+              className="react-trigger"
+              aria-label="Add reaction"
+              onClick={e => onReactBtnClick(e, msg)}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 13s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                <line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+            </button>
+          )
 
           return (
             <div key={msg.id} data-id={msg.id}
               className={`message message-user ${mine ? 'message-mine' : 'message-theirs'}`}>
-              {/* Long-press target — entire bubble */}
+
+              {/* Desktop react trigger — left of bubble for "mine" */}
+              {mine && reactBtn}
+
+              {/* Long-press target for mobile */}
               <div className="message-bubble"
                 onPointerDown={e => startPress(e, msg)}
                 onPointerUp={cancelPress}
@@ -253,7 +282,7 @@ export default function ThreadChat() {
                   {chips.length > 0 && (
                     <div className="reaction-chips">
                       {chips.map(([rtype, count]) => {
-                        const emoji = REACTIONS.find(([r]) => r === rtype)?.[1] ?? rtype
+                        const emoji  = REACTIONS.find(([r]) => r === rtype)?.[1] ?? rtype
                         const reacted = msg.user_reactions?.includes(rtype)
                         return (
                           <span key={rtype}
@@ -271,15 +300,18 @@ export default function ThreadChat() {
                   </span>
                 </div>
               </div>
+
+              {/* Desktop react trigger — right of bubble for "theirs" */}
+              {!mine && reactBtn}
             </div>
           )
         })}
       </div>
 
-      {/* ── Floating reaction picker — long-press opens this ── */}
+      {/* ── Floating reaction picker ── */}
       {activeMenu && (
         <>
-          {/* Transparent backdrop catches tap-outside to dismiss */}
+          {/* Transparent backdrop — tap outside to dismiss */}
           <div className="reaction-picker-backdrop" onPointerDown={closeMenu} />
           <div className="reaction-picker"
             style={{ top: activeMenu.top, left: activeMenu.left }}>
