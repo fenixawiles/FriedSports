@@ -235,9 +235,6 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   display: inline-flex;
   align-items: center;
 }
-/* Reaction buttons need both dimensions */
-.reaction-btn { min-height: 44px; min-width: 44px; padding: 0 0.5rem; }
-
 /* ── Forms ── */
 .form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
 .form-group label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -769,41 +766,67 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   padding: 0 0.35rem; border-radius: 3px; font-style: normal;
 }
 .message-text { font-size: 0.9rem; color: var(--text-primary); word-break: break-word; line-height: 1.5; }
-.message-footer { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.4rem; flex-wrap: wrap; }
-.reaction-bar { display: flex; gap: 0.2rem; }
-.reaction-btn {
-  background: transparent; border: 1px solid var(--border);
-  border-radius: 20px; padding: 0.12rem 0.45rem;
-  font-size: 0.75rem; cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
-  display: flex; align-items: center; gap: 2px;
-  color: var(--text-muted);
-}
-.reaction-btn:hover { border-color: var(--border-mid); background: var(--bg-elevated); }
-.reaction-btn.reacted { border-color: rgba(217,51,72,0.4); background: var(--accent-sub); color: var(--text-secondary); }
-.reaction-count { font-size: 0.7rem; }
+.message-footer { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.35rem; flex-wrap: wrap; }
 .message-time { font-size: 0.68rem; color: var(--text-muted); margin-left: auto; }
-.delete-btn {
-  background: none; border: none; cursor: pointer; font-size: 0.75rem;
-  color: transparent; border-radius: 3px; padding: 0;
-  /* Desktop: compact, hover-reveal */
-  width: 20px; height: 20px;
+
+/* ── Passive reaction count chips (shown on bubble when reactions exist) ── */
+.reaction-chips { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+.reaction-chip {
+  font-size: 0.72rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0.1rem 0.45rem;
+  color: var(--text-muted);
+  display: inline-flex; align-items: center; gap: 2px;
+  white-space: nowrap;
+}
+.reaction-chip.reacted {
+  border-color: rgba(217,51,72,0.4);
+  background: var(--accent-sub);
+  color: var(--text-secondary);
+}
+
+/* ── Floating reaction picker (long-press reveals this) ── */
+@keyframes _picker-enter {
+  from { opacity: 0; transform: scale(0.82) translateY(4px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+.reaction-picker-backdrop {
+  position: fixed; inset: 0;
+  z-index: 300;
+  /* Transparent — just catches tap-outside */
+}
+.reaction-picker {
+  position: fixed;
+  z-index: 301;
+  display: flex; align-items: center; gap: 2px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-mid);
+  border-radius: 28px;
+  padding: 4px 8px;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.22), 0 1px 4px rgba(0,0,0,0.12);
+  animation: _picker-enter 0.15s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.reaction-picker-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 1.45rem; line-height: 1;
+  min-width: 44px; min-height: 44px;
   display: inline-flex; align-items: center; justify-content: center;
-  transition: color 0.12s;
+  border-radius: 50%;
+  transition: background 0.1s, transform 0.1s;
   -webkit-appearance: none; appearance: none;
-  flex-shrink: 0;
 }
-.message-bubble:hover .delete-btn { color: var(--text-muted); }
-.delete-btn:hover  { color: var(--accent) !important; }
-.delete-btn:active { color: var(--accent) !important; }
-/* Touch: expand tap target + always visible */
-@media (hover: none) {
-  .delete-btn {
-    min-width: 44px; min-height: 44px;
-    width: auto; height: auto;
-    color: var(--text-muted); opacity: 0.45;
-  }
+.reaction-picker-btn:hover,
+.reaction-picker-btn:active { background: var(--bg-input); transform: scale(1.18); }
+.reaction-picker-divider {
+  width: 1px; height: 26px;
+  background: var(--border-mid);
+  margin: 0 2px; flex-shrink: 0;
 }
+.reaction-picker-delete { font-size: 1.1rem; color: var(--text-muted); }
+.reaction-picker-delete:hover,
+.reaction-picker-delete:active { color: var(--accent); }
 
 /* Chat input — iMessage pill style */
 .chat-input-area {

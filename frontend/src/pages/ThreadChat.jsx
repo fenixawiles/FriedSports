@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext'
 import Loading from '../components/Loading'
 
 const REACTIONS = [['laugh','😂'],['cook','👨‍🍳'],['fraud','🚨'],['receipt','🧾']]
+// Approximate picker width per button so we can keep it on-screen
+const BTN_W = 52
 
 export default function ThreadChat() {
   const { id } = useParams()
@@ -16,8 +18,13 @@ export default function ThreadChat() {
 
   const chatWindowRef = useRef(null)
   const inputRef      = useRef(null)
-  const [body, setBody]     = useState('')
+  const pressTimer    = useRef(null)
+  const pressOrigin   = useRef(null)
+
+  const [body, setBody]       = useState('')
   const [sending, setSending] = useState(false)
+  // activeMenu: { id, can_delete, top, left } | null
+  const [activeMenu, setActiveMenu] = useState(null)
 
   // Apply full-height focused layout: sets data-thread on <html> so CSS can
   // override height on html+body without affecting other pages.
@@ -26,7 +33,6 @@ export default function ThreadChat() {
     return () => document.documentElement.removeAttribute('data-thread')
   }, [])
 
-  // Fetch thread once on mount; messages polled separately
   const { data, isLoading } = useQuery({
     queryKey: ['thread', id],
     queryFn: () => getThread(id),
@@ -59,12 +65,9 @@ export default function ThreadChat() {
     e?.preventDefault()
     const trimmed = body.trim()
     if (!trimmed || sending) return
-
-    // Optimistic: clear input immediately
     setBody('')
     if (inputRef.current) { inputRef.current.style.height = '' }
     setSending(true)
-
     try {
       await sendMessage(id, trimmed)
       qc.invalidateQueries(['thread', id])
@@ -82,13 +85,58 @@ export default function ThreadChat() {
     }
   }
 
+  // ── Long-press reaction picker ────────────────────────────────────────────
+  function startPress(e, msg) {
+    // Let taps on inner buttons/links pass through normally
+    if (e.target.closest('button, a, input, textarea')) return
+    pressOrigin.current = { x: e.clientX, y: e.clientY }
+    clearTimeout(pressTimer.current)
+
+    const el = e.currentTarget
+    pressTimer.current = setTimeout(() => {
+      const rect = el.getBoundingClientRect()
+      const btnCount = REACTIONS.length + (msg.can_delete ? 1 : 0)
+      const pickerW  = btnCount * BTN_W + 16  // buttons + padding
+      const pickerH  = 52
+
+      // Show above bubble; fall back to below if near top of screen
+      const top = rect.top > pickerH + 12
+        ? rect.top - pickerH - 6
+        : rect.bottom + 6
+
+      // Horizontally center on bubble, clamp to viewport
+      let left = rect.left + rect.width / 2 - pickerW / 2
+      left = Math.max(8, Math.min(left, window.innerWidth - pickerW - 8))
+
+      setActiveMenu({ id: msg.id, can_delete: msg.can_delete, top, left })
+    }, 500)
+  }
+
+  function cancelPress(e) {
+    // Cancel if the finger has moved more than 8px (user is scrolling)
+    if (e && pressOrigin.current) {
+      const dx = Math.abs(e.clientX - pressOrigin.current.x)
+      const dy = Math.abs(e.clientY - pressOrigin.current.y)
+      if (dx > 8 || dy > 8) {
+        clearTimeout(pressTimer.current)
+        pressOrigin.current = null
+        return
+      }
+    }
+    clearTimeout(pressTimer.current)
+    pressOrigin.current = null
+  }
+
+  function closeMenu() { setActiveMenu(null) }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const reactMut = useMutation({
     mutationFn: ({ msgId, type }) => reactToMessage(msgId, type),
     onSuccess: () => qc.invalidateQueries(['thread', id]),
   })
   const deleteMut = useMutation({
     mutationFn: (msgId) => deleteMessage(msgId),
-    onSuccess: () => qc.invalidateQueries(['thread', id]),
+    onSuccess: () => { qc.invalidateQueries(['thread', id]); closeMenu() },
   })
   const confirmMut = useMutation({
     mutationFn: () => confirmReport(ir.id),
@@ -105,7 +153,7 @@ export default function ThreadChat() {
 
   if (isLoading) return <Loading full />
 
-  const isAdmin = member?.role === 'owner' || member?.role === 'admin'
+  const isAdmin  = member?.role === 'owner' || member?.role === 'admin'
   const isTarget = user?.id === thread?.target_user_id
 
   return (
@@ -114,7 +162,8 @@ export default function ThreadChat() {
       {/* Header */}
       <div className="thread-header-wrap">
         <div className="thread-header">
-          <button type="button" className="back-link" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          <button type="button" className="back-link"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
             onClick={() => navigate(-1)}>
             ← {thread?.group_name}
           </button>
@@ -154,7 +203,8 @@ export default function ThreadChat() {
             {(isAdmin || isTarget) && ir.status !== 'redeemed' && (
               <div className="incident-strip-actions">
                 {isAdmin && ir.status === 'active' && (
-                  <button className="istrip-action-btn" onClick={() => confirmMut.mutate()}>Confirm</button>
+                  <button className="istrip-action-btn"
+                    onClick={() => confirmMut.mutate()}>Confirm</button>
                 )}
                 {isAdmin && !['dismissed','redeemed'].includes(ir.status) && (
                   <button className="istrip-action-btn istrip-action-danger"
@@ -163,7 +213,8 @@ export default function ThreadChat() {
                   </button>
                 )}
                 {(isTarget || isAdmin) && ir.status !== 'redeemed' && (
-                  <button className="istrip-action-btn" onClick={() => redeemMut.mutate()}>Mark Redeemed</button>
+                  <button className="istrip-action-btn"
+                    onClick={() => redeemMut.mutate()}>Mark Redeemed</button>
                 )}
               </div>
             )}
@@ -180,37 +231,84 @@ export default function ThreadChat() {
               </div>
             )
           }
+
+          // Only show reaction chips that have at least one count
+          const chips = Object.entries(msg.reactions || {}).filter(([, c]) => c > 0)
+
           return (
             <div key={msg.id} data-id={msg.id}
               className={`message message-user ${mine ? 'message-mine' : 'message-theirs'}`}>
-              <div className="message-bubble">
+              {/* Long-press target — entire bubble */}
+              <div className="message-bubble"
+                onPointerDown={e => startPress(e, msg)}
+                onPointerUp={cancelPress}
+                onPointerMove={cancelPress}
+                onPointerCancel={cancelPress}
+                style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
                 {!mine && <div className="message-author">{msg.author}</div>}
                 <div className="message-text">{msg.body}</div>
+
+                {/* Footer: passive reaction chips + timestamp */}
                 <div className="message-footer">
-                  <div className="reaction-bar">
-                    {REACTIONS.map(([rtype, emoji]) => (
-                      <button key={rtype}
-                        className={`reaction-btn${msg.user_reactions?.includes(rtype) ? ' reacted' : ''}`}
-                        onClick={() => reactMut.mutate({ msgId: msg.id, type: rtype })}>
-                        {emoji} <span className="reaction-count">{msg.reactions?.[rtype] || ''}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <span className="message-time">
-                    {msg.created_at ? new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''}
-                  </span>
-                  {msg.can_delete && (
-                    <button className="delete-btn"
-                      onClick={() => { if(window.confirm('Delete?')) deleteMut.mutate(msg.id) }}>
-                      ✕
-                    </button>
+                  {chips.length > 0 && (
+                    <div className="reaction-chips">
+                      {chips.map(([rtype, count]) => {
+                        const emoji = REACTIONS.find(([r]) => r === rtype)?.[1] ?? rtype
+                        const reacted = msg.user_reactions?.includes(rtype)
+                        return (
+                          <span key={rtype}
+                            className={`reaction-chip${reacted ? ' reacted' : ''}`}>
+                            {emoji} {count}
+                          </span>
+                        )
+                      })}
+                    </div>
                   )}
+                  <span className="message-time">
+                    {msg.created_at
+                      ? new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                      : ''}
+                  </span>
                 </div>
               </div>
             </div>
           )
         })}
       </div>
+
+      {/* ── Floating reaction picker — long-press opens this ── */}
+      {activeMenu && (
+        <>
+          {/* Transparent backdrop catches tap-outside to dismiss */}
+          <div className="reaction-picker-backdrop" onPointerDown={closeMenu} />
+          <div className="reaction-picker"
+            style={{ top: activeMenu.top, left: activeMenu.left }}>
+            {REACTIONS.map(([rtype, emoji]) => (
+              <button key={rtype} className="reaction-picker-btn"
+                onPointerDown={e => {
+                  e.stopPropagation()
+                  reactMut.mutate({ msgId: activeMenu.id, type: rtype })
+                  closeMenu()
+                }}>
+                {emoji}
+              </button>
+            ))}
+            {activeMenu.can_delete && (
+              <>
+                <div className="reaction-picker-divider" />
+                <button className="reaction-picker-btn reaction-picker-delete"
+                  onPointerDown={e => {
+                    e.stopPropagation()
+                    closeMenu()
+                    if (window.confirm('Delete this message?')) deleteMut.mutate(activeMenu.id)
+                  }}>
+                  🗑️
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Input */}
       {thread?.status === 'active' ? (
