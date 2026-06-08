@@ -214,7 +214,7 @@ def group_members(group_id):
         )
         result.append({
             "user_id": m.user_id,
-            "display_name": m.user.display_name if m.user else "Unknown",
+            "display_name": m.user.shown_name if m.user else "Unknown",
             "role": m.role,
             "can_remove": can_remove,
             "can_transfer": can_transfer,
@@ -255,17 +255,30 @@ def search_users():
         .all()
     )
 
+    if not users:
+        return jsonify([])
+
+    user_ids = [u.id for u in users]
+
+    # One batch query instead of 1 per user — eliminates N+1 (was up to 21 queries).
+    fr_rows = FriendRequest.query.filter(
+        or_(
+            and_(FriendRequest.from_user_id == current_user.id,
+                 FriendRequest.to_user_id.in_(user_ids)),
+            and_(FriendRequest.to_user_id   == current_user.id,
+                 FriendRequest.from_user_id.in_(user_ids)),
+        )
+    ).all()
+
+    # Build a lookup: other_user_id → FriendRequest
+    fr_map = {}
+    for fr in fr_rows:
+        other = fr.to_user_id if fr.from_user_id == current_user.id else fr.from_user_id
+        fr_map[other] = fr
+
     result = []
     for user in users:
-        fr = FriendRequest.query.filter(
-            or_(
-                and_(FriendRequest.from_user_id == current_user.id,
-                     FriendRequest.to_user_id   == user.id),
-                and_(FriendRequest.from_user_id == user.id,
-                     FriendRequest.to_user_id   == current_user.id),
-            )
-        ).first()
-
+        fr = fr_map.get(user.id)
         if fr is None:
             status = "none"
         elif fr.status == "accepted":

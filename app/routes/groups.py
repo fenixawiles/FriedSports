@@ -444,11 +444,11 @@ def _cascade_delete_group(group_id):
         Receipt.query.filter(Receipt.thread_id.in_(thread_ids)).delete(synchronize_session=False)
     # Soft-delete threads
     GameThread.query.filter_by(group_id=group_id).update({"status": "deleted"})
-    # Group triggers and incident reports
-    trigger_ids = [t.id for t in GroupTrigger.query.filter_by(group_id=group_id).all()]
+    # Group triggers and incident reports — load once, not twice.
+    all_triggers = GroupTrigger.query.filter_by(group_id=group_id).all()
+    trigger_ids  = [t.id for t in all_triggers]
     if trigger_ids:
-        # Game events tied to these triggers
-        event_ids = [gt.game_event_id for gt in GroupTrigger.query.filter_by(group_id=group_id).all()]
+        event_ids = [gt.game_event_id for gt in all_triggers]
         GroupTrigger.query.filter_by(group_id=group_id).delete()
         if event_ids:
             IncidentReport.query.filter(

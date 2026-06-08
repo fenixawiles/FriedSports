@@ -220,7 +220,7 @@ export default function ThreadChat() {
               <textarea ref={inputRef} id="chat-input" name="body"
                 placeholder="Say something…" maxLength={1000} rows={1} required
                 style={{ fontSize: 16 }} enterKeyHint="send"
-                value={body} onInput={handleInput} onChange={e => setBody(e.target.value)}
+                value={body} onChange={handleInput}
                 onKeyDown={handleKeyDown} />
               <button type="submit" className="chat-submit" id="chat-send"
                 disabled={!body.trim() || sending} aria-label="Send">

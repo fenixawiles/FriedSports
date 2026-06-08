@@ -31,7 +31,7 @@ export default function Group() {
   const [copied, setCopied]           = useState(false)
 
   const { data, isLoading } = useQuery({ queryKey: ['group', id], queryFn: () => getGroup(id) })
-  const { data: membersData } = useQuery({ queryKey: ['group-members', id], queryFn: () => getMembers(id) })
+  const { data: membersData, isLoading: membersLoading } = useQuery({ queryKey: ['group-members', id], queryFn: () => getMembers(id) })
 
   const mutOpts = { onSuccess: () => qc.invalidateQueries(['group', id]) }
   const muteMut    = useMutation({ mutationFn: () => muteGroup(id),    ...mutOpts })
@@ -163,7 +163,18 @@ export default function Group() {
           <span className="section-title">Members</span>
           <span className="section-sub">Who's in this group</span>
         </div>
-        {members.length === 0 ? <Loading /> : (
+        {membersLoading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingTop: '0.5rem' }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.55rem 0', borderBottom: '1px solid var(--border)' }}>
+                <Skeleton w="40%" h="0.85rem" />
+                <Skeleton w="15%" h="0.75rem" />
+              </div>
+            ))}
+          </div>
+        ) : members.length === 0 ? (
+          <div className="empty-state"><p>No members found.</p></div>
+        ) : (
           <div className="member-table">
             <div className="member-row member-header">
               <span>Member</span><span>Role</span>
