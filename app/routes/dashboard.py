@@ -74,6 +74,8 @@ def onboarding():
 @login_required
 def dashboard():
     from sqlalchemy.orm import joinedload
+    from app.services.activity import unread_map, message_counts, latest_messages
+
     memberships = (
         GroupMember.query
         .options(joinedload(GroupMember.group))
@@ -84,37 +86,77 @@ def dashboard():
 
     active_threads = []
     msg_counts = {}
+    unread_counts = {}
+    member_counts = {}
+    latest_by_group = {}   # group_id -> latest active GameThread
+    group_unread = {}      # group_id -> total unread messages in active threads
+    last_msgs = {}         # thread_id -> last GameThreadMessage
+
     if group_ids:
-        active_threads = (
+        # Member counts per group — one query
+        rows = (
+            db.session.query(GroupMember.group_id, func.count(GroupMember.id))
+            .filter(GroupMember.group_id.in_(group_ids))
+            .group_by(GroupMember.group_id)
+            .all()
+        )
+        member_counts = {gid: cnt for gid, cnt in rows}
+
+        # All active threads, newest activity first — one query.
+        # First seen per group = that group's latest thread.
+        all_active = (
             GameThread.query
+            .options(joinedload(GameThread.group))
             .filter(
                 GameThread.group_id.in_(group_ids),
                 GameThread.status == "active",
             )
-            .order_by(GameThread.created_at.desc())
-            .limit(10)
+            .order_by(GameThread.updated_at.desc())
             .all()
         )
-        # Batch message counts — single query instead of N+1
-        if active_threads:
-            thread_ids = [t.id for t in active_threads]
-            counts = (
-                db.session.query(
-                    GameThreadMessage.thread_id,
-                    func.count(GameThreadMessage.id).label("cnt"),
-                )
-                .filter(
-                    GameThreadMessage.thread_id.in_(thread_ids),
-                    GameThreadMessage.is_deleted == False,
-                )
-                .group_by(GameThreadMessage.thread_id)
-                .all()
-            )
-            msg_counts = {tid: cnt for tid, cnt in counts}
+        for t in all_active:
+            latest_by_group.setdefault(t.group_id, t)
+        active_threads = all_active[:10]
+
+        if all_active:
+            thread_ids = [t.id for t in all_active]
+            msg_counts = message_counts(thread_ids)
+            unread_counts = unread_map(current_user.id, thread_ids)
+            for t in all_active:
+                if unread_counts.get(t.id, 0) > 0:
+                    group_unread[t.group_id] = (
+                        group_unread.get(t.group_id, 0) + unread_counts[t.id]
+                    )
+            last_msgs = latest_messages([t.id for t in latest_by_group.values()])
 
     fav_teams = {uft.league: uft.team for uft in current_user.favorite_teams.all()}
 
     groups = [{"group": m.group, "member": m} for m in memberships]
+
+    # Desktop side panel: hottest threads + recent group activity
+    hot_threads = sorted(
+        active_threads, key=lambda t: t.hot_score or 0, reverse=True
+    )[:3]
+    recent_events = []
+    if group_ids:
+        from sqlalchemy.orm import joinedload as _jl
+        from app.models import ActivityEvent
+        recent_events = (
+            ActivityEvent.query
+            .options(_jl(ActivityEvent.actor))
+            .filter(ActivityEvent.group_id.in_(group_ids))
+            .order_by(ActivityEvent.created_at.desc())
+            .limit(6)
+            .all()
+        )
+
+    # Header stats
+    unread_thread_count = sum(1 for c in unread_counts.values() if c > 0)
+    stats = {
+        "groups": len(groups),
+        "unread_threads": unread_thread_count,
+        "active_threads": len(active_threads),
+    }
 
     # Show profile completion prompt for existing users who haven't set names yet
     show_profile_prompt = (
@@ -127,6 +169,14 @@ def dashboard():
         groups=groups,
         active_threads=active_threads,
         msg_counts=msg_counts,
+        unread_counts=unread_counts,
+        member_counts=member_counts,
+        latest_by_group=latest_by_group,
+        group_unread=group_unread,
+        last_msgs=last_msgs,
+        stats=stats,
+        hot_threads=hot_threads,
+        recent_events=recent_events,
         fav_teams=fav_teams,
         fav_nba=fav_teams.get("NBA"),
         fav_nfl=fav_teams.get("NFL"),
@@ -295,60 +345,40 @@ def threads_list():
     )
     group_ids = [m.group_id for m in memberships]
 
+    from app.services.activity import unread_map, message_counts, latest_messages
+
     threads = []
     msg_counts = {}
     last_msgs = {}
+    unread_counts = {}
 
     if group_ids:
+        from app.models import GroupTrigger, GameEvent
         threads = (
             GameThread.query
             .options(
                 joinedload(GameThread.target_user),
                 joinedload(GameThread.target_team),
+                joinedload(GameThread.group),
+                # Incident type shown per row — avoid 3 lazy loads per thread
+                joinedload(GameThread.group_trigger)
+                .joinedload(GroupTrigger.game_event)
+                .joinedload(GameEvent.incident_report),
             )
             .filter(
                 GameThread.group_id.in_(group_ids),
                 GameThread.status == "active",
             )
-            .order_by(GameThread.created_at.desc())
+            .order_by(GameThread.updated_at.desc())
             .all()
         )
         if threads:
             thread_ids = [t.id for t in threads]
-            # Message counts
-            counts = (
-                db.session.query(
-                    GameThreadMessage.thread_id,
-                    func.count(GameThreadMessage.id).label("cnt"),
-                )
-                .filter(
-                    GameThreadMessage.thread_id.in_(thread_ids),
-                    GameThreadMessage.is_deleted == False,
-                )
-                .group_by(GameThreadMessage.thread_id)
-                .all()
-            )
-            msg_counts = {tid: cnt for tid, cnt in counts}
+            msg_counts = message_counts(thread_ids)
+            last_msgs = latest_messages(thread_ids)
+            unread_counts = unread_map(current_user.id, thread_ids)
 
-            # Last message per thread (for preview row)
-            last_id_subq = (
-                db.session.query(
-                    GameThreadMessage.thread_id,
-                    func.max(GameThreadMessage.id).label("max_id"),
-                )
-                .filter(
-                    GameThreadMessage.thread_id.in_(thread_ids),
-                    GameThreadMessage.is_deleted == False,
-                )
-                .group_by(GameThreadMessage.thread_id)
-                .subquery()
-            )
-            last_msg_rows = (
-                GameThreadMessage.query
-                .join(last_id_subq, GameThreadMessage.id == last_id_subq.c.max_id)
-                .all()
-            )
-            last_msgs = {m.thread_id: m for m in last_msg_rows}
+    fav_team_ids = {uft.team_id for uft in current_user.favorite_teams.all()}
 
     today     = date.today()
     yesterday = today - timedelta(days=1)
@@ -358,6 +388,8 @@ def threads_list():
         threads=threads,
         msg_counts=msg_counts,
         last_msgs=last_msgs,
+        unread_counts=unread_counts,
+        fav_team_ids=fav_team_ids,
         memberships=memberships,
         today=today,
         yesterday=yesterday,
@@ -368,4 +400,30 @@ def threads_list():
 @login_required
 def more():
     """More hub — settings, support, legal, admin, logout."""
-    return render_template("dashboard/more.html")
+    from app.models import IncidentReport
+
+    groups_count = GroupMember.query.filter_by(user_id=current_user.id).count()
+    group_ids = [
+        gid for (gid,) in db.session.query(GroupMember.group_id)
+        .filter_by(user_id=current_user.id).all()
+    ]
+    threads_count = 0
+    if group_ids:
+        threads_count = GameThread.query.filter(
+            GameThread.group_id.in_(group_ids)
+        ).count()
+    active_cases = IncidentReport.query.filter_by(
+        target_user_id=current_user.id, status="active"
+    ).count()
+
+    fav_teams = [uft.team for uft in current_user.favorite_teams.all() if uft.team]
+
+    return render_template(
+        "dashboard/more.html",
+        account_stats={
+            "groups": groups_count,
+            "threads": threads_count,
+            "active_cases": active_cases,
+        },
+        fav_teams=fav_teams,
+    )

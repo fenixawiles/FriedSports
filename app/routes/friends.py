@@ -59,7 +59,54 @@ def index():
     friend_ids = [fr.to_user_id for fr in sent] + [fr.from_user_id for fr in received]
     friends = User.query.filter(User.id.in_(friend_ids)).all() if friend_ids else []
 
-    return render_template("friends.html", friends=friends, results=results, q=q)
+    # Incoming pending requests
+    pending_requests = (
+        FriendRequest.query
+        .filter_by(to_user_id=current_user.id, status="pending")
+        .order_by(FriendRequest.created_at.desc())
+        .all()
+    )
+
+    # Shared-group counts — one query for all friends
+    from app.models import GroupMember
+    from sqlalchemy import func
+    shared_counts = {}
+    total_shared_groups = 0
+    if friends:
+        my_group_ids = [
+            gid for (gid,) in db.session.query(GroupMember.group_id)
+            .filter_by(user_id=current_user.id).all()
+        ]
+        if my_group_ids:
+            rows = (
+                db.session.query(GroupMember.user_id, func.count(GroupMember.id))
+                .filter(
+                    GroupMember.user_id.in_(friend_ids),
+                    GroupMember.group_id.in_(my_group_ids),
+                )
+                .group_by(GroupMember.user_id)
+                .all()
+            )
+            shared_counts = {uid: cnt for uid, cnt in rows}
+            shared_group_rows = (
+                db.session.query(func.count(func.distinct(GroupMember.group_id)))
+                .filter(
+                    GroupMember.user_id.in_(friend_ids),
+                    GroupMember.group_id.in_(my_group_ids),
+                )
+                .scalar()
+            )
+            total_shared_groups = shared_group_rows or 0
+
+    return render_template(
+        "friends.html",
+        friends=friends,
+        results=results,
+        q=q,
+        pending_requests=pending_requests,
+        shared_counts=shared_counts,
+        total_shared_groups=total_shared_groups,
+    )
 
 
 @friends_bp.route("/request/<int:user_id>", methods=["POST"])

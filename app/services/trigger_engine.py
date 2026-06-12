@@ -181,6 +181,9 @@ def process_game(game):
             )
             db.session.add(sys_msg)
 
+            from app.services.activity import record_event
+            record_event(group_id, None, "thread_started", thread.id)
+
             # Award shame to the target user in this group
             apply_trigger_shame(group_id, user_id, trigger_type, margin)
 

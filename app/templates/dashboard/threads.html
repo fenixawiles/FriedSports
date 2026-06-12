@@ -35,6 +35,18 @@
     {% endif %}
   </div>
 
+  {# ── Filter chips ── #}
+  {% if threads %}
+  <div class="filter-chips" id="thread-filter-chips" role="group" aria-label="Filter threads">
+    <button class="filter-chip active" data-filter="all">All</button>
+    <button class="filter-chip" data-filter="unread">Unread</button>
+    <button class="filter-chip" data-filter="hot">Hot</button>
+    {% if fav_team_ids %}
+    <button class="filter-chip" data-filter="myteams">My Teams</button>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {# ── Thread rows ── #}
   {% if threads %}
   <div class="threads-list-wrap" id="threads-list">
@@ -56,9 +68,13 @@
     {% else %}
       {% set ts = thread.created_at.strftime('%-m/%-d') %}
     {% endif %}
+    {% set t_unread = unread_counts.get(thread.id, 0) %}
     <a href="{{ url_for('threads.show', thread_id=thread.id) }}"
        class="thread-row-item"
-       data-group-id="{{ thread.group_id }}">
+       data-group-id="{{ thread.group_id }}"
+       data-unread="{{ t_unread }}"
+       data-hot="{{ thread.hot_score or 0 }}"
+       data-myteam="{{ '1' if thread.target_team_id in fav_team_ids else '0' }}">
       {# Team-colored avatar #}
       <div class="thread-avatar-circle"
            style="background-color:{{ thread.target_team.primary_color }}20;border-color:{{ thread.target_team.primary_color }}">
@@ -70,6 +86,7 @@
       <div class="thread-preview-col">
         <div class="thread-preview-top">
           <span class="thread-preview-name">
+            {% if t_unread > 0 %}<span class="unread-dot" aria-label="unread"></span>{% endif %}
             {{ thread.group.name }}
             {% if ir %}
             <span class="thread-type-sep">·</span>
@@ -82,17 +99,26 @@
           {% if lm %}
             {{ lm.body | truncate(75, True, '…') }}
           {% else %}
-            No messages yet
+            No takes yet. Be the first to pile on.
           {% endif %}
+        </div>
+        <div class="thread-preview-activity">
+          {% set rc = msg_counts.get(thread.id, 0) %}
+          <span>{{ rc }} repl{{ 'y' if rc == 1 else 'ies' }}</span>
+          {% if t_unread > 0 %}<span class="unread-chip">{{ t_unread }} new</span>{% endif %}
+          {% if lm and lm.author %}<span>last by {{ lm.author.shown_name }}</span>{% endif %}
         </div>
       </div>
     </a>
     {% endfor %}
   </div>
+  <div class="empty-state" id="thread-filter-empty" hidden>
+    <p>Nothing matches that filter.</p>
+  </div>
   {% else %}
   <div class="empty-state">
-    <p>No active threads yet.</p>
-    <p>Open a group and start one to get things going.</p>
+    <p>No one's talking reckless yet.</p>
+    <p>Open a group and start a thread before the takes go undocumented.</p>
   </div>
   {% endif %}
 
@@ -185,6 +211,50 @@
   if (fab) fab.addEventListener('click', openSheet);
   if (cancel) cancel.addEventListener('click', closeSheet);
   if (backdrop) backdrop.addEventListener('click', closeSheet);
+
+  // Sidebar "Start Incident" lands here with #new — open the group sheet
+  if (window.location.hash === '#new') {
+    openSheet();
+    history.replaceState(null, '', window.location.pathname);
+  }
+
+  // ── Filter chips: All / Unread / Hot / My Teams ──────────────────────
+  var chipWrap = document.getElementById('thread-filter-chips');
+  var list = document.getElementById('threads-list');
+  var filterEmpty = document.getElementById('thread-filter-empty');
+  if (chipWrap && list) {
+    var originalOrder = Array.prototype.slice.call(
+      list.querySelectorAll('.thread-row-item')
+    );
+    chipWrap.addEventListener('click', function (e) {
+      var chip = e.target.closest('.filter-chip');
+      if (!chip) return;
+      chipWrap.querySelectorAll('.filter-chip').forEach(function (c) {
+        c.classList.remove('active');
+      });
+      chip.classList.add('active');
+      var mode = chip.getAttribute('data-filter');
+
+      var rows = originalOrder.slice();
+      if (mode === 'hot') {
+        rows.sort(function (a, b) {
+          return (+b.getAttribute('data-hot')) - (+a.getAttribute('data-hot'));
+        });
+      }
+      // Re-append in display order (hot re-sorts, others keep original)
+      rows.forEach(function (row) { list.appendChild(row); });
+
+      var visible = 0;
+      rows.forEach(function (row) {
+        var show = true;
+        if (mode === 'unread') show = +row.getAttribute('data-unread') > 0;
+        else if (mode === 'myteams') show = row.getAttribute('data-myteam') === '1';
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+      if (filterEmpty) filterEmpty.hidden = visible > 0;
+    });
+  }
 })();
 </script>
 {% endblock %}

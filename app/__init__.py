@@ -102,17 +102,95 @@ def create_app(config=None):
             return send_from_directory(_react_build, path)
         return send_from_directory(_react_build, "index.html")
 
-    # Inject unread notification count into every template for the nav bell
-    from app.models import Notification as _Notif
+    # time_ago available in every template
+    from app.utils import time_ago
+    app.jinja_env.globals["time_ago"] = time_ago
+
+    # Inject nav/sidebar state into every template: notification count,
+    # pending friend requests, the user's groups, and unread-thread totals.
+    from app.models import (
+        Notification as _Notif,
+        FriendRequest as _FR,
+        GroupMember as _GM,
+        GameThread as _GT,
+    )
+    from sqlalchemy.orm import joinedload as _joinedload
 
     @app.context_processor
     def _inject_nav_data():
-        if current_user.is_authenticated:
-            count = _Notif.query.filter_by(
-                user_id=current_user.id, is_read=False
-            ).count()
-            return {"unread_notification_count": count}
-        return {"unread_notification_count": 0}
+        if not current_user.is_authenticated:
+            return {
+                "unread_notification_count": 0,
+                "pending_friend_request_count": 0,
+                "nav_groups": [],
+                "nav_unread_total": 0,
+                "nav_group_unread": {},
+            }
+
+        notif_count = _Notif.query.filter_by(
+            user_id=current_user.id, is_read=False
+        ).count()
+        fr_count = _FR.query.filter_by(
+            to_user_id=current_user.id, status="pending"
+        ).count()
+
+        memberships = (
+            _GM.query
+            .options(_joinedload(_GM.group))
+            .filter_by(user_id=current_user.id)
+            .all()
+        )
+        nav_groups = [m.group for m in memberships]
+        group_ids = [m.group_id for m in memberships]
+
+        nav_unread_total = 0
+        nav_group_unread = {}
+        if group_ids:
+            from app.services.activity import unread_map as _unread_map
+            thread_rows = (
+                db.session.query(_GT.id, _GT.group_id)
+                .filter(_GT.group_id.in_(group_ids), _GT.status == "active")
+                .all()
+            )
+            if thread_rows:
+                unread = _unread_map(current_user.id, [t for t, _ in thread_rows])
+                group_of = {tid: gid for tid, gid in thread_rows}
+                for tid, cnt in unread.items():
+                    if cnt > 0:
+                        nav_unread_total += 1
+                        nav_group_unread[group_of[tid]] = (
+                            nav_group_unread.get(group_of[tid], 0) + 1
+                        )
+
+        return {
+            "unread_notification_count": notif_count,
+            "pending_friend_request_count": fr_count,
+            "nav_groups": nav_groups,
+            "nav_unread_total": nav_unread_total,
+            "nav_group_unread": nav_group_unread,
+        }
+
+    # Track last_active_at — throttled to one write per 5 minutes per user
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+    @app.before_request
+    def _touch_last_active():
+        from flask import request as _req
+        if not current_user.is_authenticated:
+            return
+        # Skip static assets and background polls
+        if _req.endpoint == "static" or _req.path.startswith("/static"):
+            return
+        try:
+            now = _dt.now(_tz.utc)
+            last = current_user.last_active_at
+            if last is not None and last.tzinfo is None:
+                last = last.replace(tzinfo=_tz.utc)
+            if last is None or (now - last) > _td(minutes=5):
+                current_user.last_active_at = now
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     register_commands(app)
 

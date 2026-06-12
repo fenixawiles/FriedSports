@@ -6,22 +6,54 @@
   <div class="group-header">
     <div>
       <h1>Friends</h1>
-      <div class="group-header-meta">
-        <span style="font-size:0.8rem;color:var(--text-muted)">{{ friends|length }} friend{% if friends|length != 1 %}s{% endif %}</span>
+      <div class="friend-summary">
+        {{ friends|length }} friend{{ 's' if friends|length != 1 }}
+        · {{ pending_requests|length }} pending
+        · {{ total_shared_groups }} shared group{{ 's' if total_shared_groups != 1 }}
       </div>
     </div>
   </div>
 
-  <!-- Search -->
+  {% if pending_requests %}
   <section class="group-section" style="border-top:none;padding-top:0">
+    <div class="section-header" style="margin-bottom:0.5rem">
+      <span class="section-title">Pending Requests</span>
+    </div>
+    {% for fr in pending_requests %}
+    <div class="friend-req-row" id="friend-req-{{ fr.id }}">
+      <span class="avatar-initials">{{ fr.from_user.initials }}</span>
+      <div class="friend-info">
+        <span class="member-name">{{ fr.from_user.shown_name }}</span>
+        <div class="friend-meta">@{{ fr.from_user.uid }} · wants to connect</div>
+      </div>
+      <div class="friend-req-actions">
+        <button class="btn-primary-small friend-req-btn" data-req-id="{{ fr.id }}" data-action="accept">Accept</button>
+        <button class="btn-secondary-small friend-req-btn" data-req-id="{{ fr.id }}" data-action="decline">Ignore</button>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <!-- Search + add -->
+  <section class="group-section" {% if not pending_requests %}style="border-top:none;padding-top:0"{% endif %}>
+    <div class="section-header" style="margin-bottom:0.5rem">
+      <span class="section-title">Add Friends</span>
+      <span class="section-sub">Search name, email, or FS ID</span>
+    </div>
     <form method="get" action="{{ url_for('friends.index') }}" class="friend-search-form" id="friend-search-form">
       <input type="text" name="q" value="{{ q or '' }}" id="friend-search-input"
-             placeholder="Search by name, email, or UID (FS-XXXXXX)…"
+             placeholder="Search name, email, or FS ID…"
              autocomplete="off" autocorrect="off" spellcheck="false"
              style="font-size:16px">
       <button type="submit" class="btn-primary-small">Search</button>
       {% if q %}<a href="{{ url_for('friends.index') }}" class="btn-secondary-small" id="friend-search-clear">Clear</a>{% endif %}
     </form>
+    <div class="fsid-row">
+      <span>Your FS ID</span>
+      <code id="my-fsid">{{ current_user.uid }}</code>
+      <button type="button" class="btn-secondary-tiny" id="copy-fsid-btn">Copy</button>
+    </div>
 
     <!-- JS live-search results go here; server-rendered results below as fallback -->
     <div id="friend-live-results"></div>
@@ -67,26 +99,36 @@
       <span class="section-title">Your Friends</span>
     </div>
     {% if friends %}
-    <div class="member-table">
-      <div class="member-row member-header" style="grid-template-columns:1fr auto auto">
-        <span>Name</span><span>UID</span><span></span>
-      </div>
+    <div class="friend-list">
       {% for friend in friends %}
-      <div class="member-row" style="grid-template-columns:1fr auto auto">
-        <span class="member-name">{{ friend.shown_name }}</span>
-        <span style="font-family:monospace;font-size:0.75rem;color:var(--text-muted)">{{ friend.uid }}</span>
-        <span>
-          <form action="{{ url_for('friends.remove_friend', user_id=friend.id) }}" method="post" style="display:inline"
-                onsubmit="return confirm('Remove {{ friend.shown_name }} from friends?')">
-            <button type="submit" class="btn-danger-tiny">Remove</button>
-          </form>
-        </span>
+      <div class="friend-row">
+        <span class="avatar-initials">{{ friend.initials }}</span>
+        <div class="friend-info">
+          <span class="member-name">{{ friend.shown_name }}</span>
+          <div class="friend-meta">
+            @{{ friend.uid }}
+            · {{ shared_counts.get(friend.id, 0) }} shared group{{ 's' if shared_counts.get(friend.id, 0) != 1 }}
+            {% if friend.last_active_at %}· active {{ time_ago(friend.last_active_at) }}{% endif %}
+          </div>
+        </div>
+        <div class="overflow-wrap">
+          <button type="button" class="overflow-menu-btn" aria-controls="friend-menu-{{ friend.id }}"
+                  aria-label="More actions for {{ friend.shown_name }}">⋯</button>
+          <div class="overflow-menu" id="friend-menu-{{ friend.id }}" hidden>
+            <button type="button" class="overflow-item copy-friend-id" data-uid="{{ friend.uid }}">Copy FS ID</button>
+            <form action="{{ url_for('friends.remove_friend', user_id=friend.id) }}" method="post"
+                  onsubmit="return confirm('Remove {{ friend.shown_name }} from friends?')">
+              <button type="submit" class="overflow-item overflow-danger">Remove Friend</button>
+            </form>
+          </div>
+        </div>
       </div>
       {% endfor %}
     </div>
     {% else %}
     <div class="empty-state">
-      <p>No friends yet. Search by name, email, or UID above to add someone.</p>
+      <p>No friends added yet. Dangerous way to watch sports.</p>
+      <p>Search by name, email, or FS ID above to add someone.</p>
     </div>
     {% endif %}
   </section>
@@ -217,6 +259,68 @@
   if (searchInput.value.trim().length >= 2) {
     doSearch(searchInput.value.trim());
   }
+})();
+
+// ── Accept / Ignore friend requests without a reload ──────────────────────
+(function () {
+  document.querySelectorAll('.friend-req-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var reqId  = btn.getAttribute('data-req-id');
+      var action = btn.getAttribute('data-action');
+      var row    = document.getElementById('friend-req-' + reqId);
+      btn.disabled = true;
+      btn.textContent = '···';
+      fetch('/friends/' + action + '/' + reqId, {
+        method: 'POST',
+        headers: { 'X-Fetch': '1' },
+        credentials: 'same-origin',
+      })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (data) {
+          if (row) {
+            row.style.transition = 'opacity 0.25s';
+            row.style.opacity = '0';
+            setTimeout(function () { row.remove(); }, 250);
+          }
+          if (typeof showToast === 'function') {
+            showToast(action === 'accept'
+              ? "You're now friends with " + (data.name || 'them')
+              : 'Request ignored', action === 'accept' ? 'success' : 'info');
+          }
+          if (action === 'accept') {
+            // New friend row exists server-side — refresh to show it
+            setTimeout(function () { window.location.reload(); }, 700);
+          }
+        })
+        .catch(function () {
+          btn.disabled = false;
+          btn.textContent = action === 'accept' ? 'Accept' : 'Ignore';
+          if (typeof showToast === 'function') showToast('Something went wrong', 'error');
+        });
+    });
+  });
+})();
+
+// ── Copy FS ID actions ─────────────────────────────────────────────────────
+(function () {
+  function copy(text) {
+    return navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject();
+  }
+  var myBtn = document.getElementById('copy-fsid-btn');
+  if (myBtn) {
+    myBtn.addEventListener('click', function () {
+      copy(document.getElementById('my-fsid').textContent.trim())
+        .then(function () { if (typeof showToast === 'function') showToast('FS ID copied', 'success'); })
+        .catch(function () {});
+    });
+  }
+  document.querySelectorAll('.copy-friend-id').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      copy(btn.getAttribute('data-uid'))
+        .then(function () { if (typeof showToast === 'function') showToast('FS ID copied', 'success'); })
+        .catch(function () {});
+    });
+  });
 })();
 </script>
 {% endblock %}

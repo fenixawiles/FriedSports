@@ -32,6 +32,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     avatar_url = db.Column(db.String(256))
     role = db.Column(db.String(16), nullable=False, default="user")  # "user", "admin"
+    last_active_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
     updated_at = db.Column(db.DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
@@ -49,6 +50,15 @@ class User(UserMixin, db.Model):
                 and self.first_name and self.last_name):
             return f"{self.first_name} {self.last_name}"
         return self.display_name
+
+    @property
+    def initials(self):
+        """Up to two uppercase initials for avatar circles."""
+        name = self.shown_name or ""
+        parts = name.split()
+        if len(parts) >= 2:
+            return (parts[0][0] + parts[-1][0]).upper()
+        return name[:2].upper() if name else "?"
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -270,6 +280,7 @@ class GameThread(db.Model):
     target_team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
     title = db.Column(db.String(256))
     status = db.Column(db.String(16), default="active")  # active, closed
+    hot_score = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
     updated_at = db.Column(db.DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
@@ -289,7 +300,36 @@ class GameThread(db.Model):
         return self.has_replied(self.target_user_id)
 
     def reply_count(self):
-        return self.messages.filter_by(message_type="user").count()
+        return self.messages.filter_by(message_type="user", is_deleted=False).count()
+
+    def last_reply(self):
+        return (self.messages
+                .filter_by(is_deleted=False)
+                .order_by(GameThreadMessage.created_at.desc())
+                .first())
+
+    def unread_count_for(self, user_id):
+        """Messages posted after the user's read watermark (all if never read)."""
+        read = ThreadRead.query.filter_by(user_id=user_id, thread_id=self.id).first()
+        q = self.messages.filter_by(is_deleted=False)
+        if read:
+            q = q.filter(GameThreadMessage.created_at > read.last_read_at)
+        return q.count()
+
+    def vote_counts(self):
+        from sqlalchemy import func
+        rows = (db.session.query(ThreadVote.vote_type, func.count(ThreadVote.id))
+                .filter_by(thread_id=self.id)
+                .group_by(ThreadVote.vote_type)
+                .all())
+        counts = {"confirm": 0, "dismiss": 0, "redeem": 0}
+        for vtype, cnt in rows:
+            counts[vtype] = cnt
+        return counts
+
+    def user_vote(self, user_id):
+        v = ThreadVote.query.filter_by(thread_id=self.id, user_id=user_id).first()
+        return v.vote_type if v else None
 
 
 class GameThreadMessage(db.Model):
@@ -484,3 +524,49 @@ class FriendRequest(db.Model):
     __table_args__ = (
         db.UniqueConstraint("from_user_id", "to_user_id", name="uq_friend_request"),
     )
+
+
+class ThreadRead(db.Model):
+    """Per-user read watermark on a thread — drives unread counts."""
+    __tablename__ = "thread_reads"
+
+    id           = db.Column(db.Integer, primary_key=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    thread_id    = db.Column(db.Integer, db.ForeignKey("game_threads.id"), nullable=False, index=True)
+    last_read_at = db.Column(db.DateTime(timezone=True), nullable=False, default=now_utc)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "thread_id", name="uq_thread_read"),
+    )
+
+
+class ThreadVote(db.Model):
+    """A group member's verdict on a thread: confirm | dismiss | redeem.
+    One vote per (thread, user) — re-voting switches it, same vote removes it."""
+    __tablename__ = "thread_votes"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    thread_id  = db.Column(db.Integer, db.ForeignKey("game_threads.id"), nullable=False, index=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    vote_type  = db.Column(db.String(16), nullable=False)  # confirm | dismiss | redeem
+    created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
+
+    __table_args__ = (
+        db.UniqueConstraint("thread_id", "user_id", name="uq_thread_vote"),
+    )
+
+    user = db.relationship("User")
+
+
+class ActivityEvent(db.Model):
+    """Group activity feed — thread starts, replies, votes, joins."""
+    __tablename__ = "activity_events"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    group_id   = db.Column(db.Integer, db.ForeignKey("groups.id"), nullable=True, index=True)
+    actor_id   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    event_type = db.Column(db.String(32), nullable=False)  # thread_started | reply | vote | member_joined
+    entity_id  = db.Column(db.Integer, nullable=True)      # thread_id or message_id
+    created_at = db.Column(db.DateTime(timezone=True), default=now_utc, index=True)
+
+    actor = db.relationship("User")

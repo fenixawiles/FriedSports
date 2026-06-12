@@ -543,6 +543,8 @@ def join_group(code):
     if g.is_member(current_user.id):
         return ok(group_id=g.id)
     db.session.add(GroupMember(group_id=g.id, user_id=current_user.id, role="member"))
+    from app.services.activity import record_event
+    record_event(g.id, current_user.id, "member_joined")
     db.session.commit()
     return ok(group_id=g.id)
 
@@ -794,7 +796,7 @@ def threads_list():
     rows = db.session.execute(text("""
         WITH last_msgs AS (
             SELECT DISTINCT ON (thread_id)
-                thread_id, body, created_at
+                thread_id, body, created_at, user_id
             FROM game_thread_messages
             WHERE thread_id IN (
                 SELECT id FROM game_threads
@@ -810,6 +812,7 @@ def threads_list():
             gt.group_id,
             gt.target_user_id,
             gt.created_at,
+            gt.hot_score,
             g.name          AS group_name,
             te.abbreviation AS team_abbr,
             te.name         AS team_name,
@@ -823,7 +826,14 @@ def threads_list():
             END             AS target_user_name,
             ir.incident_type,
             lm.body         AS last_msg_body,
-            lm.created_at   AS last_msg_at
+            lm.created_at   AS last_msg_at,
+            CASE
+                WHEN lmu.display_preference = 'real_name'
+                     AND lmu.first_name IS NOT NULL
+                     AND lmu.last_name  IS NOT NULL
+                THEN lmu.first_name || ' ' || lmu.last_name
+                ELSE lmu.display_name
+            END             AS last_msg_author
         FROM game_threads gt
         LEFT JOIN groups g              ON g.id  = gt.group_id
         LEFT JOIN teams  te             ON te.id = gt.target_team_id
@@ -832,9 +842,16 @@ def threads_list():
         LEFT JOIN game_events     ge    ON ge.id  = gtr.game_event_id
         LEFT JOIN incident_reports ir   ON ir.id  = ge.incident_report_id
         LEFT JOIN last_msgs        lm   ON lm.thread_id = gt.id
+        LEFT JOIN users            lmu  ON lmu.id = lm.user_id
         WHERE gt.group_id = ANY(:gids) AND gt.status = 'active'
         ORDER BY gt.updated_at DESC
     """), {"gids": group_ids}).fetchall()
+
+    thread_ids = [r.id for r in rows]
+    from app.services.activity import unread_map, message_counts, vote_count_map
+    unread = unread_map(uid, thread_ids)
+    counts = message_counts(thread_ids)
+    votes  = vote_count_map(thread_ids)
 
     threads   = []
     last_msgs = {}
@@ -852,15 +869,21 @@ def threads_list():
             "team_color":       r.team_color   or "#333",
             "incident_type":    r.incident_type,
             "created_at":       r.created_at.isoformat() if r.created_at else None,
+            "hot_score":        r.hot_score or 0,
+            "reply_count":      counts.get(r.id, 0),
+            "unread_count":     unread.get(r.id, 0),
+            "votes":            votes.get(r.id, {"confirm": 0, "dismiss": 0, "redeem": 0}),
             "last_msg": {
                 "body":       r.last_msg_body,
                 "created_at": r.last_msg_at.isoformat() if r.last_msg_at else None,
+                "author":     r.last_msg_author,
             } if r.last_msg_body else None,
         })
         if r.last_msg_body:
             last_msgs[r.id] = {
                 "body":       r.last_msg_body,
                 "created_at": r.last_msg_at.isoformat() if r.last_msg_at else None,
+                "author":     r.last_msg_author,
             }
 
     return ok(threads=threads, last_msgs=last_msgs, groups=groups)
@@ -898,6 +921,12 @@ def get_thread(thread_id):
                 "reported_score_text": ir_obj.reported_score_text or "",
             }
 
+    # Opening a thread clears its unread state
+    if member:
+        from app.services.activity import mark_thread_read
+        mark_thread_read(current_user.id, thread_id)
+        db.session.commit()
+
     return ok(
         thread={
             "id":               thread.id,
@@ -910,6 +939,8 @@ def get_thread(thread_id):
             "team_abbr":        thread.target_team.abbreviation if thread.target_team else "",
             "team_name":        thread.target_team.name if thread.target_team else "",
             "team_color":       thread.target_team.primary_color if thread.target_team else "#333",
+            "votes":            thread.vote_counts(),
+            "user_vote":        thread.user_vote(current_user.id),
         },
         messages=[_serialize_message(m, current_user.id) for m in messages],
         member={"role": member.role} if member else None,
@@ -944,8 +975,70 @@ def post_message(thread_id):
     )
     db.session.add(msg)
     thread.updated_at = datetime.now(timezone.utc)
+    from app.services.activity import refresh_hot_score, record_event, mark_thread_read
+    db.session.flush()
+    refresh_hot_score(thread)
+    record_event(thread.group_id, current_user.id, "reply", thread_id)
+    mark_thread_read(current_user.id, thread_id)
     db.session.commit()
     return ok(id=msg.id, created_at=msg.created_at.isoformat() if msg.created_at else None)
+
+
+@bp.route("/threads/<int:thread_id>/vote", methods=["POST"])
+@login_required
+def vote_thread(thread_id):
+    """Group-member verdict on a thread. Same vote toggles off; a different
+    vote switches. Open to every member — not an admin action."""
+    thread = GameThread.query.get_or_404(thread_id)
+    member = GroupMember.query.filter_by(
+        group_id=thread.group_id, user_id=current_user.id
+    ).first()
+    if not member:
+        return err("Not a member of this group", 403)
+
+    d = request.get_json(silent=True) or {}
+    vote_type = d.get("vote_type")
+    if vote_type not in ("confirm", "dismiss", "redeem"):
+        return err("Invalid vote type")
+
+    from app.models import ThreadVote
+    from app.services.activity import refresh_hot_score, record_event
+
+    existing = ThreadVote.query.filter_by(
+        thread_id=thread_id, user_id=current_user.id
+    ).first()
+    if existing and existing.vote_type == vote_type:
+        db.session.delete(existing)
+        user_vote = None
+    elif existing:
+        existing.vote_type = vote_type
+        user_vote = vote_type
+    else:
+        db.session.add(ThreadVote(
+            thread_id=thread_id, user_id=current_user.id, vote_type=vote_type
+        ))
+        record_event(thread.group_id, current_user.id, "vote", thread_id)
+        user_vote = vote_type
+    db.session.flush()
+    refresh_hot_score(thread)
+    db.session.commit()
+    return ok(votes=thread.vote_counts(), user_vote=user_vote)
+
+
+@bp.route("/threads/<int:thread_id>/read", methods=["POST"])
+@login_required
+def mark_read(thread_id):
+    """Move the caller's read watermark to now — clears unread badges."""
+    thread = GameThread.query.get_or_404(thread_id)
+    member = GroupMember.query.filter_by(
+        group_id=thread.group_id, user_id=current_user.id
+    ).first()
+    if not member:
+        return err("Not a member of this group", 403)
+    from app.services.activity import mark_thread_read
+    mark_thread_read(current_user.id, thread_id)
+    db.session.commit()
+    return ok()
 
 
 # ── Friends ───────────────────────────────────────────────────────────────────
@@ -960,10 +1053,37 @@ def friends_list():
         )
     ).options(joinedload(FriendRequest.from_user), joinedload(FriendRequest.to_user)).all()
 
+    others = [fr.to_user if fr.from_user_id == current_user.id else fr.from_user
+              for fr in accepted]
+
+    # Shared-group counts in one query
+    shared_counts = {}
+    if others:
+        my_group_ids = [
+            gid for (gid,) in db.session.query(GroupMember.group_id)
+            .filter_by(user_id=current_user.id).all()
+        ]
+        if my_group_ids:
+            rows = (
+                db.session.query(GroupMember.user_id, db.func.count(GroupMember.id))
+                .filter(
+                    GroupMember.user_id.in_([o.id for o in others]),
+                    GroupMember.group_id.in_(my_group_ids),
+                )
+                .group_by(GroupMember.user_id)
+                .all()
+            )
+            shared_counts = {uid_: cnt for uid_, cnt in rows}
+
     friends = []
-    for fr in accepted:
-        other = fr.to_user if fr.from_user_id == current_user.id else fr.from_user
-        friends.append({"id": other.id, "name": other.shown_name, "uid": other.uid})
+    for other in others:
+        friends.append({
+            "id":   other.id,
+            "name": other.shown_name,
+            "uid":  other.uid,
+            "shared_group_count": shared_counts.get(other.id, 0),
+            "last_active_at": other.last_active_at.isoformat() if other.last_active_at else None,
+        })
 
     return ok(friends=friends)
 

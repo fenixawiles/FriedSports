@@ -5,8 +5,23 @@
 
   {# ── Identity card ── #}
   <div class="more-user-card">
-    <div class="more-user-name">{{ current_user.shown_name }}</div>
-    <div class="more-user-uid">@{{ current_user.uid }}</div>
+    <span class="avatar-initials avatar-lg">{{ current_user.initials }}</span>
+    <div>
+      <div class="more-user-name">{{ current_user.shown_name }}</div>
+      <div class="more-user-uid">@{{ current_user.uid }}</div>
+      <div class="more-user-stats">
+        {{ account_stats.groups }} group{{ 's' if account_stats.groups != 1 }}
+        · {{ account_stats.threads }} thread{{ 's' if account_stats.threads != 1 }}
+        · {{ account_stats.active_cases }} active case{{ 's' if account_stats.active_cases != 1 }}
+      </div>
+      {% if fav_teams %}
+      <div class="more-user-teams">
+        {% for team in fav_teams %}
+        <span class="more-team-chip" style="color:{{ team.primary_color }};border-color:{{ team.primary_color }}40">{{ team.abbreviation }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
   </div>
 
   {# ── Account ── #}
@@ -22,6 +37,18 @@
         <span class="theme-switch-track"></span>
       </span>
     </label>
+  </div>
+
+  {# ── Social ── #}
+  <div class="more-section">
+    <a href="{{ url_for('friends.index') }}" class="more-row">
+      <span>Friends{% if pending_friend_request_count > 0 %} <span class="unread-chip">{{ pending_friend_request_count }}</span>{% endif %}</span>
+      <span class="more-chevron">›</span>
+    </a>
+    <a href="{{ url_for('dashboard.notifications') }}" class="more-row">
+      <span>Notifications{% if unread_notification_count > 0 %} <span class="unread-chip">{{ unread_notification_count }}</span>{% endif %}</span>
+      <span class="more-chevron">›</span>
+    </a>
   </div>
 
   {# ── Groups ── #}

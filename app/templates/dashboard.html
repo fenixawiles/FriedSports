@@ -29,6 +29,19 @@
 
   <div class="dashboard-header">
     <h1>{{ current_user.shown_name }}</h1>
+    {% if groups %}
+    <div class="dashboard-stats">
+      {{ stats.groups }} group{{ 's' if stats.groups != 1 }}
+      <span class="stat-sep">·</span>
+      {% if stats.unread_threads > 0 %}
+      <span class="stat-unread">{{ stats.unread_threads }} unread thread{{ 's' if stats.unread_threads != 1 }}</span>
+      {% else %}
+      all caught up
+      {% endif %}
+      <span class="stat-sep">·</span>
+      {{ stats.active_threads }} active
+    </div>
+    {% endif %}
   </div>
 
   {% if not groups %}
@@ -40,6 +53,9 @@
     </div>
   </div>
   {% else %}
+
+  <div class="dashboard-columns">
+  <div class="dashboard-main-col">
 
   <section class="dashboard-section">
     <div class="section-header">
@@ -54,13 +70,36 @@
     </div>
     <div class="group-list">
       {% for item in groups %}
+      {% set latest = latest_by_group.get(item.group.id) %}
+      {% set g_unread = group_unread.get(item.group.id, 0) %}
       <a href="{{ url_for('groups.show', group_id=item.group.id) }}" class="group-card">
         <div class="group-card-left">
-          <div class="group-card-name">{{ item.group.name }}</div>
+          <div class="group-card-name">
+            {% if g_unread > 0 %}<span class="unread-dot" aria-label="unread"></span>{% endif %}
+            {{ item.group.name }}
+          </div>
           <div class="group-card-meta">
             <span class="badge-scope">{{ item.group.league_scope }}</span>
             <span class="badge-role {{ item.member.role }}">{{ item.member.role }}</span>
+            <span class="group-meta-text">{{ member_counts.get(item.group.id, 1) }} member{{ 's' if member_counts.get(item.group.id, 1) != 1 }}</span>
           </div>
+          {% if latest %}
+          {% set lm = last_msgs.get(latest.id) %}
+          <div class="group-card-preview">
+            <span class="group-preview-title">{{ latest.title | truncate(40, True, '…') }}</span>
+            <span class="activity-meta">
+              {% if msg_counts.get(latest.id, 0) > 0 %}
+              {{ msg_counts.get(latest.id, 0) }} repl{{ 'y' if msg_counts.get(latest.id, 0) == 1 else 'ies' }}
+              {% endif %}
+              {% if g_unread > 0 %}<span class="unread-chip">{{ g_unread }} new</span>{% endif %}
+              {% if lm %}<span>{{ time_ago(lm.created_at) }}</span>{% endif %}
+            </span>
+          </div>
+          {% else %}
+          <div class="group-card-preview group-card-preview-empty">
+            No active threads. Start one before the takes go undocumented.
+          </div>
+          {% endif %}
         </div>
         <span style="color:var(--text-muted);font-size:0.8rem">→</span>
       </a>
@@ -78,10 +117,16 @@
     </div>
     <div class="alert-list">
       {% for thread in active_threads %}
+      {% set t_unread = unread_counts.get(thread.id, 0) %}
       <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="alert-banner">
         <div class="alert-body">
           <div class="alert-title">{{ thread.title }}</div>
-          <div class="alert-meta">{{ msg_counts.get(thread.id, 0) }} messages &middot; {{ thread.group.name }}</div>
+          <div class="alert-meta">
+            {{ msg_counts.get(thread.id, 0) }} repl{{ 'y' if msg_counts.get(thread.id, 0) == 1 else 'ies' }}
+            {% if t_unread > 0 %}<span class="unread-chip">{{ t_unread }} new</span>{% endif %}
+            &middot; {{ thread.group.name }}
+            &middot; {{ time_ago(thread.updated_at) }}
+          </div>
         </div>
         <div class="alert-arrow">→</div>
       </a>
@@ -90,28 +135,76 @@
   </section>
   {% endif %}
 
+  </div>{# /dashboard-main-col #}
+
+  {# ── Desktop side panel (≥1080px) ── #}
+  <aside class="dashboard-side-col" aria-label="Activity panel">
+    <div class="side-panel-section">
+      <div class="side-panel-title">Hot Right Now</div>
+      {% if hot_threads %}
+      {% for thread in hot_threads %}
+      {% set t_unread = unread_counts.get(thread.id, 0) %}
+      <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="side-panel-row">
+        <span class="side-panel-row-title">{{ thread.title | truncate(48, True, '…') }}</span>
+        <span class="side-panel-row-meta">
+          {{ thread.group.name }}
+          {% if t_unread > 0 %}<span class="unread-chip">{{ t_unread }} new</span>{% endif %}
+          · {{ time_ago(thread.updated_at) }}
+        </span>
+      </a>
+      {% endfor %}
+      {% else %}
+      <div class="side-panel-empty">No one's talking reckless yet.</div>
+      {% endif %}
+    </div>
+
+    <div class="side-panel-section">
+      <div class="side-panel-title">Recent Activity</div>
+      {% if recent_events %}
+      {% for ev in recent_events %}
+      {% set ev_label = {
+        'reply': 'replied',
+        'vote': 'voted',
+        'thread_started': 'started a thread',
+        'member_joined': 'joined',
+      }.get(ev.event_type, ev.event_type) %}
+      {% if ev.event_type in ('reply', 'vote', 'thread_started') and ev.entity_id %}
+      <a href="{{ url_for('threads.show', thread_id=ev.entity_id) }}" class="side-panel-row">
+        <span class="side-panel-row-meta">
+          <strong>{{ ev.actor.shown_name if ev.actor else 'Someone' }}</strong>
+          {{ ev_label }} · {{ time_ago(ev.created_at) }}
+        </span>
+      </a>
+      {% else %}
+      <div class="side-panel-row">
+        <span class="side-panel-row-meta">
+          <strong>{{ ev.actor.shown_name if ev.actor else 'Someone' }}</strong>
+          {{ ev_label }} · {{ time_ago(ev.created_at) }}
+        </span>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% else %}
+      <div class="side-panel-empty">Quiet so far. Suspiciously quiet.</div>
+      {% endif %}
+    </div>
+
+    <div class="side-panel-section">
+      <div class="side-panel-title">Quick Actions</div>
+      <a href="{{ url_for('dashboard.threads_list') }}#new" class="side-panel-row">Start an incident</a>
+      <a href="{{ url_for('groups.new') }}" class="side-panel-row">New group</a>
+      <a href="{{ url_for('friends.index') }}" class="side-panel-row">
+        Add friends
+        {% if pending_friend_request_count > 0 %}<span class="unread-chip">{{ pending_friend_request_count }}</span>{% endif %}
+      </a>
+    </div>
+  </aside>
+  </div>{# /dashboard-columns #}
+
   {% endif %}
 
 </div>
 {% endblock %}
-{% block scripts %}
-<script>
-  function pollAlerts() {
-    fetch('/api/dashboard/alerts.json')
-      .then(r => r.json())
-      .then(data => {
-        const badge = document.getElementById('alert-badge');
-        const count = document.getElementById('alert-count');
-        if (data.count > 0) {
-          count.textContent = data.count;
-          badge.style.display = 'inline-flex';
-        } else {
-          badge.style.display = 'none';
-        }
-      })
-      .catch(() => {});
-  }
-  pollAlerts();
-  window._dashboardPollTimer = setInterval(pollAlerts, 20000);
-</script>
-{% endblock %}
+{# Note: the old 20s alert poller was removed — it updated #alert-badge /
+   #alert-count, elements that no longer exist. Unread state now renders
+   server-side on every visit. #}

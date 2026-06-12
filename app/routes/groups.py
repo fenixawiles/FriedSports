@@ -282,6 +282,8 @@ def join(invite_code):
             role="member",
         )
         db.session.add(member)
+        from app.services.activity import record_event
+        record_event(group.id, current_user.id, "member_joined")
         db.session.commit()
         flash(f'Joined "{group.name}"!', "success")
         return redirect(url_for("groups.show", group_id=group.id))

@@ -12,6 +12,46 @@ function _dismissFlashes() {
 }
 _dismissFlashes();
 
+// ── Programmatic toasts — same look as server flashes ────────────────────────
+window.showToast = function (message, type) {
+  type = type || 'info';
+  var container = document.querySelector('.flash-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'flash-container';
+    document.body.appendChild(container);
+  }
+  var el = document.createElement('div');
+  el.className = 'flash flash-' + type;
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(function () {
+    el.style.transition = 'opacity 0.4s';
+    el.style.opacity = '0';
+    setTimeout(function () { el.remove(); }, 400);
+  }, 3000);
+};
+
+// ── Overflow (three-dot) menus — event delegation, works after Turbo swaps ──
+// Guarded: body scripts re-run on every Turbo visit, but document-level
+// listeners survive the swap, so wire exactly once.
+if (!window._overflowMenusWired) {
+  window._overflowMenusWired = true;
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.overflow-menu-btn');
+    // Close all open menus on any click
+    document.querySelectorAll('.overflow-menu').forEach(function (menu) {
+      if (!btn || menu !== document.getElementById(btn.getAttribute('aria-controls'))) {
+        menu.hidden = true;
+      }
+    });
+    if (!btn) return;
+    e.stopPropagation();
+    var menu = document.getElementById(btn.getAttribute('aria-controls'));
+    if (menu) menu.hidden = !menu.hidden;
+  });
+}
+
 // ── Loading state helpers ────────────────────────────────────────────────────
 var _bar = document.getElementById('page-loading-bar');
 

@@ -35,3 +35,7 @@ instance/
 
 # Flask-Migrate (keep migrations folder but not local lock)
 migrations/versions/*.pyc
+
+# Node
+node_modules/
+package-lock.json

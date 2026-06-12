@@ -15,10 +15,22 @@
     display: flex; flex-direction: column;
     overflow: hidden;
   }
+  /* thread-outer keeps the full-height flex chain intact; becomes a
+     row with the context panel at ≥980px (rule in styles.css) */
+  .thread-outer {
+    display: flex; flex-direction: column;
+    flex: 1; min-height: 0; overflow: hidden;
+  }
+  @media (min-width: 980px) {
+    .thread-outer { flex-direction: row; }
+  }
   .thread-container {
     display: flex; flex-direction: column;
     flex: 1; min-height: 0; overflow: hidden;
     padding: 0; margin: 0; width: 100%;
+  }
+  @media (min-width: 980px) {
+    .thread-container { width: auto; }
   }
   .thread-header-wrap {
     flex-shrink: 0;
@@ -66,6 +78,7 @@
 {% set event = thread.group_trigger.game_event %}
 {% set ir = event.incident_report if event else none %}
 
+<div class="thread-outer">
 <div class="thread-container">
 
   {# ── Compact header ── #}
@@ -87,43 +100,71 @@
   {# ── Chat window ── #}
   <div class="chat-window" id="chat-window">
 
-    {# Incident strip — compact one-liner at top of chat #}
+    {# Incident card — the case being judged #}
     {% if ir %}
-    <div class="incident-strip">
-      <div class="incident-strip-text">
-        <span class="istrip-type">{{ ir.incident_type.replace('_',' ').title() }}</span>
-        <span class="istrip-sep">·</span>
-        <span>Severity {{ ir.severity }}/5</span>
-        <span class="istrip-sep">·</span>
-        <span>by {{ ir.reporter.display_name }}</span>
-        {% if ir.reported_score_text %}
-        <span class="istrip-sep">·</span>
-        <span class="istrip-context">"{{ ir.reported_score_text }}"</span>
-        {% endif %}
+    <div class="incident-card">
+      <div class="incident-card-header">
+        <span class="icard-type">{{ ir.incident_type.replace('_',' ').title() }}</span>
+        <span class="status-badge {{ ir.status }}">{{ ir.status }}</span>
+        <span class="icard-severity">Severity {{ ir.severity }}/5</span>
       </div>
-      {% set show_actions = (ir.status == 'active' and member and member.role in ('owner','admin'))
-                         or (ir.status not in ('dismissed','redeemed') and member and member.role in ('owner','admin'))
-                         or (ir.status not in ('redeemed',) and (current_user.id == thread.target_user_id or (member and member.role in ('owner','admin')))) %}
-      {% if show_actions %}
-      <div class="incident-strip-actions">
-        {% if ir.status == 'active' and member and member.role in ('owner','admin') %}
+      <div class="icard-meta">
+        Filed by {{ ir.reporter.shown_name }}{% if ir.reported_score_text %} · "{{ ir.reported_score_text }}"{% endif %}
+      </div>
+      {% if ir.description %}
+      <div class="icard-description">{{ ir.description }}</div>
+      {% endif %}
+      {% if member %}
+      <div class="icard-vote-row" id="icard-vote-row">
+        <button class="vote-btn{{ ' active' if user_vote == 'confirm' }}" data-vote="confirm" type="button">
+          Confirm <span class="vote-num" data-vote-num="confirm">{{ vote_counts.confirm }}</span>
+        </button>
+        <button class="vote-btn{{ ' active' if user_vote == 'dismiss' }}" data-vote="dismiss" type="button">
+          Dismiss <span class="vote-num" data-vote-num="dismiss">{{ vote_counts.dismiss }}</span>
+        </button>
+        <button class="vote-btn{{ ' active' if user_vote == 'redeem' }}" data-vote="redeem" type="button">
+          Redeemed <span class="vote-num" data-vote-num="redeem">{{ vote_counts.redeem }}</span>
+        </button>
+      </div>
+      {% endif %}
+      {# Moderator case actions — change the official case status #}
+      {% set is_mod = member and member.role in ('owner','admin') %}
+      {% set can_redeem_status = ir.status != 'redeemed' and (current_user.id == thread.target_user_id or is_mod) %}
+      {% if (is_mod and ir.status not in ('dismissed','redeemed')) or can_redeem_status %}
+      <div class="icard-mod-row">
+        <span>Case actions:</span>
+        {% if is_mod and ir.status == 'active' %}
         <form action="{{ url_for('reports.confirm', report_id=ir.id) }}" method="post">
-          <button class="istrip-action-btn">Confirm</button>
+          <button class="icard-mod-btn">Confirm case</button>
         </form>
         {% endif %}
-        {% if ir.status not in ('dismissed','redeemed') and member and member.role in ('owner','admin') %}
+        {% if is_mod and ir.status not in ('dismissed','redeemed') %}
         <form action="{{ url_for('reports.dismiss', report_id=ir.id) }}" method="post"
               onsubmit="return confirm('Dismiss this report? The reporter will lose 5 points.')">
-          <button class="istrip-action-btn istrip-action-danger">Dismiss</button>
+          <button class="icard-mod-btn">Dismiss case</button>
         </form>
         {% endif %}
-        {% if ir.status not in ('redeemed',) and (current_user.id == thread.target_user_id or (member and member.role in ('owner','admin'))) %}
+        {% if can_redeem_status %}
         <form action="{{ url_for('reports.redeem', report_id=ir.id) }}" method="post">
-          <button class="istrip-action-btn">Mark Redeemed</button>
+          <button class="icard-mod-btn">Mark redeemed</button>
         </form>
         {% endif %}
       </div>
       {% endif %}
+    </div>
+    {% endif %}
+
+    {# Empty-thread state with quick prompts #}
+    {% set user_msgs = messages | selectattr('message_type', 'equalto', 'user') | list %}
+    {% if not user_msgs and thread.status == 'active' %}
+    <div class="empty-state chat-empty" id="chat-empty-state">
+      <p class="chat-empty-lead">No takes yet.</p>
+      <p>Be the first to pile on.</p>
+      <div class="quick-prompts">
+        <button class="prompt-chip" type="button" data-prompt="Cook him. ">Cook him</button>
+        <button class="prompt-chip" type="button" data-prompt="In his defense… ">Defend him</button>
+        <button class="prompt-chip" type="button" data-prompt="Receipts or it didn't happen. ">Ask for evidence</button>
+      </div>
     </div>
     {% endif %}
 
@@ -171,7 +212,7 @@
     <form method="post" action="{{ url_for('threads.post_message', thread_id=thread.id) }}" class="chat-form" id="chat-form">
       <div class="chat-input-pill">
         <textarea name="body" id="chat-input"
-                  placeholder="Say something…" maxlength="1000" rows="1" required
+                  placeholder="Say something reckless…" maxlength="1000" rows="1" required
                   style="font-size:16px" enterkeyhint="send"></textarea>
         <button type="submit" class="chat-submit" id="chat-send" disabled aria-label="Send">
           <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
@@ -188,7 +229,51 @@
   <div class="thread-closed-notice">This thread is closed.</div>
   {% endif %}
 
-</div>
+</div>{# /thread-container #}
+
+{# ── Desktop context panel (≥980px) ── #}
+<aside class="thread-context-panel" aria-label="Case context">
+  <div class="ctx-section">
+    <div class="side-panel-title">Case Status</div>
+    <div class="ctx-status">{{ ir.status if ir else thread.status }}</div>
+    {% if ir %}
+    <div class="ctx-meta">Severity {{ ir.severity }}/5</div>
+    <div class="ctx-meta">Filed by {{ ir.reporter.shown_name }}</div>
+    {% endif %}
+    <div class="ctx-meta">Opened {{ time_ago(thread.created_at) }}</div>
+  </div>
+  {% if member %}
+  <div class="ctx-section">
+    <div class="side-panel-title">Group Vote</div>
+    <div class="ctx-vote-row"><span>Confirmed</span><span class="ctx-vote-num" data-ctx-vote="confirm">{{ vote_counts.confirm }}</span></div>
+    <div class="ctx-vote-row"><span>Dismissed</span><span class="ctx-vote-num" data-ctx-vote="dismiss">{{ vote_counts.dismiss }}</span></div>
+    <div class="ctx-vote-row"><span>Redeemed</span><span class="ctx-vote-num" data-ctx-vote="redeem">{{ vote_counts.redeem }}</span></div>
+  </div>
+  {% endif %}
+  <div class="ctx-section">
+    <div class="side-panel-title">Participants</div>
+    {% if participants %}
+    {% for p in participants %}
+    <div class="ctx-participant">
+      <span class="avatar-initials">{{ p.initials }}</span>
+      {{ p.shown_name }}
+      {% if p.id == thread.target_user_id %}<span class="target-tag">target</span>{% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="side-panel-empty">No one has piled on yet.</div>
+    {% endif %}
+  </div>
+  <div class="ctx-section">
+    <div class="side-panel-title">Group</div>
+    <a href="{{ url_for('groups.show', group_id=group.id) }}" class="side-panel-row">
+      <span class="side-panel-row-title">{{ group.name }}</span>
+      <span class="side-panel-row-meta">{{ member_count }} member{{ 's' if member_count != 1 }}</span>
+    </a>
+  </div>
+</aside>
+
+</div>{# /thread-outer #}
 {% endblock %}
 {% block footer %}{% endblock %}
 {% block scripts %}

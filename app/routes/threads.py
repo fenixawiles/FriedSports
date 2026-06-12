@@ -40,6 +40,25 @@ def show(thread_id):
         group_id=thread.group_id, user_id=current_user.id
     ).first()
 
+    # Opening the thread clears its unread state
+    if member:
+        from app.services.activity import mark_thread_read
+        mark_thread_read(current_user.id, thread_id)
+        db.session.commit()
+
+    vote_counts = thread.vote_counts()
+    user_vote = thread.user_vote(current_user.id)
+
+    # Participants for the desktop context panel — unique visible authors
+    participants = []
+    seen = set()
+    for m in messages:
+        if m.author and m.author.id not in seen:
+            seen.add(m.author.id)
+            participants.append(m.author)
+
+    member_count = group.members.count()
+
     return render_template(
         "threads/show.html",
         thread=thread,
@@ -47,6 +66,10 @@ def show(thread_id):
         messages=messages,
         last_id=last_id,
         member=member,
+        vote_counts=vote_counts,
+        user_vote=user_vote,
+        participants=participants,
+        member_count=member_count,
     )
 
 
@@ -85,6 +108,13 @@ def post_message(thread_id):
     db.session.flush()
 
     apply_thread_points(thread, msg)
+
+    from app.services.activity import refresh_hot_score, record_event, mark_thread_read
+    from app.models import now_utc
+    thread.updated_at = now_utc()
+    refresh_hot_score(thread)
+    record_event(thread.group_id, current_user.id, "reply", thread_id)
+    mark_thread_read(current_user.id, thread_id)
     db.session.commit()
 
     # Notify the thread's target user when someone else posts in their thread

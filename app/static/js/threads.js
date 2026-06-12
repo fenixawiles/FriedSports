@@ -292,6 +292,91 @@
           if (chatSendBtn) chatSendBtn.disabled = false;
           chatTextarea.focus();
         });
+
+      // First take removes the empty state
+      const emptyState = document.getElementById('chat-empty-state');
+      if (emptyState) emptyState.remove();
+    });
+  }
+
+  // ── Quick prompts (empty thread) — prefill the input ──────────────────────
+  if (chatWindow) {
+    chatWindow.addEventListener('click', function (e) {
+      const chip = e.target.closest('.prompt-chip');
+      if (!chip || !chatTextarea) return;
+      chatTextarea.value = chip.getAttribute('data-prompt') || '';
+      chatTextarea.focus();
+      chatTextarea.setSelectionRange(chatTextarea.value.length, chatTextarea.value.length);
+      chatTextarea.dispatchEvent(new Event('input'));
+    });
+  }
+
+  // ── Group vote: Confirm / Dismiss / Redeemed — optimistic toggle ──────────
+  const voteRow = document.getElementById('icard-vote-row');
+  if (voteRow) {
+    let voteBusy = false;
+
+    function setVoteNum(type, n) {
+      document.querySelectorAll(
+        '[data-vote-num="' + type + '"], [data-ctx-vote="' + type + '"]'
+      ).forEach(function (el) { el.textContent = n; });
+    }
+    function getVoteNum(type) {
+      const el = voteRow.querySelector('[data-vote-num="' + type + '"]');
+      return el ? parseInt(el.textContent, 10) || 0 : 0;
+    }
+
+    voteRow.addEventListener('click', function (e) {
+      const btn = e.target.closest('.vote-btn');
+      if (!btn || voteBusy) return;
+      voteBusy = true;
+
+      const voteType = btn.getAttribute('data-vote');
+      const wasActive = btn.classList.contains('active');
+      const prevActive = voteRow.querySelector('.vote-btn.active');
+      const prevType = prevActive ? prevActive.getAttribute('data-vote') : null;
+
+      // Optimistic update: one vote per user — switching moves the count
+      const snapshot = {};
+      ['confirm', 'dismiss', 'redeem'].forEach(function (t) { snapshot[t] = getVoteNum(t); });
+
+      if (prevActive) {
+        prevActive.classList.remove('active');
+        setVoteNum(prevType, Math.max(0, getVoteNum(prevType) - 1));
+      }
+      if (!wasActive) {
+        btn.classList.add('active');
+        setVoteNum(voteType, getVoteNum(voteType) + 1);
+      }
+
+      fetch('/api/threads/' + THREAD_ID + '/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ vote_type: voteType }),
+      })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (data) {
+          // Reconcile with authoritative counts
+          ['confirm', 'dismiss', 'redeem'].forEach(function (t) {
+            setVoteNum(t, data.votes[t] || 0);
+          });
+          voteRow.querySelectorAll('.vote-btn').forEach(function (b) {
+            b.classList.toggle('active', b.getAttribute('data-vote') === data.user_vote);
+          });
+          if (typeof showToast === 'function') {
+            showToast(data.user_vote ? 'Vote recorded' : 'Vote removed', 'success');
+          }
+        })
+        .catch(function () {
+          // Revert to snapshot
+          ['confirm', 'dismiss', 'redeem'].forEach(function (t) { setVoteNum(t, snapshot[t]); });
+          voteRow.querySelectorAll('.vote-btn').forEach(function (b) {
+            b.classList.toggle('active', b.getAttribute('data-vote') === prevType);
+          });
+          if (typeof showToast === 'function') showToast('Vote failed — try again', 'error');
+        })
+        .finally(function () { voteBusy = false; });
     });
   }
 })();

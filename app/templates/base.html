@@ -9,16 +9,69 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="shortcut icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=8">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=9">
   <!-- Turbo Drive — app-shell navigation (content swap without full page reload) -->
   <!-- no-preview: never show stale cached snapshots before fresh data arrives -->
   <meta name="turbo-cache-control" content="no-preview">
   <script type="module" src="{{ url_for('static', filename='js/turbo.js') }}"></script>
   {% block head %}{% endblock %}
 </head>
-<body>
+<body{% if current_user.is_authenticated %} class="has-sidebar"{% endif %}>
   <div id="page-loading-bar"></div>
   <div id="nav-overlay" class="nav-overlay"></div>
+
+  {% if current_user.is_authenticated %}
+  {# ── Desktop sidebar (≥768px) — mobile keeps the bottom nav ── #}
+  {% set _path = request.path %}
+  <aside class="app-sidebar" aria-label="Primary navigation">
+    <a href="{{ url_for('auth.index') }}" class="sidebar-logo">
+      <img src="{{ url_for('static', filename='img/fs-logo.png') }}" class="nav-logo-img" alt="FS" width="22" height="22">
+      FriedSports
+    </a>
+    <div class="sidebar-cta">
+      <a href="{{ url_for('dashboard.threads_list') }}#new" class="btn-primary-small">+ Start Incident</a>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('auth.index') }}" class="sidebar-item{{ ' active' if _path == '/' }}">Home</a>
+      <a href="{{ url_for('dashboard.dashboard') }}" class="sidebar-item{{ ' active' if _path.startswith('/dashboard') }}">Groups</a>
+      <a href="{{ url_for('dashboard.threads_list') }}" class="sidebar-item{{ ' active' if _path.startswith('/threads') }}">
+        Threads
+        {% if nav_unread_total > 0 %}<span class="sidebar-badge">{{ nav_unread_total }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('friends.index') }}" class="sidebar-item{{ ' active' if _path.startswith('/friends') }}">
+        Friends
+        {% if pending_friend_request_count > 0 %}<span class="sidebar-badge">{{ pending_friend_request_count }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('dashboard.notifications') }}" class="sidebar-item{{ ' active' if _path.startswith('/notifications') }}">
+        Notifications
+        {% if unread_notification_count > 0 %}<span class="sidebar-badge">{{ unread_notification_count }}</span>{% endif %}
+      </a>
+
+      {% if nav_groups %}
+      <div class="sidebar-section-label">Your Groups</div>
+      {% for g in nav_groups[:6] %}
+      <a href="{{ url_for('groups.show', group_id=g.id) }}" class="sidebar-group-item">
+        <span class="sidebar-group-name">
+          {{ g.name }}
+          {% if nav_group_unread.get(g.id, 0) > 0 %}<span class="sidebar-dot" aria-label="unread"></span>{% endif %}
+        </span>
+      </a>
+      {% endfor %}
+      {% endif %}
+    </nav>
+    <div class="sidebar-bottom">
+      <a href="{{ url_for('dashboard.settings') }}" class="sidebar-item{{ ' active' if _path.startswith('/settings') }}">{{ current_user.shown_name }}</a>
+      <a href="{{ url_for('support.index') }}" class="sidebar-item">Support</a>
+      {% if current_user.is_admin %}
+      <a href="{{ url_for('admin.dashboard') }}" class="sidebar-item">Lab</a>
+      <a href="{{ url_for('admin.tools_dashboard') }}" class="sidebar-item">Admin</a>
+      {% endif %}
+      <form action="{{ url_for('auth.logout') }}" method="post" style="width:100%">
+        <button type="submit" class="sidebar-item sidebar-logout">Log out</button>
+      </form>
+    </div>
+  </aside>
+  {% endif %}
   <nav class="navbar" id="main-nav">
     <div class="nav-inner">
       <a href="{{ url_for('auth.index') }}" class="nav-logo">
@@ -111,6 +164,7 @@
     {% endwith %}
   </div>
 
+  <div class="app-main-col">
   <main class="main-content">
     <div id="page-back" style="display:none" class="page-back-wrap">
       <button type="button" class="page-back-btn" onclick="history.back()">← Back</button>
@@ -129,6 +183,7 @@
     {% endif %}
   </footer>
   {% endblock %}
+  </div>{# /app-main-col #}
 
 
   {% if current_user.is_authenticated %}

@@ -80,6 +80,10 @@ def create_incident_thread(report):
     )
     db.session.add(msg)
 
+    from app.services.activity import record_event
+    record_event(report.group_id, report.reporter_user_id,
+                 "thread_started", thread.id)
+
     apply_incident_shame(report.group_id, report.target_user_id, report.severity)
     apply_reporter_points(
         report.group_id,
