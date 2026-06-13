@@ -269,7 +269,7 @@
       // Clear input immediately — the key to feeling instant
       chatTextarea.value = '';
       chatTextarea.style.height = '';
-      if (chatSendBtn) chatSendBtn.disabled = true;
+      if (chatSendBtn) { chatSendBtn.disabled = true; chatSendBtn.classList.add('sending'); }
 
       const fd = new FormData();
       fd.append('body', body);
@@ -316,6 +316,10 @@
           if (err && err.serverMessage && typeof showToast === 'function') {
             showToast(err.serverMessage, 'error');
           }
+        })
+        .finally(function () {
+          // Revert the send button from spinner back to the arrow
+          if (chatSendBtn) chatSendBtn.classList.remove('sending');
         });
 
       // First take removes the empty state

@@ -1,75 +1,81 @@
 {% extends "base.html" %}
 {% block title %}{{ thread.title }} — FriedSports{% endblock %}
 
+{% block body_class %} thread-view{% endblock %}
 {% block head %}
 <meta name="turbo-cache-control" content="no-cache">
 <style>
-  html, body { height: 100%; }
-  /* Dynamic viewport height fixes the chat input being buried under Safari's tab bar */
-  @supports (height: 100dvh) { html, body { height: 100dvh; } }
-  /* Thread has its own back link — suppress the global one */
-  #page-back { display: none !important; }
-  .main-content {
+  /* All rules are scoped to body.thread-view so they go inert the moment Turbo
+     navigates away (the new page's body has no .thread-view), even if this
+     inline <style> lingers in <head>. This stops the chat layout from leaking
+     onto the threads list — the bug where the bottom nav stayed hidden and the
+     page went full-bleed / off-center after leaving a chat. */
+
+  /* Dynamic viewport height keeps the input above the mobile browser chrome */
+  body.thread-view { height: 100dvh; overflow: hidden; }
+  /* min-height:0 all the way down the flex chain so a tall chat window can
+     shrink+scroll instead of pushing the input area below the viewport
+     (which is what buried the input behind the browser nav bar on send). */
+  body.thread-view .app-main-col { flex: 1; min-height: 0; }
+  body.thread-view #page-back { display: none !important; }  /* thread has its own back link */
+  body.thread-view .main-content {
     flex: 1; min-height: 0;
     padding: 0 !important;
     display: flex; flex-direction: column;
     overflow: hidden;
+    max-width: 100% !important; margin: 0 !important;
   }
   /* thread-outer keeps the full-height flex chain intact; becomes a
      row with the context panel at ≥980px (rule in styles.css) */
-  .thread-outer {
+  body.thread-view .thread-outer {
     display: flex; flex-direction: column;
     flex: 1; min-height: 0; overflow: hidden;
   }
   @media (min-width: 980px) {
-    .thread-outer { flex-direction: row; }
+    body.thread-view .thread-outer { flex-direction: row; }
   }
-  .thread-container {
+  body.thread-view .thread-container {
     display: flex; flex-direction: column;
     flex: 1; min-height: 0; overflow: hidden;
     padding: 0; margin: 0; width: 100%;
   }
   @media (min-width: 980px) {
-    .thread-container { width: auto; }
+    body.thread-view .thread-container { width: auto; }
   }
-  .thread-header-wrap {
+  body.thread-view .thread-header-wrap {
     flex-shrink: 0;
     padding: 0.85rem 0.85rem 0;
     border-bottom: 1px solid var(--border);
   }
-  .thread-header { margin-bottom: 0.6rem; padding-bottom: 0; border-bottom: none; }
-  .chat-window {
+  body.thread-view .thread-header { margin-bottom: 0.6rem; padding-bottom: 0; border-bottom: none; }
+  body.thread-view .chat-window {
     flex: 1; min-height: 0; max-height: none !important;
     padding: 0.75rem 0 0.5rem;
     overflow-y: auto;
   }
-  .chat-input-area {
+  /* Input sits flush at the bottom — only the safe-area inset, no phantom
+     gap. (The old 62px was reserving room for a bottom nav that is hidden
+     in chat, leaving an empty band under the input.) */
+  body.thread-view .chat-input-area {
     flex-shrink: 0;
     padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
   }
-  /* Edge-to-edge on desktop — remove global max-width centering */
-  .main-content { max-width: 100% !important; margin: 0 !important; }
-  /* Thread is a focused conversation — hide all navigation chrome on mobile */
+  /* Thread is a focused conversation — hide navigation chrome on mobile */
   @media (max-width: 640px) {
-    #main-nav  { display: none !important; }
-    #bottom-nav { display: none !important; }
+    body.thread-view #main-nav  { display: none !important; }
+    body.thread-view #bottom-nav { display: none !important; }
   }
   /* Desktop: add horizontal breathing room without reintroducing a max-width */
   @media (min-width: 641px) {
-    .thread-header-wrap { padding: 1rem 2.5rem 0; }
-    .chat-window { padding-left: 2.5rem; padding-right: 2.5rem; }
-    .chat-input-area { padding-left: 2.5rem; padding-right: 2.5rem; }
+    body.thread-view .thread-header-wrap { padding: 1rem 2.5rem 0; }
+    body.thread-view .chat-window { padding-left: 2.5rem; padding-right: 2.5rem; }
+    body.thread-view .chat-input-area { padding-left: 2.5rem; padding-right: 2.5rem; }
   }
   /* Force completely flat messages — no box whatsoever */
-  .message-bubble {
+  body.thread-view .message-bubble {
     background: none !important; border: none !important;
     border-radius: 0 !important; box-shadow: none !important;
     padding: 0.1rem 0 !important;
-  }
-  @media (max-width: 640px) {
-    .chat-input-area {
-      padding: 0.5rem 0.75rem calc(62px + env(safe-area-inset-bottom));
-    }
   }
 </style>
 {% endblock %}
@@ -221,11 +227,15 @@
                   placeholder="Say something reckless…" maxlength="1000" rows="1" required
                   style="font-size:16px" enterkeyhint="send"></textarea>
         <button type="submit" class="chat-submit" id="chat-send" disabled aria-label="Send">
-          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+          <svg class="chat-send-arrow" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
                fill="none" stroke="currentColor" stroke-width="2.5"
                stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="19" x2="12" y2="5"/>
             <polyline points="5 12 12 5 19 12"/>
+          </svg>
+          <svg class="chat-send-spinner" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
           </svg>
         </button>
       </div>
