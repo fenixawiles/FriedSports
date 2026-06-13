@@ -127,12 +127,18 @@ def create_app(config=None):
                 "nav_group_unread": {},
             }
 
-        notif_count = _Notif.query.filter_by(
-            user_id=current_user.id, is_read=False
-        ).count()
-        fr_count = _FR.query.filter_by(
-            to_user_id=current_user.id, status="pending"
-        ).count()
+        # Both header badge counts in a single round-trip (was two queries).
+        from sqlalchemy import select, func as _func
+        notif_count, fr_count = db.session.execute(
+            select(
+                select(_func.count()).select_from(_Notif)
+                    .where(_Notif.user_id == current_user.id, _Notif.is_read.is_(False))
+                    .scalar_subquery(),
+                select(_func.count()).select_from(_FR)
+                    .where(_FR.to_user_id == current_user.id, _FR.status == "pending")
+                    .scalar_subquery(),
+            )
+        ).one()
 
         memberships = (
             _GM.query
@@ -194,8 +200,23 @@ def create_app(config=None):
 
     register_commands(app)
 
+    # Keep-warm / liveness probe. Point an external uptime pinger (or Railway
+    # cron) at this every ~4 minutes so Neon's compute never autosuspends —
+    # which is what makes the first click after idle hang for seconds. Does a
+    # single trivial round-trip; no auth, no templates, no nav queries.
+    @app.route("/healthz")
+    def healthz():
+        from flask import jsonify
+        from sqlalchemy import text
+        try:
+            db.session.execute(text("SELECT 1"))
+            return jsonify(status="ok"), 200
+        except Exception:
+            db.session.rollback()
+            return jsonify(status="degraded"), 503
+
     # Global handler for unhandled SQLAlchemy errors (stale connections, etc.)
-    # These manifest as OperationalError or DatabaseError from pg8000/Postgres.
+    # These manifest as OperationalError or DatabaseError from the driver.
     # Without this, they bubble up as raw 500 pages.
     from sqlalchemy.exc import OperationalError, DatabaseError
 

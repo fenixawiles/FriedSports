@@ -1,1 +1,1 @@
-web: gunicorn --workers 2 --threads 2 --bind 0.0.0.0:$PORT wsgi:app
+web: FLASK_APP=wsgi.py flask db upgrade && gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --graceful-timeout 30 --worker-tmp-dir /dev/shm --access-logfile - --error-logfile -

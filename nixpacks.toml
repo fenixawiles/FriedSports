@@ -10,5 +10,14 @@ cmds = [
   "pip install -r requirements.txt"
 ]
 
+# IMPORTANT: a bare `gunicorn wsgi:app` runs ONE sync worker / ONE thread, so
+# production serves a single request at a time. The 3s thread poll + every
+# page's DB work then queue behind each other, and any Neon cold-start freezes
+# the whole app. Explicit workers+threads give real concurrency for this
+# I/O-bound (DB-waiting) workload.
+#
+# `flask db upgrade` runs FIRST so the schema is always current before the app
+# serves — otherwise newly-deployed model columns 500 every request until a
+# migration is applied by hand. Runs once (start cmd), then gunicorn forks.
 [start]
-cmd = "gunicorn wsgi:app"
+cmd = "FLASK_APP=wsgi.py flask db upgrade && gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --graceful-timeout 30 --worker-tmp-dir /dev/shm --access-logfile - --error-logfile -"

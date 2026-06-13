@@ -12,25 +12,38 @@ class Config:
     # Normalize legacy postgres:// to postgresql://
     if _db_url.startswith("postgres://"):
         _db_url = _db_url.replace("postgres://", "postgresql://", 1)
-    # Use pg8000 driver for postgresql:// URLs (pure Python, works on Python 3.13)
-    _use_ssl = False
-    if _db_url.startswith("postgresql://") and "+pg8000" not in _db_url:
-        _use_ssl = "sslmode=require" in _db_url
-        _db_url = _db_url.replace("postgresql://", "postgresql+pg8000://", 1)
-        # Strip libpq-only query params (pg8000 ignores sslmode, channel_binding, etc.)
-        if "?" in _db_url:
-            _db_url = _db_url.split("?")[0]
+    # Use psycopg v3 (C/libpq) for Postgres — much faster connection + query
+    # handling than the pure-Python pg8000 driver, especially the TLS handshake
+    # that dominates Neon connection setup. libpq reads sslmode / channel_binding
+    # straight from the URL query string, so we keep the params intact.
+    _is_pg = _db_url.startswith("postgresql://")
+    if _is_pg and "+" not in _db_url.split("://", 1)[0]:
+        _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
     SQLALCHEMY_DATABASE_URI = _db_url
-    # pool_pre_ping: SQLAlchemy checks the connection is alive before using it.
-    # This is the primary fix for "stale connection" 500s when Neon's pooler
-    # drops an idle connection and the next request tries to reuse it.
-    # pool_recycle: proactively recycle connections every 5 minutes so they
-    # never outlive Neon's idle timeout.
+
+    # Connection-pool tuning for a remote (Neon) DB behind gunicorn workers.
+    #   pool_pre_ping  — drop dead connections (Neon's pooler closes idle ones)
+    #                    before handing them out, avoiding stale-connection 500s.
+    #   pool_recycle   — recycle before Neon's idle timeout would kill them.
+    #   pool_size/overflow — per-worker; with 2 workers x 4 threads this keeps a
+    #                    small warm set of reusable connections so most requests
+    #                    skip the expensive TLS reconnect.
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
-        "pool_recycle": 300,
-        **({"connect_args": {"ssl_context": True}} if _use_ssl else {}),
+        "pool_recycle": 280,
+        "pool_size": 5,
+        "max_overflow": 5,
     }
+    if _is_pg:
+        # 10s connect timeout so a Neon cold-start can't hang a worker forever;
+        # keepalives hold the TCP/TLS session open to avoid needless reconnects.
+        SQLALCHEMY_ENGINE_OPTIONS["connect_args"] = {
+            "connect_timeout": 10,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 3,
+        }
 
     # Static file caching — 1 year in production, disabled in development
     # so CSS/JS changes are visible immediately without hard-refreshing.
