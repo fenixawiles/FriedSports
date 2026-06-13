@@ -880,3 +880,99 @@ def support_detail(uid):
         return redirect(url_for("admin.support_detail", uid=uid))
 
     return render_template("admin/support/detail.html", ticket=ticket)
+
+
+# ── Content moderation queue (UGC reports) ────────────────────────────────────
+
+@admin_bp.route("/reports")
+@login_required
+@admin_required
+def reports_list():
+    """Queue of user-submitted content reports. Open reports first so they can
+    be actioned within the 24h window Apple's UGC guideline expects."""
+    from sqlalchemy.orm import joinedload
+    status_filter = request.args.get("status", "open")
+    q = (
+        MessageReport.query
+        .options(
+            joinedload(MessageReport.reporter),
+            joinedload(MessageReport.reviewed_by),
+        )
+        .order_by(MessageReport.created_at.desc())
+    )
+    if status_filter != "all":
+        q = q.filter(MessageReport.status == status_filter)
+    reports = q.all()
+
+    # Hydrate each report with its message + thread + author (one pass).
+    rows = []
+    for r in reports:
+        msg = db.session.get(GameThreadMessage, r.message_id)
+        thread = db.session.get(GameThread, msg.thread_id) if msg else None
+        author = db.session.get(User, msg.user_id) if (msg and msg.user_id) else None
+        rows.append({"report": r, "message": msg, "thread": thread, "author": author})
+
+    counts = {
+        "open":      MessageReport.query.filter_by(status="open").count(),
+        "resolved":  MessageReport.query.filter_by(status="resolved").count(),
+        "dismissed": MessageReport.query.filter_by(status="dismissed").count(),
+        "all":       MessageReport.query.count(),
+    }
+    return render_template(
+        "admin/reports/list.html",
+        rows=rows,
+        status_filter=status_filter,
+        counts=counts,
+    )
+
+
+@admin_bp.route("/reports/<int:report_id>/action", methods=["POST"])
+@login_required
+@admin_required
+def report_action(report_id):
+    """Action a content report: delete the offending message, or dismiss the
+    report. Both close the report and write an audit-log entry."""
+    from datetime import datetime, timezone
+    report = MessageReport.query.get_or_404(report_id)
+    action = request.form.get("action", "")
+    msg = db.session.get(GameThreadMessage, report.message_id)
+
+    if action == "delete_message":
+        if msg and not msg.is_deleted:
+            msg.is_deleted = True
+        report.status = "resolved"
+        report.resolution = "message_deleted"
+        # Resolve any sibling reports on the same message.
+        if msg:
+            MessageReport.query.filter(
+                MessageReport.message_id == msg.id,
+                MessageReport.status == "open",
+                MessageReport.id != report.id,
+            ).update(
+                {"status": "resolved", "resolution": "message_deleted",
+                 "reviewed_by_id": current_user.id, "reviewed_at": datetime.now(timezone.utc)},
+                synchronize_session=False,
+            )
+        detail = f"Deleted message #{report.message_id} (report #{report.id})"
+        flash("Message removed and report resolved.", "success")
+    elif action == "dismiss":
+        report.status = "dismissed"
+        report.resolution = "no_action"
+        detail = f"Dismissed report #{report.id} (message #{report.message_id})"
+        flash("Report dismissed.", "info")
+    else:
+        flash("Unknown action.", "error")
+        return redirect(url_for("admin.reports_list"))
+
+    report.reviewed_by_id = current_user.id
+    report.reviewed_at = datetime.now(timezone.utc)
+
+    db.session.add(AdminAuditLog(
+        admin_id=current_user.id,
+        target_user_id=(msg.user_id if msg else None),
+        action="content_moderation",
+        details=detail,
+        ip_address=request.remote_addr,
+    ))
+    db.session.commit()
+    return redirect(url_for("admin.reports_list", status=request.args.get("status", "open")))

@@ -57,8 +57,11 @@ def signup():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
+        agreed = request.form.get("agree_terms") in ("1", "on", "true")
 
         errors = []
+        if not agreed:
+            errors.append("You must agree to the Terms and community guidelines to sign up.")
         if not first_name:
             errors.append("First name is required.")
         if not last_name:
@@ -91,6 +94,7 @@ def signup():
             email=email,
             has_completed_profile=True,
             email_verified=False,
+            agreed_to_terms_at=datetime.now(timezone.utc),
         )
         user.set_password(password)
         try:

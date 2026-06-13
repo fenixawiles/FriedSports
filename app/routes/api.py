@@ -16,8 +16,9 @@ def thread_messages(thread_id):
         abort(403)
 
     after_id = request.args.get("after", 0, type=int)
+    hidden_ids = current_user.hidden_user_ids()
     # Eager-load author + reactions to eliminate N+1
-    messages = (
+    mq = (
         GameThreadMessage.query
         .filter(
             GameThreadMessage.thread_id == thread_id,
@@ -28,9 +29,10 @@ def thread_messages(thread_id):
             joinedload(GameThreadMessage.author),
             joinedload(GameThreadMessage.reactions),
         )
-        .order_by(GameThreadMessage.created_at)
-        .all()
     )
+    if hidden_ids:
+        mq = mq.filter(GameThreadMessage.user_id.notin_(hidden_ids))
+    messages = mq.order_by(GameThreadMessage.created_at).all()
 
     user_is_admin = _is_admin(current_user.id, thread.group_id)
     result = []
@@ -40,6 +42,7 @@ def thread_messages(thread_id):
             "type": m.message_type,
             "body": m.body,
             "author": m.author.shown_name if m.author else "FriedSports",
+            "author_id": m.user_id,
             "is_mine": m.user_id == current_user.id,
             "created_at": m.created_at.isoformat() if m.created_at else None,
             "reactions": m.reaction_counts(),
@@ -141,21 +144,27 @@ def report_message(message_id):
     if not Group.query.get(thread.group_id).is_member(current_user.id):
         abort(403)
 
-    reason = request.json.get("reason") if request.is_json else request.form.get("reason")
+    # You can't report your own message.
+    if msg.user_id == current_user.id:
+        return jsonify({"error": "You can't report your own message."}), 400
 
-    existing = MessageReport.query.filter_by(
+    data = request.get_json(silent=True) or {}
+    category = (data.get("category") or request.form.get("category") or "other").strip()
+    reason = (data.get("reason") if request.is_json else request.form.get("reason")) or None
+    valid = set(MessageReport.CATEGORY_LABELS.keys())
+    if category not in valid:
+        category = "other"
+
+    from app.services.moderation import record_report
+    report, created = record_report(
         message_id=message_id,
         reporter_user_id=current_user.id,
-    ).first()
-    if existing:
-        return jsonify({"error": "Already reported"}), 400
-
-    report = MessageReport(
-        message_id=message_id,
-        reporter_user_id=current_user.id,
+        category=category,
         reason=reason,
     )
-    db.session.add(report)
+    if not created:
+        return jsonify({"error": "You've already reported this message.",
+                        "already": True}), 409
     db.session.commit()
     return jsonify({"success": True})
 

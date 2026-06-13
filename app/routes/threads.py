@@ -23,16 +23,21 @@ def show(thread_id):
         abort(403)
 
     # Eager-load authors and reactions in one query — eliminates N+1
-    messages = (
+    hidden_ids = current_user.hidden_user_ids()
+    msg_query = (
         GameThreadMessage.query
         .filter_by(thread_id=thread_id, is_deleted=False)
         .options(
             joinedload(GameThreadMessage.author),
             joinedload(GameThreadMessage.reactions),
         )
-        .order_by(GameThreadMessage.created_at)
-        .all()
     )
+    # Hide messages from blocked users (either direction).
+    if hidden_ids:
+        msg_query = msg_query.filter(
+            GameThreadMessage.user_id.notin_(hidden_ids)
+        )
+    messages = msg_query.order_by(GameThreadMessage.created_at).all()
 
     last_id = messages[-1].id if messages else 0
 
@@ -96,6 +101,13 @@ def post_message(thread_id):
     if len(body) > 1000:
         if _fetch: return jsonify({"error": "too_long"}), 400
         flash("Message too long (max 1000 chars).", "error")
+        return redirect(url_for("threads.show", thread_id=thread_id))
+
+    from app.services.moderation import screen_text
+    ok, reason = screen_text(body)
+    if not ok:
+        if _fetch: return jsonify({"error": "blocked", "message": reason}), 422
+        flash(reason, "error")
         return redirect(url_for("threads.show", thread_id=thread_id))
 
     msg = GameThreadMessage(

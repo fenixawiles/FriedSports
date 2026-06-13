@@ -33,6 +33,9 @@ class User(UserMixin, db.Model):
     avatar_url = db.Column(db.String(256))
     role = db.Column(db.String(16), nullable=False, default="user")  # "user", "admin"
     last_active_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    # Timestamp the user agreed to the Terms / community guidelines (EULA).
+    # Required for App Store UGC compliance — set at signup.
+    agreed_to_terms_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
     updated_at = db.Column(db.DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
@@ -69,6 +72,35 @@ class User(UserMixin, db.Model):
     def get_favorite_team(self, league):
         uft = self.favorite_teams.filter_by(league=league).first()
         return uft.team if uft else None
+
+    # ── Blocking ──────────────────────────────────────────────────────────────
+    def has_blocked(self, other_id):
+        """True if this user has blocked other_id."""
+        return BlockedUser.query.filter_by(
+            blocker_id=self.id, blocked_id=other_id
+        ).count() > 0
+
+    def blocked_user_ids(self):
+        """Set of user ids this user has blocked."""
+        return {
+            b.blocked_id
+            for b in BlockedUser.query.filter_by(blocker_id=self.id).all()
+        }
+
+    def hidden_user_ids(self):
+        """Set of user ids hidden from this user in BOTH directions —
+        people I blocked plus people who blocked me. Used to filter content
+        and search so a block is mutually invisible."""
+        ids = set()
+        rows = BlockedUser.query.filter(
+            db.or_(
+                BlockedUser.blocker_id == self.id,
+                BlockedUser.blocked_id == self.id,
+            )
+        ).all()
+        for b in rows:
+            ids.add(b.blocked_id if b.blocker_id == self.id else b.blocker_id)
+        return ids
 
     def __repr__(self):
         return f"<User {self.display_name}>"
@@ -379,10 +411,48 @@ class MessageReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     message_id = db.Column(db.Integer, db.ForeignKey("game_thread_messages.id"), nullable=False)
     reporter_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    category = db.Column(db.String(32), nullable=True)   # harassment | hate | spam | threat | other
     reason = db.Column(db.Text)
+    # Moderation lifecycle — open until an admin actions it.
+    status = db.Column(db.String(16), nullable=False, default="open",
+                       server_default="open")            # open | resolved | dismissed
+    resolution = db.Column(db.String(32), nullable=True) # message_deleted | user_warned | no_action
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    reviewed_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
 
-    reporter = db.relationship("User")
+    reporter = db.relationship("User", foreign_keys=[reporter_user_id])
+    reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])
+
+    CATEGORY_LABELS = {
+        "harassment": "Harassment or bullying",
+        "hate":       "Hate speech",
+        "threat":     "Threat of harm",
+        "spam":       "Spam",
+        "other":      "Other",
+    }
+
+    @property
+    def category_label(self):
+        return self.CATEGORY_LABELS.get(self.category, self.category or "Unspecified")
+
+
+class BlockedUser(db.Model):
+    """One user blocking another. A block is mutually invisible — see
+    User.hidden_user_ids(). Used for App Store UGC compliance."""
+    __tablename__ = "blocked_users"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    blocker_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    blocked_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
+
+    __table_args__ = (
+        db.UniqueConstraint("blocker_id", "blocked_id", name="uq_blocked_user"),
+    )
+
+    blocker = db.relationship("User", foreign_keys=[blocker_id])
+    blocked = db.relationship("User", foreign_keys=[blocked_id])
 
 
 class Receipt(db.Model):

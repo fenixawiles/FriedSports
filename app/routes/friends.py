@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import or_, and_
-from app.models import db, User, FriendRequest, Notification
+from app.models import db, User, FriendRequest, Notification, BlockedUser
 
 friends_bp = Blueprint("friends", __name__)
 
@@ -34,9 +34,10 @@ def _friendship_status(user_id):
 def index():
     """Friends list + search."""
     q = request.args.get("q", "").strip()
+    hidden_ids = current_user.hidden_user_ids()
     results = []
     if q:
-        results = (
+        query = (
             User.query
             .filter(
                 User.id != current_user.id,
@@ -48,15 +49,19 @@ def index():
                     User.last_name.ilike(f"%{q}%"),
                 )
             )
-            .limit(20)
-            .all()
         )
+        # Blocked users (either direction) never appear in search.
+        if hidden_ids:
+            query = query.filter(User.id.notin_(hidden_ids))
+        results = query.limit(20).all()
         results = [{"user": u, "status": _friendship_status(u.id)} for u in results]
 
     # Build friends list
     sent     = FriendRequest.query.filter_by(from_user_id=current_user.id, status="accepted").all()
     received = FriendRequest.query.filter_by(to_user_id=current_user.id,   status="accepted").all()
     friend_ids = [fr.to_user_id for fr in sent] + [fr.from_user_id for fr in received]
+    # Defensive: never show a blocked user as a friend even if a stale row exists.
+    friend_ids = [fid for fid in friend_ids if fid not in hidden_ids]
     friends = User.query.filter(User.id.in_(friend_ids)).all() if friend_ids else []
 
     # Incoming pending requests
@@ -117,6 +122,13 @@ def send_request(user_id):
         return redirect(url_for("friends.index"))
 
     target = User.query.get_or_404(user_id)
+
+    # No friend requests across a block (either direction).
+    if user_id in current_user.hidden_user_ids():
+        if request.headers.get("X-Fetch") == "1":
+            return jsonify({"ok": False, "error": "blocked"}), 403
+        flash("You can't send a request to this user.", "error")
+        return redirect(request.referrer or url_for("friends.index"))
 
     # Check if already a request/friend
     existing = FriendRequest.query.filter(
@@ -231,3 +243,70 @@ def remove_friend(user_id):
         db.session.commit()
     flash("Friend removed.", "info")
     return redirect(request.referrer or url_for("friends.index"))
+
+
+def _purge_relationship(user_a, user_b):
+    """Delete any friend request / friendship rows between two users (either
+    direction). Used when a block is placed."""
+    FriendRequest.query.filter(
+        or_(
+            and_(FriendRequest.from_user_id == user_a, FriendRequest.to_user_id == user_b),
+            and_(FriendRequest.from_user_id == user_b, FriendRequest.to_user_id == user_a),
+        )
+    ).delete(synchronize_session=False)
+
+
+@friends_bp.route("/block/<int:user_id>", methods=["POST"])
+@login_required
+def block_user(user_id):
+    """Block a user: severs any friendship, drops pending requests, and hides
+    each user's content from the other (enforced via User.hidden_user_ids)."""
+    if user_id == current_user.id:
+        if request.headers.get("X-Fetch") == "1":
+            return jsonify({"ok": False, "error": "cannot block yourself"}), 400
+        flash("You can't block yourself.", "error")
+        return redirect(request.referrer or url_for("friends.index"))
+
+    target = User.query.get_or_404(user_id)
+
+    existing = BlockedUser.query.filter_by(
+        blocker_id=current_user.id, blocked_id=user_id
+    ).first()
+    if not existing:
+        db.session.add(BlockedUser(blocker_id=current_user.id, blocked_id=user_id))
+    # Severing the relationship is idempotent and safe to repeat.
+    _purge_relationship(current_user.id, user_id)
+    db.session.commit()
+
+    if request.headers.get("X-Fetch") == "1":
+        return jsonify({"ok": True, "blocked": True})
+    flash(f"{target.shown_name} has been blocked.", "info")
+    return redirect(request.referrer or url_for("friends.index"))
+
+
+@friends_bp.route("/unblock/<int:user_id>", methods=["POST"])
+@login_required
+def unblock_user(user_id):
+    BlockedUser.query.filter_by(
+        blocker_id=current_user.id, blocked_id=user_id
+    ).delete(synchronize_session=False)
+    db.session.commit()
+    if request.headers.get("X-Fetch") == "1":
+        return jsonify({"ok": True, "blocked": False})
+    flash("User unblocked.", "info")
+    return redirect(request.referrer or url_for("friends.blocked_list"))
+
+
+@friends_bp.route("/blocked")
+@login_required
+def blocked_list():
+    """The current user's block list — reachable from Settings."""
+    rows = (
+        BlockedUser.query
+        .filter_by(blocker_id=current_user.id)
+        .order_by(BlockedUser.created_at.desc())
+        .all()
+    )
+    blocked = [(b, User.query.get(b.blocked_id)) for b in rows]
+    blocked = [(b, u) for (b, u) in blocked if u is not None]
+    return render_template("friends/blocked.html", blocked=blocked)

@@ -3,10 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Public receipts are anonymized and not indexed: no individual is named -->
+  <meta name="robots" content="noindex, nofollow">
   <title>FriedSports Receipt — {{ receipt.target_team.name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-  <meta property="og:title" content="{{ receipt.title }}">
-  <meta property="og:description" content="{{ receipt.summary or 'A certified FriedSports moment.' }}">
+  <meta property="og:title" content="{{ disp_title }}">
+  <meta property="og:description" content="{{ disp_summary or 'A certified FriedSports moment.' }}">
 </head>
 <body class="receipt-page">
 
@@ -17,7 +19,7 @@
     </div>
 
     <div class="receipt-title-block">
-      <h1 class="receipt-main-title">{{ receipt.title }}</h1>
+      <h1 class="receipt-main-title">{{ disp_title }}</h1>
     </div>
 
     <div class="receipt-body">
@@ -27,7 +29,7 @@
       </div>
       <div class="receipt-row">
         <span class="receipt-key">Fan on Record</span>
-        <span class="receipt-val">{{ receipt.target_user.display_name }}</span>
+        <span class="receipt-val">A {{ receipt.target_team.name }} fan</span>
       </div>
       <div class="receipt-row">
         <span class="receipt-key">Team</span>
@@ -40,16 +42,16 @@
         <span class="receipt-val receipt-score">{{ receipt.final_score or 'N/A' }}</span>
       </div>
       <div class="receipt-divider"></div>
-      {% if worst_msg %}
+      {% if worst_body %}
       <div class="receipt-row receipt-quote-row">
         <span class="receipt-key">Worst Moment</span>
-        <blockquote class="receipt-quote">{{ worst_msg.body }}</blockquote>
+        <blockquote class="receipt-quote">{{ worst_body }}</blockquote>
       </div>
       {% endif %}
-      {% if receipt.summary %}
+      {% if disp_summary %}
       <div class="receipt-row">
         <span class="receipt-key">Summary</span>
-        <span class="receipt-val">{{ receipt.summary }}</span>
+        <span class="receipt-val">{{ disp_summary }}</span>
       </div>
       {% endif %}
       <div class="receipt-divider"></div>
@@ -60,7 +62,7 @@
       {% if receipt.top_hater %}
       <div class="receipt-row">
         <span class="receipt-key">Top Hater</span>
-        <span class="receipt-val">{{ receipt.top_hater.display_name }}</span>
+        <span class="receipt-val">A fellow group member</span>
       </div>
       {% endif %}
     </div>

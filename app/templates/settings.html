@@ -118,6 +118,12 @@
       <button type="submit" class="btn-primary btn-full">Save Changes</button>
     </form>
 
+    <div class="form-divider">Safety</div>
+    <a href="{{ url_for('friends.blocked_list') }}" class="more-row" style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 0;border-bottom:1px solid var(--border);text-decoration:none;color:var(--text-primary)">
+      <span>Blocked Users</span>
+      <span style="color:var(--text-muted)">→</span>
+    </a>
+
     <div class="danger-zone">
       <div class="form-divider" style="color:var(--accent)">Delete Account</div>
       <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1rem">

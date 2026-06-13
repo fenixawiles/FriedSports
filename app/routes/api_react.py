@@ -108,6 +108,9 @@ def auth_signup():
         if not d.get(f, "").strip():
             return err(f"{f} is required")
 
+    if not d.get("agree_terms"):
+        return err("You must agree to the Terms and community guidelines to sign up.")
+
     if User.query.filter_by(email=d["email"].lower().strip()).first():
         return err("An account with that email already exists")
 
@@ -117,6 +120,7 @@ def auth_signup():
         display_name=d["display_name"].strip(),
         display_preference=d.get("display_preference", "username"),
         email=d["email"].lower().strip(),
+        agreed_to_terms_at=datetime.now(timezone.utc),
     )
     u.set_password(d["password"])
     db.session.add(u)
@@ -897,16 +901,18 @@ def get_thread(thread_id):
         group_id=thread.group_id, user_id=current_user.id
     ).first()
 
-    messages = (
+    _mq = (
         GameThreadMessage.query
         .filter_by(thread_id=thread_id)
         .options(
             joinedload(GameThreadMessage.author),
             joinedload(GameThreadMessage.reactions),
         )
-        .order_by(GameThreadMessage.created_at)
-        .all()
     )
+    _hidden = current_user.hidden_user_ids()
+    if _hidden:
+        _mq = _mq.filter(GameThreadMessage.user_id.notin_(_hidden))
+    messages = _mq.order_by(GameThreadMessage.created_at).all()
 
     ir = None
     if thread.group_trigger and thread.group_trigger.game_event:
@@ -966,6 +972,11 @@ def post_message(thread_id):
         return err("Message cannot be empty")
     if len(body) > 1000:
         return err("Message too long")
+
+    from app.services.moderation import screen_text
+    _ok, _reason = screen_text(body)
+    if not _ok:
+        return err(_reason, 422)
 
     msg = GameThreadMessage(
         thread_id=thread_id,
@@ -1230,11 +1241,20 @@ def get_ticket(uid):
 @bp.route("/public/receipts/<slug>")
 def public_receipt(slug):
     r = Receipt.query.filter_by(public_slug=slug).first_or_404()
+    # Public receipts are anonymized — never name the individual.
+    from app.routes.public import _anonymize
+    names = []
+    if r.target_user:
+        names += [r.target_user.display_name, r.target_user.first_name, r.target_user.last_name]
+    if r.top_hater:
+        names += [r.top_hater.display_name, r.top_hater.first_name, r.top_hater.last_name]
+    team_name = r.target_team.name if r.target_team else ""
     return ok(receipt={
-        "title": r.title, "summary": r.summary,
+        "title": _anonymize(r.title, names),
+        "summary": _anonymize(r.summary, names),
         "final_score": r.final_score, "shame_points": r.shame_points,
-        "target_team": r.target_team.name if r.target_team else "",
-        "target_user": r.target_user.shown_name if r.target_user else "",
+        "target_team": team_name,
+        "target_user": (f"A {team_name} fan" if team_name else "A fan"),
         "created_at": r.created_at.strftime("%-d %b %Y") if r.created_at else "",
     })
 

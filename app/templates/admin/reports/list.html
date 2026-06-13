@@ -1,0 +1,145 @@
+{% extends "admin/tools_base.html" %}
+{% block title %}Content Reports — FriedSports Admin{% endblock %}
+{% block tools_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>Content Reports</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">{{ counts['open'] }} open · reviewed reports are kept for the record</span>
+      </div>
+    </div>
+  </div>
+
+  <section class="group-section" style="border-top:none;padding-top:0">
+    <!-- Filter tabs -->
+    <div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      {% set tab_defs = [
+        ('open',      'Open',      counts['open']),
+        ('resolved',  'Resolved',  counts['resolved']),
+        ('dismissed', 'Dismissed', counts['dismissed']),
+        ('all',       'All',       counts['all']),
+      ] %}
+      {% for val, label, cnt in tab_defs %}
+      <a href="{{ url_for('admin.reports_list', status=val) }}"
+         style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.3rem 0.75rem;border-radius:20px;font-size:0.8rem;font-weight:600;text-decoration:none;border:1px solid {% if status_filter == val %}var(--accent){% else %}var(--border){% endif %};color:{% if status_filter == val %}var(--accent){% else %}var(--text-muted){% endif %};background:{% if status_filter == val %}rgba(255,59,48,0.07){% else %}transparent{% endif %}">
+        {{ label }}
+        <span style="font-size:0.72rem;background:var(--bg-elevated);padding:1px 6px;border-radius:10px;color:var(--text-secondary)">{{ cnt }}</span>
+      </a>
+      {% endfor %}
+    </div>
+
+    {% if rows %}
+    <div class="report-queue">
+      {% for row in rows %}
+      {% set r = row.report %}
+      <div class="report-card">
+        <div class="report-card-head">
+          <span class="report-cat">{{ r.category_label }}</span>
+          <span class="report-status report-status-{{ r.status }}">{{ r.status }}</span>
+          <span class="report-when">{{ r.created_at.strftime('%b %d, %-I:%M %p') if r.created_at else '' }}</span>
+        </div>
+
+        {% if row.message %}
+        <div class="report-message {% if row.message.is_deleted %}report-message-deleted{% endif %}">
+          {% if row.message.is_deleted %}<em>[message deleted]</em>{% else %}{{ row.message.body }}{% endif %}
+        </div>
+        {% else %}
+        <div class="report-message"><em>[message no longer exists]</em></div>
+        {% endif %}
+
+        <div class="report-meta-grid">
+          <div>
+            <span class="report-meta-label">Author</span>
+            {% if row.author %}
+            <a href="{{ url_for('admin.users_detail', user_id=row.author.id) }}">{{ row.author.shown_name }}</a>
+            {% else %}—{% endif %}
+          </div>
+          <div>
+            <span class="report-meta-label">Reported by</span>
+            {{ r.reporter.shown_name if r.reporter else '—' }}
+          </div>
+          <div>
+            <span class="report-meta-label">Thread</span>
+            {% if row.thread %}
+            <a href="{{ url_for('threads.show', thread_id=row.thread.id) }}" target="_blank" rel="noopener">{{ row.thread.title | truncate(40, True, '…') }}</a>
+            {% else %}—{% endif %}
+          </div>
+          {% if r.reason %}
+          <div style="grid-column:1/-1">
+            <span class="report-meta-label">Reporter note</span>
+            {{ r.reason }}
+          </div>
+          {% endif %}
+          {% if r.status != 'open' %}
+          <div style="grid-column:1/-1">
+            <span class="report-meta-label">Resolution</span>
+            {{ r.resolution or '—' }}
+            {% if r.reviewed_by %} by {{ r.reviewed_by.shown_name }}{% endif %}
+            {% if r.reviewed_at %} · {{ r.reviewed_at.strftime('%b %d') }}{% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        {% if r.status == 'open' %}
+        <div class="report-actions">
+          <form method="post" action="{{ url_for('admin.report_action', report_id=r.id, status=status_filter) }}"
+                onsubmit="return confirm('Delete this message? It will be hidden from all members.')">
+            <input type="hidden" name="action" value="delete_message">
+            <button type="submit" class="btn-danger-small">Delete message</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.report_action', report_id=r.id, status=status_filter) }}">
+            <input type="hidden" name="action" value="dismiss">
+            <button type="submit" class="btn-secondary-small">Dismiss</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>No {{ status_filter if status_filter != 'all' else '' }} reports. Peace, for now.</p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+
+<style>
+.report-queue { display: flex; flex-direction: column; gap: 0.85rem; }
+.report-card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem 1.1rem; background: var(--bg-surface);
+}
+.report-card-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+.report-cat { font-weight: 700; font-size: 0.9rem; }
+.report-status {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; padding: 1px 7px; border-radius: 10px;
+}
+.report-status-open      { background: var(--accent-sub); color: var(--accent); }
+.report-status-resolved  { background: rgba(52,199,123,0.12); color: var(--green); }
+.report-status-dismissed { background: var(--bg-elevated); color: var(--text-muted); }
+.report-when { margin-left: auto; font-size: 0.75rem; color: var(--text-muted); }
+.report-message {
+  background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.7rem 0.85rem;
+  font-size: 0.9rem; line-height: 1.4; margin-bottom: 0.75rem;
+  white-space: pre-wrap; word-break: break-word;
+}
+.report-message-deleted { color: var(--text-muted); }
+.report-meta-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem 1rem;
+  font-size: 0.82rem; margin-bottom: 0.85rem;
+}
+.report-meta-grid a { color: var(--accent); text-decoration: none; }
+.report-meta-label {
+  display: block; font-size: 0.68rem; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 1px;
+}
+.report-actions { display: flex; gap: 0.5rem; }
+@media (max-width: 600px) { .report-meta-grid { grid-template-columns: 1fr 1fr; } }
+</style>
+{% endblock tools_content %}

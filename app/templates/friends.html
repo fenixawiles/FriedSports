@@ -120,6 +120,10 @@
                   onsubmit="return confirm('Remove {{ friend.shown_name }} from friends?')">
               <button type="submit" class="overflow-item overflow-danger">Remove Friend</button>
             </form>
+            <form action="{{ url_for('friends.block_user', user_id=friend.id) }}" method="post"
+                  onsubmit="return confirm('Block {{ friend.shown_name }}? They will be removed as a friend and you will no longer see their messages.')">
+              <button type="submit" class="overflow-item overflow-danger">Block</button>
+            </form>
           </div>
         </div>
       </div>

@@ -196,6 +196,12 @@
               {% endfor %}
             </div>
             <span class="message-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</span>
+            {% if msg.message_type == 'user' and msg.user_id != current_user.id %}
+            <button class="report-btn" data-message-id="{{ msg.id }}"
+                    data-author-id="{{ msg.author.id if msg.author else '' }}"
+                    data-author-name="{{ msg.author.shown_name if msg.author else 'this user' }}"
+                    title="Report message" aria-label="Report message">⚑</button>
+            {% endif %}
             {% if msg.user_id == current_user.id or (member and member.role in ('owner','admin')) %}
             <button class="delete-btn" data-message-id="{{ msg.id }}" title="Delete">✕</button>
             {% endif %}
@@ -274,6 +280,26 @@
 </aside>
 
 </div>{# /thread-outer #}
+
+{# ── Report message action sheet ── #}
+<div class="report-sheet-overlay" id="report-sheet" hidden>
+  <div class="report-sheet" role="dialog" aria-modal="true" aria-labelledby="report-sheet-title">
+    <div class="report-sheet-title" id="report-sheet-title">Report this message</div>
+    <p class="report-sheet-sub">Tell us what's wrong. Our team reviews reports and removes content that breaks the rules.</p>
+    <div class="report-sheet-options">
+      <button type="button" class="report-option" data-category="harassment">Harassment or bullying</button>
+      <button type="button" class="report-option" data-category="hate">Hate speech</button>
+      <button type="button" class="report-option" data-category="threat">Threat of harm</button>
+      <button type="button" class="report-option" data-category="spam">Spam</button>
+      <button type="button" class="report-option" data-category="other">Something else</button>
+    </div>
+    <div class="report-sheet-actions">
+      <button type="button" class="report-block-btn" id="report-block-btn">Block this user</button>
+      <button type="button" class="report-cancel-btn" id="report-cancel-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+<form id="report-block-form" method="post" style="display:none"></form>
 {% endblock %}
 {% block footer %}{% endblock %}
 {% block scripts %}

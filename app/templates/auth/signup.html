@@ -60,6 +60,18 @@
                placeholder="Same password again">
       </div>
 
+      <label class="eula-check">
+        <input type="checkbox" name="agree_terms" value="1" required>
+        <span>
+          I agree to the
+          <a href="{{ url_for('legal.terms') }}" target="_blank" rel="noopener">Terms</a>
+          and
+          <a href="{{ url_for('legal.privacy') }}" target="_blank" rel="noopener">Privacy Policy</a>,
+          and I understand there is <strong>zero tolerance</strong> for objectionable content or
+          abusive behavior. Accounts that harass others or post prohibited content are removed.
+        </span>
+      </label>
+
       <button type="submit" class="btn-primary btn-full">Create Account</button>
     </form>
     <p class="auth-switch">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>

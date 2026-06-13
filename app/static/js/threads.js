@@ -77,6 +77,19 @@
       }
       footer.appendChild(time);
 
+      if (msg.type === 'user' && !msg.is_mine) {
+        const rep = document.createElement('button');
+        rep.className = 'report-btn';
+        rep.textContent = '⚑';
+        rep.title = 'Report message';
+        rep.setAttribute('aria-label', 'Report message');
+        rep.setAttribute('data-message-id', msg.id);
+        if (msg.author_id) rep.setAttribute('data-author-id', msg.author_id);
+        rep.setAttribute('data-author-name', msg.author || 'this user');
+        rep.addEventListener('click', handleReportClick);
+        footer.appendChild(rep);
+      }
+
       if (msg.can_delete) {
         const del = document.createElement('button');
         del.className = 'delete-btn';
@@ -266,7 +279,16 @@
         headers: { 'X-Fetch': '1' },
         body: fd,
       })
-        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (r) {
+          return r.json().then(function (j) {
+            if (!r.ok) {
+              var e = new Error(r.status);
+              e.serverMessage = j && j.message;   // e.g. content-filter reason
+              throw e;
+            }
+            return j;
+          });
+        })
         .then(function (data) {
           // If the poll already appended the confirmed message, remove the optimistic dupe
           const confirmed = document.getElementById('msg-' + data.id);
@@ -284,13 +306,16 @@
             if (data.id > lastId) lastId = data.id;
           }
         })
-        .catch(function () {
+        .catch(function (err) {
           // Network / server error — remove optimistic element, restore the input
           const el = document.getElementById(tempId);
           if (el) el.remove();
           chatTextarea.value = body;
           if (chatSendBtn) chatSendBtn.disabled = false;
           chatTextarea.focus();
+          if (err && err.serverMessage && typeof showToast === 'function') {
+            showToast(err.serverMessage, 'error');
+          }
         });
 
       // First take removes the empty state
@@ -379,4 +404,84 @@
         .finally(function () { voteBusy = false; });
     });
   }
+
+  // ── Report a message + block its author ───────────────────────────────────
+  const reportSheet   = document.getElementById('report-sheet');
+  let   reportTarget  = { messageId: null, authorId: null, authorName: null };
+
+  function handleReportClick(e) {
+    const btn = e.currentTarget || e.target.closest('.report-btn');
+    if (!btn || !reportSheet) return;
+    reportTarget = {
+      messageId:  btn.getAttribute('data-message-id'),
+      authorId:   btn.getAttribute('data-author-id') || null,
+      authorName: btn.getAttribute('data-author-name') || 'this user',
+    };
+    const blockBtn = document.getElementById('report-block-btn');
+    if (blockBtn) {
+      blockBtn.textContent = 'Block ' + reportTarget.authorName;
+      blockBtn.style.display = reportTarget.authorId ? '' : 'none';
+    }
+    reportSheet.hidden = false;
+  }
+
+  function closeReportSheet() {
+    if (reportSheet) reportSheet.hidden = true;
+  }
+
+  if (reportSheet) {
+    // Submit a report under the chosen category
+    reportSheet.querySelectorAll('.report-option').forEach(function (opt) {
+      opt.addEventListener('click', function () {
+        const category = opt.getAttribute('data-category');
+        const id = reportTarget.messageId;
+        closeReportSheet();
+        if (!id) return;
+        fetch('/api/messages/' + id + '/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ category: category }),
+        })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); })
+          .then(function (res) {
+            if (res.ok) {
+              if (typeof showToast === 'function') showToast('Report sent. Thanks — our team will review it.', 'success');
+            } else if (res.status === 409) {
+              if (typeof showToast === 'function') showToast("You've already reported this message.", 'info');
+            } else {
+              if (typeof showToast === 'function') showToast((res.body && res.body.error) || 'Could not send report.', 'error');
+            }
+          })
+          .catch(function () {
+            if (typeof showToast === 'function') showToast('Could not send report.', 'error');
+          });
+      });
+    });
+
+    // Block the author — posts the hidden form to /friends/block/<id>
+    const blockBtn = document.getElementById('report-block-btn');
+    if (blockBtn) {
+      blockBtn.addEventListener('click', function () {
+        if (!reportTarget.authorId) return;
+        if (!confirm('Block ' + reportTarget.authorName + "? You won't see each other's messages anymore.")) return;
+        const form = document.getElementById('report-block-form');
+        if (form) {
+          form.action = '/friends/block/' + reportTarget.authorId;
+          form.submit();
+        }
+      });
+    }
+
+    const cancelBtn = document.getElementById('report-cancel-btn');
+    if (cancelBtn) cancelBtn.addEventListener('click', closeReportSheet);
+    reportSheet.addEventListener('click', function (e) {
+      if (e.target === reportSheet) closeReportSheet();
+    });
+  }
+
+  // Wire the report buttons present on initial render
+  document.querySelectorAll('.report-btn').forEach(function (btn) {
+    btn.addEventListener('click', handleReportClick);
+  });
 })();

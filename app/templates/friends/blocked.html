@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Blocked Users — FriedSports{% endblock %}
+{% block content %}
+<div class="group-container" style="max-width:680px">
+
+  <div class="group-header">
+    <div>
+      <h1>Blocked Users</h1>
+      <div class="friend-summary">
+        {{ blocked|length }} blocked
+      </div>
+    </div>
+  </div>
+
+  <section class="group-section">
+    {% if blocked %}
+    <div class="blocked-list">
+      {% for b, u in blocked %}
+      <div class="blocked-row">
+        <span class="avatar-initials">{{ u.initials }}</span>
+        <div class="blocked-info">
+          <div class="blocked-name">{{ u.shown_name }}</div>
+          <div class="blocked-meta">@{{ u.uid }} · blocked {{ time_ago(b.created_at) }}</div>
+        </div>
+        <form action="{{ url_for('friends.unblock_user', user_id=u.id) }}" method="post">
+          <button type="submit" class="unblock-btn">Unblock</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>You haven't blocked anyone.</p>
+      <p>Blocking someone hides their messages and removes them as a friend.</p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}
+{% block page_back_href %}{{ url_for("dashboard.settings") }}{% endblock %}

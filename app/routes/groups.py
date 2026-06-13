@@ -205,6 +205,14 @@ def report_incident(group_id):
         if target_user and not group.is_member(target_user_id):
             errors.append("Target must be a group member.")
 
+        # Screen free-text fields for prohibited content (slurs / threats)
+        from app.services.moderation import screen_text
+        for _field in (description, reported_score_text):
+            _ok, _reason = screen_text(_field)
+            if not _ok:
+                errors.append(_reason)
+                break
+
         if errors:
             for e in errors:
                 flash(e, "error")
