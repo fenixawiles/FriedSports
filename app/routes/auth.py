@@ -160,24 +160,35 @@ def login():
 
         _maybe_elevate_admin(user)
 
-        # Send 8-digit OTP — log in only after verification
-        code = str(random.randint(10000000, 99999999))
-        tok = LoginToken(
-            user_id=user.id,
-            token=secrets.token_urlsafe(16),
-            purpose="signin_code",
-            code=code,
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
-        )
-        db.session.add(tok)
-        db.session.commit()
-
-        _send_otp_background(current_app._get_current_object(), user.id, code, "signin_code")
-
-        flash("Check your email — we sent you an 8-digit code to complete sign-in.", "info")
+        # ── Email OTP on login: temporarily DISABLED ──────────────────────────
+        # Login no longer requires the emailed 8-digit code — email+password
+        # signs in directly. This unblocks App Store review (reviewers can't
+        # receive our OTP email) and removes the email dependency for sign-in.
+        # Other email features (signup verification, friend requests, etc.) are
+        # unaffected. To re-enable OTP-on-login later, delete the two lines below
+        # and uncomment the block that follows.
+        login_user(user)
         next_page = request.args.get("next")
-        return redirect(url_for("auth.verify_code", email=email,
-                                next=next_page or url_for("dashboard.dashboard")))
+        return redirect(next_page or url_for("dashboard.dashboard"))
+
+        # # Send 8-digit OTP — log in only after verification
+        # code = str(random.randint(10000000, 99999999))
+        # tok = LoginToken(
+        #     user_id=user.id,
+        #     token=secrets.token_urlsafe(16),
+        #     purpose="signin_code",
+        #     code=code,
+        #     expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+        # )
+        # db.session.add(tok)
+        # db.session.commit()
+        #
+        # _send_otp_background(current_app._get_current_object(), user.id, code, "signin_code")
+        #
+        # flash("Check your email — we sent you an 8-digit code to complete sign-in.", "info")
+        # next_page = request.args.get("next")
+        # return redirect(url_for("auth.verify_code", email=email,
+        #                         next=next_page or url_for("dashboard.dashboard")))
 
     return render_template("auth/login.html")
 
