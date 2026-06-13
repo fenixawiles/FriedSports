@@ -186,6 +186,11 @@ function toggleInvitePanel() {
 
 function copyInvitePanel() {
   const btn = document.getElementById('invite-copy-btn');
+  // In the native app, open the iOS share sheet; on web, copy to clipboard.
+  if (window.FSNative && window.FSNative.isNative) {
+    window.FSNative.share({ title: 'Join my FriedSports group', text: 'Join my group on FriedSports', url: INVITE_URL });
+    return;
+  }
   navigator.clipboard.writeText(INVITE_URL).then(() => {
     btn.textContent = 'Copied!';
     btn.style.color = 'var(--green)';

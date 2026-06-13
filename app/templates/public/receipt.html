@@ -75,9 +75,16 @@
     </div>
   </div>
 
+  <script src="{{ url_for('static', filename='js/native.js') }}"></script>
   <script>
     function copyReceiptLink() {
       var btn = document.getElementById('copy-btn');
+      // In the native app, use the iOS share sheet — this also avoids the
+      // WKWebView clipboard restriction. On web, copy to clipboard.
+      if (window.FSNative && window.FSNative.isNative) {
+        window.FSNative.share({ title: 'FriedSports Receipt', text: document.title, url: window.location.href });
+        return;
+      }
       navigator.clipboard.writeText(window.location.href).then(function () {
         if (btn) {
           var orig = btn.textContent;

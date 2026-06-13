@@ -56,21 +56,28 @@ https://www.friedsports.com`, so the app loads the live site in a WebView. That
 is the single most common 4.2 trigger.
 
 **This is NOT a one-line code fix** — it's about the app offering native value.
-You have two realistic paths:
 
-- **Path A — keep it server-driven (least work):** leave `server.url` but add a
-  few genuinely-native touches so it doesn't read as "Safari in a box":
-  native share sheet on receipts, haptics on actions, a proper splash/app icon
-  (already have), and make sure no browser chrome is visible (Capacitor handles
-  this). Risk: still reviewer's judgment call; sometimes passes, sometimes not.
-- **Path B — bundle the web app (lower rejection risk):** point Capacitor at the
-  bundled `webDir` instead of a remote URL and have the app talk to the `/api`
-  endpoints, so the binary ships real assets. More work, but it's the
-  Apple-preferred shape and clearly "an app."
+**Path A is now implemented** (the lower-effort route): the app uses real native
+iOS capabilities a website can't, via `app/static/js/native.js`:
+- **Native share sheet** on group invite links and shareable receipts
+  (`@capacitor/share`). On the receipt page this also fixes the WKWebView
+  clipboard restriction — a real native win, not cosmetic.
+- **Haptic feedback** on core actions — sending a message, voting, reacting
+  (`@capacitor/haptics`).
+- Plus the existing native splash screen, status-bar styling, and app icon.
 
-**Recommendation:** ship Path A for the first submission with the native share +
-haptics added; if 4.2 comes back, move to Path B. There is nothing to change in
-the web code right now — this is a wrap-time decision when you build the binary.
+All of it is guarded: on the mobile web it falls back to the Web Share API /
+clipboard and haptics are no-ops, so the same code ships everywhere.
+
+**If 4.2 still comes back** after this, the stronger fallback is **Path B**:
+point Capacitor at a bundled `webDir` instead of the remote `server.url` so the
+binary ships real assets and talks to the `/api` endpoints. More work, but it's
+the shape Apple prefers. Start with Path A — it's in the build now.
+
+**Honest caveat:** 4.2 is ultimately the reviewer's judgment call. Native share +
+haptics materially reduce the "it's just a website" risk, but nothing guarantees
+a pass. If rejected, reply in Resolution Center pointing to the native features,
+or move to Path B.
 
 ---
 
