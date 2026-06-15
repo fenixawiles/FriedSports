@@ -44,10 +44,34 @@
   }
   body.thread-view .thread-header-wrap {
     flex-shrink: 0;
-    padding: 0.85rem 0.85rem 0;
+    padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border);
+    background: var(--bg-primary);
   }
-  body.thread-view .thread-header { margin-bottom: 0.6rem; padding-bottom: 0; border-bottom: none; }
+  body.thread-view .thread-topbar {
+    display: flex; align-items: center; gap: 0.4rem;
+    min-height: 38px;
+  }
+  body.thread-view .thread-back-btn {
+    flex-shrink: 0;
+    width: 36px; height: 36px; margin-left: -0.4rem;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); border-radius: 50%;
+  }
+  body.thread-view .thread-back-btn:active { background: var(--bg-input); }
+  body.thread-view .thread-topbar-text {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column; line-height: 1.2;
+  }
+  body.thread-view .thread-topbar-title {
+    font-size: 1rem; font-weight: 700; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.thread-view .thread-topbar-sub {
+    font-size: 0.76rem; color: var(--text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.thread-view .thread-topbar .status-badge { flex-shrink: 0; }
   body.thread-view .chat-window {
     flex: 1; min-height: 0; max-height: none !important;
     padding: 0.75rem 0 0.5rem;
@@ -74,7 +98,7 @@
   }
   /* Desktop: add horizontal breathing room without reintroducing a max-width */
   @media (min-width: 641px) {
-    body.thread-view .thread-header-wrap { padding: 1rem 2.5rem 0; }
+    body.thread-view .thread-header-wrap { padding: 0.6rem 2.5rem; }
     body.thread-view .chat-window { padding-left: 2.5rem; padding-right: 2.5rem; }
     body.thread-view .chat-input-area { padding-left: 2.5rem; padding-right: 2.5rem; }
   }
@@ -94,19 +118,22 @@
 <div class="thread-outer">
 <div class="thread-container">
 
-  {# ── Compact header ── #}
+  {# ── Compact chat top bar: back · name · status ── #}
   <div class="thread-header-wrap">
-    <div class="thread-header">
-      <a href="{{ url_for('dashboard.threads_list') }}" class="back-link"
-         id="thread-back-link">← {{ group.name }}</a>
-      <h1 class="thread-title-large">{{ thread.title }}</h1>
-      <div class="thread-header-meta">
-        <span class="team-chip-lg" style="color:{{ thread.target_team.primary_color }};border-color:{{ thread.target_team.primary_color }}40">
-          {{ thread.target_team.abbreviation }} · {{ thread.target_team.name }}
-        </span>
-        <span class="target-label">{{ thread.target_user.display_name }}</span>
-        <span class="status-badge {{ thread.status }}">{{ thread.status }}</span>
+    <div class="thread-topbar">
+      <a href="{{ url_for('dashboard.threads_list') }}" class="thread-back-btn"
+         id="thread-back-link" aria-label="Back to threads">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </a>
+      <div class="thread-topbar-text">
+        <span class="thread-topbar-title">{{ group.name }}</span>
+        <span class="thread-topbar-sub">{{ thread.title }}</span>
       </div>
+      <span class="status-badge {{ thread.status }}">{{ thread.status }}</span>
     </div>
   </div>
 

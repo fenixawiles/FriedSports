@@ -1877,35 +1877,16 @@ body.receipt-page {
 .app-main-col .main-content { flex: 1; }
 
 /* ── Native app shell (Capacitor / WKWebView only) ───────────────────────────
-   native.js adds `is-native-app` to <html> when running inside the iOS wrapper,
-   so EVERYTHING below is invisible to the website (mobile Safari included).
+   native.js adds `is-native-app` to <html> inside the iOS wrapper.
 
-   Problem solved: the WKWebView's own scroll-view bounced the WHOLE page on
-   overscroll — exposing the native background at the top/bottom and shoving the
-   fixed chrome (navbar, bottom nav, chat composer) off-screen with it. Fix: pin
-   the document to the exact viewport so the native scroll-view has nothing to
-   bounce, then move all scrolling into .app-main-col. Its rubber-band is
-   contained and paints the app background, so overscroll looks seamless while
-   the chrome never moves. */
-html.is-native-app { height: 100%; overflow: hidden; overscroll-behavior: none; }
-html.is-native-app body {
-  height: 100vh; height: 100dvh;   /* dvh where supported, vh fallback */
-  min-height: 0;                   /* override the base min-height:100vh */
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-html.is-native-app .navbar { flex-shrink: 0; }   /* header keeps its full height */
-/* The single scroll container — rubber-band lives here, contained + app-colored */
-html.is-native-app .app-main-col {
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  background: var(--bg-primary);
-}
-/* Thread page runs its own inner scroll (the chat window); don't let the shell
-   column add a second scroll area on top of it. */
-html.is-native-app body.thread-view .app-main-col { overflow: hidden; }
+   The document scrolls NATURALLY here — we intentionally do NOT lock the body
+   or nest a scroll container. A nested scroller clips absolutely-positioned
+   menus (the friends overflow menu) and a fixed-height body crunches the layout.
+   Overscroll is handled correctly without any of that: `contentInset: never`
+   (capacitor.config) lets the web content own the safe areas, and the
+   theme-aware `html { background: var(--bg-primary) }` paints the rubber-band
+   area, so the bounce shows the app color — never the raw native layer. The
+   navbar (sticky) and bottom nav (fixed) stay anchored on their own. */
 
 .sidebar-logo {
   display: flex; align-items: center; gap: 0.5rem;
