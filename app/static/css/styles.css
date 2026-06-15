@@ -66,6 +66,9 @@ html {
      not just on body, to actually prevent horizontal layout shift on input focus. */
   overflow-x: hidden;
   max-width: 100%;
+  /* Match body background so iOS rubber-band overscroll on the html root
+     shows the app color instead of the native WKWebView background. */
+  background: var(--bg-primary);
 }
 body {
   background: var(--bg-primary);

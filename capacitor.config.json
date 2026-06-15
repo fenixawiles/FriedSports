@@ -11,10 +11,11 @@
     ]
   },
   "ios": {
-    "contentInset": "automatic",
-    "backgroundColor": "#1a1a1a",
+    "contentInset": "never",
+    "backgroundColor": "#f2f2f7",
     "allowsLinkPreview": false,
-    "scrollEnabled": true
+    "scrollEnabled": true,
+    "keyboardResize": "native"
   },
   "plugins": {
     "SplashScreen": {
@@ -29,7 +30,7 @@
     },
     "StatusBar": {
       "style": "dark",
-      "backgroundColor": "#1a1a1a"
+      "backgroundColor": "#f2f2f7"
     }
   }
 }

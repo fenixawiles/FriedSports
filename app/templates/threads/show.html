@@ -52,6 +52,11 @@
     flex: 1; min-height: 0; max-height: none !important;
     padding: 0.75rem 0 0.5rem;
     overflow-y: auto;
+    /* Rubber-band stays inside the chat list — overscroll bounce area shows
+       the app background color instead of the raw native layer. Propagation
+       to the body is blocked so the body doesn't also bounce. */
+    overscroll-behavior-y: contain;
+    background: var(--bg-primary);
   }
   /* Input sits flush at the bottom — only the safe-area inset, no phantom
      gap. (The old 62px was reserving room for a bottom nav that is hidden
@@ -59,6 +64,8 @@
   body.thread-view .chat-input-area {
     flex-shrink: 0;
     padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+    /* Opaque background prevents bleed-through during keyboard slide animation */
+    background: var(--bg-primary);
   }
   /* Thread is a focused conversation — hide navigation chrome on mobile */
   @media (max-width: 640px) {
