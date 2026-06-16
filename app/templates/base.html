@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="shortcut icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=13">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=14">
   <!-- Turbo Drive — app-shell navigation (content swap without full page reload) -->
   <!-- no-preview: never show stale cached snapshots before fresh data arrives -->
   <meta name="turbo-cache-control" content="no-preview">
@@ -172,17 +172,7 @@
     {% block content %}{% endblock %}
   </main>
 
-  {% block footer %}
-  <footer class="site-footer-minimal">
-    <a href="{{ url_for('legal.privacy') }}">Privacy Policy</a>
-    <span class="footer-sep">·</span>
-    <a href="{{ url_for('legal.terms') }}">Terms of Service</a>
-    {% if current_user.is_authenticated %}
-    <span class="footer-sep">·</span>
-    <a href="{{ url_for('support.index') }}">Support</a>
-    {% endif %}
-  </footer>
-  {% endblock %}
+  {% block footer %}{% endblock %}
   </div>{# /app-main-col #}
 
 
@@ -269,6 +259,12 @@
     if (typeof _dismissFlashes === 'function') _dismissFlashes();
     if (typeof window._rewirePrefetch === 'function') window._rewirePrefetch();
     if (typeof window._eagerPrefetch === 'function') window._eagerPrefetch();
+    // Turbo replaces .main-content on every navigation — re-apply the bottom-nav
+    // padding so the bottom nav never covers the last row's three-dot button.
+    if (window.innerWidth <= 640) {
+      var main = document.querySelector('.main-content');
+      if (main) main.style.paddingBottom = 'calc(66px + env(safe-area-inset-bottom))';
+    }
   });
   </script>
   <script>
@@ -351,9 +347,7 @@
     bnav.style.width = '100%';
     bnav.style.justifyContent = 'space-evenly';
     bnav.style.alignItems = 'center';
-    // Extra bottom padding so content isn't hidden behind it
-    var main = document.querySelector('.main-content');
-    if (main) main.style.paddingBottom = 'calc(66px + env(safe-area-inset-bottom))';
+    // (paddingBottom is applied in turbo:load so it re-fires after every navigation)
     // Hide top friends icon on mobile (it lives in the bottom nav); keep bell visible
     document.querySelectorAll('.nav-friends-icon').forEach(function(el) {
       el.style.display = 'none';

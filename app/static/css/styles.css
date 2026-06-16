@@ -1078,12 +1078,14 @@ body.receipt-page {
     font-size: 16px;
     max-width: 100%;
   }
-  /* Ensure no container causes horizontal overflow on mobile */
+  /* Ensure no container causes horizontal overflow on mobile.
+     overflow-x:clip (not hidden) — clip without BFC so overflow-y stays visible
+     and absolutely-positioned dropdowns are not clipped. */
   .dashboard-container, .group-container, .thread-container,
   .report-container, .auth-container, .onboarding-container,
   .legal-container {
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   /* Hero */
@@ -1887,6 +1889,16 @@ body.receipt-page {
    theme-aware `html { background: var(--bg-primary) }` paints the rubber-band
    area, so the bounce shows the app color — never the raw native layer. The
    navbar (sticky) and bottom nav (fixed) stay anchored on their own. */
+
+html.is-native-app {
+  /* overflow-x:hidden on html breaks WKWebView rubber-band by forcing overflow-y:auto
+     on the root (CSS spec). clip achieves the same horizontal clipping without
+     creating a scroll container, so the document keeps its native bounce. */
+  overflow-x: clip;
+}
+html.is-native-app .nav-inner {
+  height: 44px; /* 52→44: trims dead space below the Dynamic Island safe area */
+}
 
 .sidebar-logo {
   display: flex; align-items: center; gap: 0.5rem;

@@ -95,6 +95,11 @@
   @media (max-width: 640px) {
     body.thread-view #main-nav  { display: none !important; }
     body.thread-view #bottom-nav { display: none !important; }
+    /* Navbar is hidden so the thread header is the topmost element —
+       it must carry the safe-area inset to clear the Dynamic Island / notch. */
+    body.thread-view .thread-header-wrap {
+      padding-top: calc(0.5rem + env(safe-area-inset-top));
+    }
   }
   /* Desktop: add horizontal breathing room without reintroducing a max-width */
   @media (min-width: 641px) {
@@ -102,11 +107,55 @@
     body.thread-view .chat-window { padding-left: 2.5rem; padding-right: 2.5rem; }
     body.thread-view .chat-input-area { padding-left: 2.5rem; padding-right: 2.5rem; }
   }
-  /* Force completely flat messages — no box whatsoever */
+  /* ── DM-style message bubbles ── */
+  body.thread-view .message { display: flex; margin: 0.15rem 0.75rem; }
+  body.thread-view .message-mine   { justify-content: flex-end; }
+  body.thread-view .message-theirs { justify-content: flex-start; }
+  body.thread-view .message-system { justify-content: center; }
   body.thread-view .message-bubble {
-    background: none !important; border: none !important;
-    border-radius: 0 !important; box-shadow: none !important;
-    padding: 0.1rem 0 !important;
+    max-width: 78%;
+    padding: 0.5rem 0.75rem !important;
+    border-radius: 18px !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: none !important;
+  }
+  body.thread-view .message-mine .message-bubble {
+    background: var(--accent) !important;
+    border-bottom-right-radius: 4px !important;
+  }
+  body.thread-view .message-mine .message-text,
+  body.thread-view .message-mine .message-author { color: rgba(255,255,255,0.95); }
+  body.thread-view .message-mine .message-time  { color: rgba(255,255,255,0.65); }
+  body.thread-view .message-mine .reaction-btn  { border-color: rgba(255,255,255,0.3); }
+  body.thread-view .message-theirs .message-bubble {
+    background: var(--bg-input) !important;
+    border-bottom-left-radius: 4px !important;
+  }
+  body.thread-view .message-footer {
+    display: flex; align-items: center; gap: 0.3rem;
+    margin-top: 0.25rem; flex-wrap: wrap;
+  }
+  body.thread-view .message-mine .message-footer { justify-content: flex-end; }
+  body.thread-view .reaction-btn {
+    font-size: 0.72rem; padding: 0.1rem 0.35rem;
+    background: var(--bg-input); border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  body.thread-view .reaction-btn.reacted {
+    background: var(--accent-sub); border-color: var(--accent);
+  }
+  body.thread-view .message-time {
+    font-size: 0.68rem; color: var(--text-muted);
+  }
+  body.thread-view .message-author {
+    font-size: 0.72rem; font-weight: 600; color: var(--text-muted);
+    margin-bottom: 0.15rem;
+  }
+  body.thread-view .message-system .message-system-body {
+    font-size: 0.75rem; color: var(--text-muted);
+    padding: 0.25rem 0.75rem;
+    background: var(--bg-input); border-radius: 12px;
   }
 </style>
 {% endblock %}
@@ -139,60 +188,6 @@
 
   {# ── Chat window ── #}
   <div class="chat-window" id="chat-window">
-
-    {# Incident card — the case being judged #}
-    {% if ir %}
-    <div class="incident-card">
-      <div class="incident-card-header">
-        <span class="icard-type">{{ ir.incident_type.replace('_',' ').title() }}</span>
-        <span class="status-badge {{ ir.status }}">{{ ir.status }}</span>
-        <span class="icard-severity">Severity {{ ir.severity }}/5</span>
-      </div>
-      <div class="icard-meta">
-        Filed by {{ ir.reporter.shown_name }}{% if ir.reported_score_text %} · "{{ ir.reported_score_text }}"{% endif %}
-      </div>
-      {% if ir.description %}
-      <div class="icard-description">{{ ir.description }}</div>
-      {% endif %}
-      {% if member %}
-      <div class="icard-vote-row" id="icard-vote-row">
-        <button class="vote-btn{{ ' active' if user_vote == 'confirm' }}" data-vote="confirm" type="button">
-          Confirm <span class="vote-num" data-vote-num="confirm">{{ vote_counts.confirm }}</span>
-        </button>
-        <button class="vote-btn{{ ' active' if user_vote == 'dismiss' }}" data-vote="dismiss" type="button">
-          Dismiss <span class="vote-num" data-vote-num="dismiss">{{ vote_counts.dismiss }}</span>
-        </button>
-        <button class="vote-btn{{ ' active' if user_vote == 'redeem' }}" data-vote="redeem" type="button">
-          Redeemed <span class="vote-num" data-vote-num="redeem">{{ vote_counts.redeem }}</span>
-        </button>
-      </div>
-      {% endif %}
-      {# Moderator case actions — change the official case status #}
-      {% set is_mod = member and member.role in ('owner','admin') %}
-      {% set can_redeem_status = ir.status != 'redeemed' and (current_user.id == thread.target_user_id or is_mod) %}
-      {% if (is_mod and ir.status not in ('dismissed','redeemed')) or can_redeem_status %}
-      <div class="icard-mod-row">
-        <span>Case actions:</span>
-        {% if is_mod and ir.status == 'active' %}
-        <form action="{{ url_for('reports.confirm', report_id=ir.id) }}" method="post">
-          <button class="icard-mod-btn">Confirm case</button>
-        </form>
-        {% endif %}
-        {% if is_mod and ir.status not in ('dismissed','redeemed') %}
-        <form action="{{ url_for('reports.dismiss', report_id=ir.id) }}" method="post"
-              onsubmit="return confirm('Dismiss this report? The reporter will lose 5 points.')">
-          <button class="icard-mod-btn">Dismiss case</button>
-        </form>
-        {% endif %}
-        {% if can_redeem_status %}
-        <form action="{{ url_for('reports.redeem', report_id=ir.id) }}" method="post">
-          <button class="icard-mod-btn">Mark redeemed</button>
-        </form>
-        {% endif %}
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
 
     {# Empty-thread state with quick prompts #}
     {% set user_msgs = messages | selectattr('message_type', 'equalto', 'user') | list %}

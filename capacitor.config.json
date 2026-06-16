@@ -29,7 +29,7 @@
       "splashImmersive": false
     },
     "StatusBar": {
-      "style": "dark",
+      "style": "DEFAULT",
       "backgroundColor": "#f2f2f7"
     }
   }
