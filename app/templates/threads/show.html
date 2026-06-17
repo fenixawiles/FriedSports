@@ -98,6 +98,12 @@
     /* Opaque background prevents bleed-through during keyboard slide animation */
     background: var(--bg-primary);
   }
+  /* Keyboard up → the home-indicator inset is hidden behind the keyboard, so
+     drop it: the composer should sit right above the keyboard, no dead band.
+     (Resting state keeps the inset so it clears the home indicator.) */
+  body.thread-view.keyboard-open .chat-input-area {
+    padding-bottom: 0.4rem;
+  }
   /* Thread is a focused conversation — hide navigation chrome on mobile */
   @media (max-width: 640px) {
     body.thread-view #main-nav  { display: none !important; }
@@ -114,49 +120,109 @@
     body.thread-view .chat-window { padding-left: 2.5rem; padding-right: 2.5rem; }
     body.thread-view .chat-input-area { padding-left: 2.5rem; padding-right: 2.5rem; }
   }
-  /* ── DM-style message bubbles ── */
-  body.thread-view .message { display: flex; margin: 0.15rem 0.75rem; }
+  /* ── DM-style message bubbles (minimal) ── */
+  body.thread-view .message {
+    display: flex; position: relative; margin: 0.1rem 0.75rem;
+    /* long-press opens OUR action menu, not iOS's text-selection callout */
+    -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  }
   body.thread-view .message-mine   { justify-content: flex-end; }
   body.thread-view .message-theirs { justify-content: flex-start; }
   body.thread-view .message-system { justify-content: center; }
-  body.thread-view .message-bubble {
-    max-width: 78%;
-    padding: 0.5rem 0.75rem !important;
-    border-radius: 18px !important;
-    box-shadow: none !important;
-    border: none !important;
-    background: none !important;
+  /* bubble + reaction badges stack on the correct side. The column is what
+     slides left (via --peek on #chat-window) to reveal the timestamp gutter. */
+  body.thread-view .message-col {
+    display: flex; flex-direction: column; max-width: 80%;
+    transform: translateX(calc(-1 * var(--peek, 0px)));
+    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
   }
-  /* "Red stained glass" — translucent accent fill (217,51,72 = --accent) so the
-     page shows through, with a slightly stronger leading-style border edge.
-     Text stays theme-primary (dark on light, light on dark) so it's readable. */
+  body.thread-view .message-mine   .message-col { align-items: flex-end; }
+  body.thread-view .message-theirs .message-col { align-items: flex-start; }
+  body.thread-view #chat-window.dragging .message-col,
+  body.thread-view #chat-window.dragging .swipe-time { transition: none; }
+  body.thread-view .message-bubble {
+    padding: 0.4rem 0.7rem !important;
+    border-radius: 16px !important;
+    box-shadow: none !important; border: none !important; background: none !important;
+    line-height: 1.35; transition: transform 0.12s ease;
+  }
+  /* press feedback while the long-press timer runs */
+  body.thread-view .message.pressing .message-bubble { transform: scale(0.96); }
+  /* "Red stained glass" own-message fill (217,51,72 = --accent), readable text */
   body.thread-view .message-mine .message-bubble {
     background: rgba(217,51,72,0.16) !important;
     border: 1px solid rgba(217,51,72,0.32) !important;
-    border-bottom-right-radius: 4px !important;
+    border-bottom-right-radius: 5px !important;
   }
   body.thread-view .message-mine .message-text,
   body.thread-view .message-mine .message-author { color: var(--text-primary); }
   body.thread-view .message-theirs .message-bubble {
     background: var(--bg-input) !important;
-    border-bottom-left-radius: 4px !important;
+    border-bottom-left-radius: 5px !important;
   }
-  body.thread-view .message-footer {
-    display: flex; align-items: center; gap: 0.3rem;
-    margin-top: 0.2rem;
-  }
-  body.thread-view .message-mine .message-footer { justify-content: flex-end; }
-  body.thread-view .message-time {
-    font-size: 0.68rem; color: var(--text-muted);
-  }
+  body.thread-view .message-text { font-size: 0.95rem; }
   body.thread-view .message-author {
-    font-size: 0.72rem; font-weight: 600; color: var(--text-muted);
-    margin-bottom: 0.15rem;
+    font-size: 0.7rem; font-weight: 600; color: var(--text-muted);
+    margin: 0 0 0.1rem 0.2rem;
+  }
+  /* compact reaction badges under the bubble */
+  body.thread-view .msg-reactions {
+    display: flex; gap: 0.2rem; margin-top: 0.15rem; flex-wrap: wrap;
+  }
+  body.thread-view .msg-react-badge {
+    font-size: 0.7rem; line-height: 1.4;
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.05rem 0.35rem;
+  }
+  /* timestamp gutter — parked off the right edge, slides in on swipe-left */
+  body.thread-view .swipe-time {
+    position: absolute; top: 50%; right: -52px;
+    transform: translate(calc(-1 * var(--peek, 0px)), -50%);
+    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
+    width: 44px; text-align: right; font-size: 0.66rem;
+    color: var(--text-muted); white-space: nowrap; pointer-events: none;
   }
   body.thread-view .message-system .message-system-body {
-    font-size: 0.75rem; color: var(--text-muted);
-    padding: 0.25rem 0.75rem;
-    background: var(--bg-input); border-radius: 12px;
+    font-size: 0.72rem; color: var(--text-muted);
+    padding: 0.2rem 0.7rem; background: var(--bg-input); border-radius: 12px;
+  }
+
+  /* ── Long-press action sheet ── */
+  body.thread-view .msg-actions-overlay {
+    position: fixed; inset: 0; z-index: 600;
+    background: rgba(0,0,0,0.42);
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  body.thread-view .msg-actions-overlay[hidden] { display: none; }
+  body.thread-view .msg-actions-sheet {
+    width: 100%; max-width: 460px; background: var(--bg-surface);
+    border-radius: 16px 16px 0 0;
+    padding: 0.4rem 0.75rem calc(0.6rem + env(safe-area-inset-bottom));
+    animation: sheet-slide-up 0.22s cubic-bezier(0.4,0,0.2,1);
+  }
+  body.thread-view .msg-react-row {
+    display: flex; justify-content: space-around;
+    padding: 0.5rem 0.25rem 0.6rem;
+    border-bottom: 1px solid var(--border); margin-bottom: 0.35rem;
+  }
+  body.thread-view .msg-react {
+    font-size: 1.7rem; background: none; border: none; cursor: pointer;
+    padding: 0.15rem 0.35rem; border-radius: 50%; line-height: 1;
+    transition: transform 0.1s;
+  }
+  body.thread-view .msg-react:active { transform: scale(1.25); }
+  body.thread-view .msg-react.reacted { background: var(--accent-sub); }
+  body.thread-view .msg-action {
+    display: block; width: 100%; padding: 0.8rem 0.6rem;
+    background: none; border: none; font-size: 0.95rem;
+    color: var(--text-primary); text-align: left;
+    font-family: var(--font); cursor: pointer; border-radius: 10px;
+  }
+  body.thread-view .msg-action:active { background: var(--bg-input); }
+  body.thread-view .msg-action-danger { color: var(--accent); }
+  body.thread-view .msg-actions-cancel {
+    text-align: center; margin-top: 0.25rem;
+    color: var(--text-secondary); font-weight: 600;
   }
 </style>
 {% endblock %}
@@ -204,37 +270,41 @@
     </div>
     {% endif %}
 
-    {# Messages #}
+    {# Messages — minimal bubbles; actions live in the long-press menu, the
+       timestamp lives in the swipe-reveal gutter. #}
     {% for msg in messages %}
     {% set mine = msg.message_type == 'user' and msg.user_id == current_user.id %}
+    {% set can_del = msg.user_id == current_user.id or (member and member.role in ('owner','admin')) %}
     <div class="message message-{{ msg.message_type }}{% if msg.message_type == 'user' %} {{ 'message-mine' if mine else 'message-theirs' }}{% endif %}"
-         data-id="{{ msg.id }}" id="msg-{{ msg.id }}">
+         data-id="{{ msg.id }}" id="msg-{{ msg.id }}"{% if msg.message_type == 'user' %}
+         data-mine="{{ '1' if mine else '0' }}"
+         data-can-delete="{{ '1' if can_del else '0' }}"
+         data-author-id="{{ msg.author.id if msg.author else '' }}"
+         data-author-name="{{ msg.author.shown_name if msg.author else 'this user' }}"
+         data-my-reactions="{{ msg.user_reaction(current_user.id) | join(',') }}"{% endif %}>
       {% if msg.message_type == 'system' %}
         <div class="message-system-body">{{ msg.body }}</div>
       {% else %}
-        <div class="message-bubble">
-          {% if not mine %}
-          <div class="message-author">
-            {{ msg.author.display_name if msg.author else 'Unknown' }}
-            {% if msg.author and msg.author.id == thread.target_user_id %}
-            <span class="target-tag">target</span>
+        <div class="message-col">
+          <div class="message-bubble">
+            {% if not mine %}
+            <div class="message-author">
+              {{ msg.author.display_name if msg.author else 'Unknown' }}
+              {% if msg.author and msg.author.id == thread.target_user_id %}
+              <span class="target-tag">target</span>
+              {% endif %}
+            </div>
             {% endif %}
+            <div class="message-text">{{ msg.body }}</div>
+          </div>
+          {% set rc = msg.reaction_counts() %}
+          {% if rc %}
+          <div class="msg-reactions">
+            {% for rtype, emoji in [('laugh','😂'),('cook','👨‍🍳'),('fraud','🚨'),('receipt','🧾')] %}{% if rc.get(rtype) %}<span class="msg-react-badge" data-reaction="{{ rtype }}">{{ emoji }} {{ rc.get(rtype) }}</span>{% endif %}{% endfor %}
           </div>
           {% endif %}
-          <div class="message-text">{{ msg.body }}</div>
-          <div class="message-footer">
-            <span class="message-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</span>
-            {% if msg.message_type == 'user' and msg.user_id != current_user.id %}
-            <button class="report-btn" data-message-id="{{ msg.id }}"
-                    data-author-id="{{ msg.author.id if msg.author else '' }}"
-                    data-author-name="{{ msg.author.shown_name if msg.author else 'this user' }}"
-                    title="Report message" aria-label="Report message">⚑</button>
-            {% endif %}
-            {% if msg.user_id == current_user.id or (member and member.role in ('owner','admin')) %}
-            <button class="delete-btn" data-message-id="{{ msg.id }}" title="Delete">✕</button>
-            {% endif %}
-          </div>
         </div>
+        <span class="swipe-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</span>
       {% endif %}
     </div>
     {% endfor %}
@@ -332,6 +402,22 @@
   </div>
 </div>
 <form id="report-block-form" method="post" style="display:none"></form>
+
+{# ── Long-press message action sheet (hold a message to open) ── #}
+<div class="msg-actions-overlay" id="msg-actions" hidden>
+  <div class="msg-actions-sheet" role="dialog" aria-modal="true" aria-label="Message actions">
+    <div class="msg-react-row" id="msg-react-row">
+      <button type="button" class="msg-react" data-reaction="laugh"   aria-label="React 😂">😂</button>
+      <button type="button" class="msg-react" data-reaction="cook"    aria-label="React 👨‍🍳">👨‍🍳</button>
+      <button type="button" class="msg-react" data-reaction="fraud"   aria-label="React 🚨">🚨</button>
+      <button type="button" class="msg-react" data-reaction="receipt" aria-label="React 🧾">🧾</button>
+    </div>
+    <button type="button" class="msg-action" data-action="copy">Copy</button>
+    <button type="button" class="msg-action msg-action-danger" data-action="delete" hidden>Delete</button>
+    <button type="button" class="msg-action" data-action="report" hidden>Report message</button>
+    <button type="button" class="msg-action msg-actions-cancel" data-action="cancel">Cancel</button>
+  </div>
+</div>
 {% endblock %}
 {% block footer %}{% endblock %}
 {% block scripts %}
@@ -339,7 +425,7 @@
   const THREAD_ID = {{ thread.id }};
   const CURRENT_USER_ID = {{ current_user.id }};
 </script>
-<script src="{{ url_for('static', filename='js/threads.js') }}?v=17"></script>
+<script src="{{ url_for('static', filename='js/threads.js') }}?v=18"></script>
 <script>
   (function() {
     var ta = document.getElementById('chat-input');
@@ -385,12 +471,14 @@
     function onKeyboardOpen() {
       if (keyboardOpen) return;
       keyboardOpen = true;
+      document.body.classList.add('keyboard-open');  // collapses the composer's bottom inset
       if (mainNav)   mainNav.style.display   = 'none';
       if (bottomNav) bottomNav.style.display = 'none';
     }
     function onKeyboardClose() {
       if (!keyboardOpen) return;
       keyboardOpen = false;
+      document.body.classList.remove('keyboard-open');
       if (mainNav)   mainNav.style.display   = '';
       // Restore bottom nav only on mobile widths
       if (bottomNav && window.innerWidth <= 640) bottomNav.style.display = 'flex';

@@ -1,4 +1,4 @@
-// Thread polling, optimistic message send, delete, and report handling
+// Thread polling, optimistic send, long-press action menu, swipe-to-reveal time
 (function () {
   if (typeof THREAD_ID === 'undefined') return;
 
@@ -11,10 +11,30 @@
     if (id > lastId) lastId = id;
   });
 
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
   function scrollToBottom() {
     if (chatWindow) chatWindow.scrollTop = chatWindow.scrollHeight;
   }
   scrollToBottom();
+
+  const REACT_EMOJI = { laugh: '😂', cook: '👨‍🍳', fraud: '🚨', receipt: '🧾' };
+
+  // ── Reaction badges (compact, under the bubble) ───────────────────────────
+  function renderReactions(msgEl, counts) {
+    const col = msgEl.querySelector('.message-col');
+    if (!col) return;
+    let wrap = col.querySelector('.msg-reactions');
+    let html = '';
+    ['laugh', 'cook', 'fraud', 'receipt'].forEach(function (t) {
+      if (counts && counts[t]) {
+        html += '<span class="msg-react-badge" data-reaction="' + t + '">' +
+                REACT_EMOJI[t] + ' ' + counts[t] + '</span>';
+      }
+    });
+    if (!html) { if (wrap) wrap.remove(); return; }
+    if (!wrap) { wrap = document.createElement('div'); wrap.className = 'msg-reactions'; col.appendChild(wrap); }
+    wrap.innerHTML = html;
+  }
 
   // ── Message element builder (used by polling) ─────────────────────────────
   function buildMessageEl(msg) {
@@ -30,59 +50,44 @@
       body.className = 'message-system-body';
       body.textContent = msg.body;
       wrapper.appendChild(body);
-    } else {
-      const bubble = document.createElement('div');
-      bubble.className = 'message-bubble';
-
-      if (!isMine) {
-        const author = document.createElement('div');
-        author.className = 'message-author';
-        author.textContent = msg.author;
-        bubble.appendChild(author);
-      }
-
-      const text = document.createElement('div');
-      text.className = 'message-text';
-      text.textContent = msg.body;
-      bubble.appendChild(text);
-
-      const footer = document.createElement('div');
-      footer.className = 'message-footer';
-
-      const time = document.createElement('span');
-      time.className = 'message-time';
-      if (msg.created_at) {
-        const d = new Date(msg.created_at);
-        time.textContent = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
-      }
-      footer.appendChild(time);
-
-      if (msg.type === 'user' && !msg.is_mine) {
-        const rep = document.createElement('button');
-        rep.className = 'report-btn';
-        rep.textContent = '⚑';
-        rep.title = 'Report message';
-        rep.setAttribute('aria-label', 'Report message');
-        rep.setAttribute('data-message-id', msg.id);
-        if (msg.author_id) rep.setAttribute('data-author-id', msg.author_id);
-        rep.setAttribute('data-author-name', msg.author || 'this user');
-        rep.addEventListener('click', handleReportClick);
-        footer.appendChild(rep);
-      }
-
-      if (msg.can_delete) {
-        const del = document.createElement('button');
-        del.className = 'delete-btn';
-        del.textContent = '✕';
-        del.title = 'Delete';
-        del.setAttribute('data-message-id', msg.id);
-        del.addEventListener('click', handleDelete);
-        footer.appendChild(del);
-      }
-
-      bubble.appendChild(footer);
-      wrapper.appendChild(bubble);
+      return wrapper;
     }
+
+    wrapper.setAttribute('data-mine', isMine ? '1' : '0');
+    wrapper.setAttribute('data-can-delete', msg.can_delete ? '1' : '0');
+    wrapper.setAttribute('data-author-id', msg.author_id || '');
+    wrapper.setAttribute('data-author-name', msg.author || 'this user');
+    wrapper.setAttribute('data-my-reactions', (msg.user_reactions || []).join(','));
+
+    const col = document.createElement('div');
+    col.className = 'message-col';
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+
+    if (!isMine) {
+      const author = document.createElement('div');
+      author.className = 'message-author';
+      author.textContent = msg.author;
+      bubble.appendChild(author);
+    }
+    const text = document.createElement('div');
+    text.className = 'message-text';
+    text.textContent = msg.body;
+    bubble.appendChild(text);
+    col.appendChild(bubble);
+    wrapper.appendChild(col);
+
+    if (msg.reactions && Object.keys(msg.reactions).length) {
+      renderReactions(wrapper, msg.reactions);
+    }
+
+    const time = document.createElement('span');
+    time.className = 'swipe-time';
+    if (msg.created_at) {
+      const d = new Date(msg.created_at);
+      time.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    wrapper.appendChild(time);
     return wrapper;
   }
 
@@ -95,8 +100,7 @@
         if (!data.length) return;
         const wasAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 60;
         data.forEach(function (msg) {
-          // If an optimistic element with this body (from us) already exists, remove it
-          // before appending the confirmed server-side version.
+          // Drop the optimistic placeholder for our own confirmed message
           if (msg.is_mine) {
             const optEl = document.querySelector('.message-pending[data-opt-body]');
             if (optEl && optEl.getAttribute('data-opt-body') === msg.body) {
@@ -125,44 +129,203 @@
     window._threadPollTimer = null;
   }
   startPoll();
-  // Pause polling when the tab is backgrounded; resume (+ immediate fetch) when it comes back
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) { pausePoll(); } else { pollMessages(); startPoll(); }
   });
 
-  // ── Delete handling ───────────────────────────────────────────────────────
-  function handleDelete(e) {
-    const btn = e.currentTarget;
-    const messageId = btn.getAttribute('data-message-id');
-    if (!confirm('Delete this message?')) return;
+  // ── Message actions (shared) ──────────────────────────────────────────────
+  function deleteMessage(messageId) {
     fetch('/api/messages/' + messageId + '/delete', { method: 'POST' })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (data) {
         if (data.success) {
-          const msgEl = document.getElementById('msg-' + messageId);
-          if (msgEl) msgEl.remove();
+          const el = document.getElementById('msg-' + messageId);
+          if (el) el.remove();
         }
       })
       .catch(function () {
-        const msgEl = document.getElementById('msg-' + messageId);
-        const footer = msgEl && msgEl.querySelector('.message-footer');
-        if (footer) {
-          const errSpan = document.createElement('span');
-          errSpan.style.cssText = 'color:var(--accent);font-size:0.75rem;margin-left:0.35rem';
-          errSpan.textContent = 'Delete failed';
-          footer.appendChild(errSpan);
-          setTimeout(function () { errSpan.remove(); }, 2500);
-        }
+        if (typeof showToast === 'function') showToast('Delete failed', 'error');
       });
   }
 
-  document.querySelectorAll('.delete-btn').forEach(function (btn) {
-    btn.addEventListener('click', handleDelete);
-  });
+  function toggleReaction(msgEl, rtype) {
+    const id = msgEl.getAttribute('data-id');
+    if (!id || id.indexOf('opt-') === 0) return; // can't react to an unsent message
+    fetch('/api/messages/' + id + '/react', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reaction_type: rtype }),
+    })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (data) {
+        // Keep the per-user reaction set in sync for the next menu open
+        const mine = (msgEl.getAttribute('data-my-reactions') || '').split(',').filter(Boolean);
+        const i = mine.indexOf(rtype);
+        if (data.added && i < 0) mine.push(rtype);
+        if (!data.added && i >= 0) mine.splice(i, 1);
+        msgEl.setAttribute('data-my-reactions', mine.join(','));
+        renderReactions(msgEl, data.counts);
+      })
+      .catch(function () {
+        if (typeof showToast === 'function') showToast('Could not react', 'error');
+      });
+  }
+
+  function copyText(text) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(function () { if (typeof showToast === 'function') showToast('Copied', 'success'); })
+        .catch(function () { if (typeof showToast === 'function') showToast('Copy failed', 'error'); });
+    }
+  }
+
+  // ── Long-press action menu ────────────────────────────────────────────────
+  const menuOverlay = document.getElementById('msg-actions');
+  const menuCtx = { el: null, id: null, text: '', mine: false, canDelete: false, authorId: null, authorName: null };
+
+  function openMenu(msgEl) {
+    if (!menuOverlay || !msgEl) return;
+    menuCtx.el = msgEl;
+    menuCtx.id = msgEl.getAttribute('data-id');
+    const textEl = msgEl.querySelector('.message-text');
+    menuCtx.text = textEl ? textEl.textContent : '';
+    menuCtx.mine = msgEl.getAttribute('data-mine') === '1';
+    menuCtx.canDelete = msgEl.getAttribute('data-can-delete') === '1';
+    menuCtx.authorId = msgEl.getAttribute('data-author-id') || null;
+    menuCtx.authorName = msgEl.getAttribute('data-author-name') || 'this user';
+
+    const delBtn = menuOverlay.querySelector('[data-action="delete"]');
+    const repBtn = menuOverlay.querySelector('[data-action="report"]');
+    if (delBtn) delBtn.hidden = !menuCtx.canDelete;
+    if (repBtn) repBtn.hidden = menuCtx.mine || !menuCtx.authorId;
+
+    // Reflect which reactions this user already has
+    const mine = (msgEl.getAttribute('data-my-reactions') || '').split(',').filter(Boolean);
+    menuOverlay.querySelectorAll('.msg-react').forEach(function (b) {
+      b.classList.toggle('reacted', mine.indexOf(b.getAttribute('data-reaction')) >= 0);
+    });
+    menuOverlay.hidden = false;
+  }
+  function closeMenu() { if (menuOverlay) menuOverlay.hidden = true; }
+
+  if (menuOverlay) {
+    menuOverlay.addEventListener('click', function (e) {
+      if (e.target === menuOverlay) { closeMenu(); return; } // tap backdrop
+      const react = e.target.closest('.msg-react');
+      if (react) {
+        if (menuCtx.el) toggleReaction(menuCtx.el, react.getAttribute('data-reaction'));
+        closeMenu();
+        return;
+      }
+      const act = e.target.closest('.msg-action');
+      if (!act) return;
+      const action = act.getAttribute('data-action');
+      if (action === 'cancel') { closeMenu(); return; }
+      if (action === 'copy')   { copyText(menuCtx.text); closeMenu(); return; }
+      if (action === 'delete') {
+        closeMenu();
+        if (confirm('Delete this message?')) deleteMessage(menuCtx.id);
+        return;
+      }
+      if (action === 'report') {
+        closeMenu();
+        openReportFor(menuCtx.id, menuCtx.authorId, menuCtx.authorName);
+        return;
+      }
+    });
+  }
+
+  // ── Gesture manager: long-press opens the menu, swipe-left reveals the time ─
+  if (chatWindow) {
+    const LONG_MS = 450, MOVE_CANCEL = 10, SWIPE_MIN = 12, MAX_PEEK = 52;
+    let startX = 0, startY = 0, pressTimer = null, pressEl = null, swiping = false, axisLocked = false;
+
+    // The finger-lift after a long-press synthesizes a click that would land on
+    // the just-opened sheet (often the backdrop) and instantly dismiss it.
+    // Swallow exactly that one click; a stray timer reset avoids eating a real tap.
+    let swallowClick = false, swallowTimer = null;
+    function armClickSwallow() {
+      swallowClick = true;
+      if (swallowTimer) clearTimeout(swallowTimer);
+      swallowTimer = setTimeout(function () { swallowClick = false; }, 700);
+    }
+    document.addEventListener('click', function (e) {
+      if (!swallowClick) return;
+      swallowClick = false;
+      if (swallowTimer) { clearTimeout(swallowTimer); swallowTimer = null; }
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
+
+    function clearPress() {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      if (pressEl) { pressEl.classList.remove('pressing'); }
+      pressEl = null;
+    }
+    function endSwipe() {
+      if (swiping) {
+        chatWindow.classList.remove('dragging');
+        chatWindow.style.setProperty('--peek', '0px');
+        swiping = false;
+      }
+    }
+
+    chatWindow.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      startX = t.clientX; startY = t.clientY;
+      axisLocked = false;
+      const msgEl = e.target.closest('.message[data-id]');
+      // long-press only on real user messages (system msgs have no data-mine)
+      const target = (msgEl && msgEl.getAttribute('data-mine') !== null && menuOverlay) ? msgEl : null;
+      if (target) {
+        pressEl = target;
+        pressEl.classList.add('pressing');
+        pressTimer = setTimeout(function () {
+          pressTimer = null;
+          const el = pressEl;
+          if (el) el.classList.remove('pressing');
+          pressEl = null;
+          if (typeof FSNative !== 'undefined' && FSNative.haptic) FSNative.haptic('MEDIUM');
+          openMenu(el);
+          armClickSwallow();
+        }, LONG_MS);
+      }
+    }, { passive: true });
+
+    chatWindow.addEventListener('touchmove', function (e) {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dx = t.clientX - startX, dy = t.clientY - startY;
+      if (!axisLocked && (Math.abs(dx) > MOVE_CANCEL || Math.abs(dy) > MOVE_CANCEL)) {
+        clearPress(); // any real movement cancels the long-press
+        if (dx < -SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.3) {
+          swiping = true; chatWindow.classList.add('dragging');
+        }
+        axisLocked = true; // committed to swipe or native scroll for this gesture
+      }
+      if (swiping) {
+        e.preventDefault(); // we own this horizontal gesture
+        const peek = Math.max(0, Math.min(MAX_PEEK, -dx));
+        chatWindow.style.setProperty('--peek', peek + 'px');
+      }
+    }, { passive: false });
+
+    function onEnd() { clearPress(); endSwipe(); }
+    chatWindow.addEventListener('touchend', onEnd);
+    chatWindow.addEventListener('touchcancel', onEnd);
+
+    // Desktop / fallback — right-click opens the same menu
+    chatWindow.addEventListener('contextmenu', function (e) {
+      const msgEl = e.target.closest('.message[data-id]');
+      if (!msgEl || msgEl.getAttribute('data-mine') === null) return;
+      e.preventDefault();
+      if (menuOverlay && menuOverlay.hidden) openMenu(msgEl);
+    });
+  }
 
   // ── Optimistic message send ───────────────────────────────────────────────
-  // Intercepts the chat form submit, appends the message to the DOM immediately
-  // (before the server responds), then confirms/rolls back based on the response.
   const chatForm     = document.getElementById('chat-form');
   const chatTextarea = document.getElementById('chat-input');
   const chatSendBtn  = document.getElementById('chat-send');
@@ -172,32 +335,29 @@
     const wrapper = document.createElement('div');
     wrapper.className = 'message message-user message-mine message-pending';
     wrapper.id = tempId;
-    wrapper.setAttribute('data-opt-body', body); // used by poll dedup
+    wrapper.setAttribute('data-opt-body', body);
+    wrapper.setAttribute('data-mine', '1');
 
+    const col = document.createElement('div');
+    col.className = 'message-col';
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
-
     const text = document.createElement('div');
     text.className = 'message-text';
     text.textContent = body;
     bubble.appendChild(text);
-
-    const footer = document.createElement('div');
-    footer.className = 'message-footer';
-
-    const time = document.createElement('span');
-    time.className = 'message-time';
-    const now = new Date();
-    time.textContent = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-    footer.appendChild(time);
-
     const dot = document.createElement('span');
     dot.className = 'message-sending-dot';
     dot.setAttribute('aria-hidden', 'true');
-    footer.appendChild(dot);
+    bubble.appendChild(dot);
+    col.appendChild(bubble);
+    wrapper.appendChild(col);
 
-    bubble.appendChild(footer);
-    wrapper.appendChild(bubble);
+    const time = document.createElement('span');
+    time.className = 'swipe-time';
+    const now = new Date();
+    time.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    wrapper.appendChild(time);
     return wrapper;
   }
 
@@ -212,7 +372,6 @@
       chatWindow.appendChild(optEl);
       scrollToBottom();
 
-      // Clear input immediately — the key to feeling instant
       chatTextarea.value = '';
       chatTextarea.style.height = '';
       if (chatSendBtn) { chatSendBtn.disabled = true; chatSendBtn.classList.add('sending'); }
@@ -229,31 +388,32 @@
           return r.json().then(function (j) {
             if (!r.ok) {
               var e = new Error(r.status);
-              e.serverMessage = j && j.message;   // e.g. content-filter reason
+              e.serverMessage = j && j.message;
               throw e;
             }
             return j;
           });
         })
         .then(function (data) {
-          // If the poll already appended the confirmed message, remove the optimistic dupe
           const confirmed = document.getElementById('msg-' + data.id);
           const el = document.getElementById(tempId);
           if (confirmed) {
             if (el) el.remove();
           } else if (el) {
-            // Promote the optimistic element to a real one
+            // Promote the optimistic element to a real, actionable message
             el.setAttribute('data-id', data.id);
             el.id = 'msg-' + data.id;
             el.removeAttribute('data-opt-body');
             el.classList.remove('message-pending');
+            el.setAttribute('data-can-delete', '1');
+            el.setAttribute('data-author-name', 'You');
+            el.setAttribute('data-my-reactions', '');
             const dot = el.querySelector('.message-sending-dot');
             if (dot) dot.remove();
             if (data.id > lastId) lastId = data.id;
           }
         })
         .catch(function (err) {
-          // Network / server error — remove optimistic element, restore the input
           const el = document.getElementById(tempId);
           if (el) el.remove();
           chatTextarea.value = body;
@@ -264,11 +424,9 @@
           }
         })
         .finally(function () {
-          // Revert the send button from spinner back to the arrow
           if (chatSendBtn) chatSendBtn.classList.remove('sending');
         });
 
-      // First take removes the empty state
       const emptyState = document.getElementById('chat-empty-state');
       if (emptyState) emptyState.remove();
     });
@@ -286,18 +444,13 @@
     });
   }
 
-  // ── Report a message + block its author ───────────────────────────────────
-  const reportSheet   = document.getElementById('report-sheet');
-  let   reportTarget  = { messageId: null, authorId: null, authorName: null };
+  // ── Report a message + block its author (sheet opened from the action menu) ─
+  const reportSheet  = document.getElementById('report-sheet');
+  let   reportTarget = { messageId: null, authorId: null, authorName: null };
 
-  function handleReportClick(e) {
-    const btn = e.currentTarget || e.target.closest('.report-btn');
-    if (!btn || !reportSheet) return;
-    reportTarget = {
-      messageId:  btn.getAttribute('data-message-id'),
-      authorId:   btn.getAttribute('data-author-id') || null,
-      authorName: btn.getAttribute('data-author-name') || 'this user',
-    };
+  function openReportFor(messageId, authorId, authorName) {
+    if (!reportSheet) return;
+    reportTarget = { messageId: messageId, authorId: authorId || null, authorName: authorName || 'this user' };
     const blockBtn = document.getElementById('report-block-btn');
     if (blockBtn) {
       blockBtn.textContent = 'Block ' + reportTarget.authorName;
@@ -305,13 +458,9 @@
     }
     reportSheet.hidden = false;
   }
-
-  function closeReportSheet() {
-    if (reportSheet) reportSheet.hidden = true;
-  }
+  function closeReportSheet() { if (reportSheet) reportSheet.hidden = true; }
 
   if (reportSheet) {
-    // Submit a report under the chosen category
     reportSheet.querySelectorAll('.report-option').forEach(function (opt) {
       opt.addEventListener('click', function () {
         const category = opt.getAttribute('data-category');
@@ -340,7 +489,6 @@
       });
     });
 
-    // Block the author — posts the hidden form to /friends/block/<id>
     const blockBtn = document.getElementById('report-block-btn');
     if (blockBtn) {
       blockBtn.addEventListener('click', function () {
@@ -360,9 +508,4 @@
       if (e.target === reportSheet) closeReportSheet();
     });
   }
-
-  // Wire the report buttons present on initial render
-  document.querySelectorAll('.report-btn').forEach(function (btn) {
-    btn.addEventListener('click', handleReportClick);
-  });
 })();

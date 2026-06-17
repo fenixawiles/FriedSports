@@ -92,27 +92,6 @@ body {
   from { opacity: 0; transform: translateY(3px); }
   to   { opacity: 1; transform: translateY(0);   }
 }
-/* ── Loading bar ─────────────────────────────────────────────────── */
-#page-loading-bar {
-  position: fixed;
-  top: 0; left: 0;
-  height: 2px;
-  width: 0%;
-  background: var(--accent);
-  z-index: 9999;
-  transition: width 0.25s ease, opacity 0.3s ease;
-  opacity: 0;
-  pointer-events: none;
-}
-#page-loading-bar.loading {
-  opacity: 1;
-  width: 65%;
-}
-#page-loading-bar.done {
-  width: 100%;
-  opacity: 0;
-  transition: width 0.1s ease, opacity 0.4s ease 0.1s;
-}
 
 /* Kill double-tap zoom delay on interactive elements */
 button, a, label, [role="button"] { touch-action: manipulation; }
