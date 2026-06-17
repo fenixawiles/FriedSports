@@ -167,7 +167,7 @@ def login():
         # Other email features (signup verification, friend requests, etc.) are
         # unaffected. To re-enable OTP-on-login later, delete the two lines below
         # and uncomment the block that follows.
-        login_user(user)
+        login_user(user, remember=True)
         next_page = request.args.get("next")
         return redirect(next_page or url_for("dashboard.dashboard"))
 
@@ -275,7 +275,7 @@ def verify_code():
         db.session.commit()
 
         _maybe_elevate_admin(user)
-        login_user(user)
+        login_user(user, remember=True)
         next_page = request.form.get("next") or request.args.get("next")
         return redirect(next_page or url_for("dashboard.dashboard"))
 
@@ -302,7 +302,7 @@ def magic_link(token):
         return redirect(url_for("auth.login"))
 
     _maybe_elevate_admin(user)
-    login_user(user)
+    login_user(user, remember=True)
 
     next_url = tok.next_url or url_for("dashboard.dashboard")
     return redirect(next_url)
@@ -338,7 +338,7 @@ def reset_password(token):
         db.session.commit()
 
         _maybe_elevate_admin(user)
-        login_user(user)
+        login_user(user, remember=True)
         flash("Password updated. You're now logged in.", "success")
         return redirect(url_for("dashboard.dashboard"))
 

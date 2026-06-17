@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -7,6 +8,22 @@ load_dotenv()
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # ── "Stay logged in" / session persistence ────────────────────────────────
+    # Closing the native app (which tears down the WKWebView process) must NOT
+    # log the user out. Flask-Login's remember cookie is a persistent,
+    # HMAC-signed (with SECRET_KEY) token that survives app restarts. Because
+    # it's signed, any tampering invalidates it — the user is only logged out by
+    # an explicit logout (which clears the cookie) or a corrupted/expired token.
+    # login_user(..., remember=True) at every login site sets this cookie.
+    REMEMBER_COOKIE_DURATION = timedelta(days=365)
+    REMEMBER_COOKIE_HTTPONLY = True          # JS can't read it (XSS hardening)
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+    # Server-side session cookie hardening + a long lifetime so the signed
+    # session itself also persists rather than expiring at "browser close".
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    PERMANENT_SESSION_LIFETIME = timedelta(days=365)
 
     _db_url = os.environ.get("DATABASE_URL", "sqlite:///friedsports.db")
     # Normalize legacy postgres:// to postgresql://
@@ -63,6 +80,10 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
+    # HTTPS-only cookies in production (friedsports.com is TLS). Left off in dev
+    # so cookies still flow over http://localhost.
+    SESSION_COOKIE_SECURE = True
+    REMEMBER_COOKIE_SECURE = True
 
 
 config_map = {

@@ -180,6 +180,15 @@ def create_app(config=None):
     from datetime import datetime as _dt, timedelta as _td, timezone as _tz
 
     @app.before_request
+    def _persist_session():
+        # Mark every session permanent so it uses PERMANENT_SESSION_LIFETIME
+        # (365d) instead of expiring when the WKWebView process is torn down on
+        # app close. Together with the remember cookie this keeps users signed in
+        # across app restarts. Cheap: just flips a flag on the session object.
+        from flask import session as _sess
+        _sess.permanent = True
+
+    @app.before_request
     def _touch_last_active():
         from flask import request as _req
         if not current_user.is_authenticated:

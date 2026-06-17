@@ -1890,10 +1890,13 @@ body.receipt-page {
    area, so the bounce shows the app color — never the raw native layer. The
    navbar (sticky) and bottom nav (fixed) stay anchored on their own. */
 
-html.is-native-app {
-  /* overflow-x:hidden on html breaks WKWebView rubber-band by forcing overflow-y:auto
-     on the root (CSS spec). clip achieves the same horizontal clipping without
-     creating a scroll container, so the document keeps its native bounce. */
+html.is-native-app,
+html.is-native-app body {
+  /* overflow-x:hidden forces overflow-y:auto (CSS spec), turning html AND body
+     into nested scroll containers — which kills WKWebView's native document
+     rubber-band. `clip` does the same horizontal clipping WITHOUT creating a
+     scroll container, so the viewport stays the one true scroller and the whole
+     document bounces + snaps back into place when overscrolled vertically. */
   overflow-x: clip;
 }
 html.is-native-app .nav-inner {

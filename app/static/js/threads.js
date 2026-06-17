@@ -1,4 +1,4 @@
-// Thread polling, optimistic message send, and reaction handling
+// Thread polling, optimistic message send, delete, and report handling
 (function () {
   if (typeof THREAD_ID === 'undefined') return;
 
@@ -48,26 +48,6 @@
 
       const footer = document.createElement('div');
       footer.className = 'message-footer';
-
-      const reactionBar = document.createElement('div');
-      reactionBar.className = 'reaction-bar';
-      const types = [['laugh','😂'],['cook','👨‍🍳'],['fraud','🚨'],['receipt','🧾']];
-      types.forEach(function ([rtype, emoji]) {
-        const btn = document.createElement('button');
-        btn.className = 'reaction-btn' + (msg.user_reactions.includes(rtype) ? ' reacted' : '');
-        btn.setAttribute('data-message-id', msg.id);
-        btn.setAttribute('data-reaction', rtype);
-        const count = msg.reactions[rtype] || '';
-        btn.textContent = '';
-        const countSpan = document.createElement('span');
-        countSpan.className = 'reaction-count';
-        countSpan.textContent = count;
-        btn.appendChild(document.createTextNode(emoji + ' '));
-        btn.appendChild(countSpan);
-        btn.addEventListener('click', handleReaction);
-        reactionBar.appendChild(btn);
-      });
-      footer.appendChild(reactionBar);
 
       const time = document.createElement('span');
       time.className = 'message-time';
@@ -148,40 +128,6 @@
   // Pause polling when the tab is backgrounded; resume (+ immediate fetch) when it comes back
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) { pausePoll(); } else { pollMessages(); startPoll(); }
-  });
-
-  // ── Reaction handling ─────────────────────────────────────────────────────
-  function handleReaction(e) {
-    const btn = e.currentTarget;
-    const messageId = btn.getAttribute('data-message-id');
-    const reactionType = btn.getAttribute('data-reaction');
-
-    fetch('/api/messages/' + messageId + '/react', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reaction_type: reactionType }),
-    })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (data) {
-        const msgEl = document.getElementById('msg-' + messageId);
-        if (!msgEl) return;
-        msgEl.querySelectorAll('.reaction-btn').forEach(function (b) {
-          const rt = b.getAttribute('data-reaction');
-          const count = (data.counts && data.counts[rt]) || '';
-          const countEl = b.querySelector('.reaction-count');
-          if (countEl) countEl.textContent = count;
-        });
-        if (data.added) { btn.classList.add('reacted'); } else { btn.classList.remove('reacted'); }
-      })
-      .catch(function () {
-        btn.classList.toggle('reacted');
-        btn.style.opacity = '0.4';
-        setTimeout(function () { btn.style.opacity = ''; }, 1500);
-      });
-  }
-
-  document.querySelectorAll('.reaction-btn').forEach(function (btn) {
-    btn.addEventListener('click', handleReaction);
   });
 
   // ── Delete handling ───────────────────────────────────────────────────────
@@ -337,75 +283,6 @@
       chatTextarea.focus();
       chatTextarea.setSelectionRange(chatTextarea.value.length, chatTextarea.value.length);
       chatTextarea.dispatchEvent(new Event('input'));
-    });
-  }
-
-  // ── Group vote: Confirm / Dismiss / Redeemed — optimistic toggle ──────────
-  const voteRow = document.getElementById('icard-vote-row');
-  if (voteRow) {
-    let voteBusy = false;
-
-    function setVoteNum(type, n) {
-      document.querySelectorAll(
-        '[data-vote-num="' + type + '"], [data-ctx-vote="' + type + '"]'
-      ).forEach(function (el) { el.textContent = n; });
-    }
-    function getVoteNum(type) {
-      const el = voteRow.querySelector('[data-vote-num="' + type + '"]');
-      return el ? parseInt(el.textContent, 10) || 0 : 0;
-    }
-
-    voteRow.addEventListener('click', function (e) {
-      const btn = e.target.closest('.vote-btn');
-      if (!btn || voteBusy) return;
-      voteBusy = true;
-
-      const voteType = btn.getAttribute('data-vote');
-      const wasActive = btn.classList.contains('active');
-      const prevActive = voteRow.querySelector('.vote-btn.active');
-      const prevType = prevActive ? prevActive.getAttribute('data-vote') : null;
-
-      // Optimistic update: one vote per user — switching moves the count
-      const snapshot = {};
-      ['confirm', 'dismiss', 'redeem'].forEach(function (t) { snapshot[t] = getVoteNum(t); });
-
-      if (prevActive) {
-        prevActive.classList.remove('active');
-        setVoteNum(prevType, Math.max(0, getVoteNum(prevType) - 1));
-      }
-      if (!wasActive) {
-        btn.classList.add('active');
-        setVoteNum(voteType, getVoteNum(voteType) + 1);
-      }
-
-      fetch('/api/threads/' + THREAD_ID + '/vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ vote_type: voteType }),
-      })
-        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-        .then(function (data) {
-          // Reconcile with authoritative counts
-          ['confirm', 'dismiss', 'redeem'].forEach(function (t) {
-            setVoteNum(t, data.votes[t] || 0);
-          });
-          voteRow.querySelectorAll('.vote-btn').forEach(function (b) {
-            b.classList.toggle('active', b.getAttribute('data-vote') === data.user_vote);
-          });
-          if (typeof showToast === 'function') {
-            showToast(data.user_vote ? 'Vote recorded' : 'Vote removed', 'success');
-          }
-        })
-        .catch(function () {
-          // Revert to snapshot
-          ['confirm', 'dismiss', 'redeem'].forEach(function (t) { setVoteNum(t, snapshot[t]); });
-          voteRow.querySelectorAll('.vote-btn').forEach(function (b) {
-            b.classList.toggle('active', b.getAttribute('data-vote') === prevType);
-          });
-          if (typeof showToast === 'function') showToast('Vote failed — try again', 'error');
-        })
-        .finally(function () { voteBusy = false; });
     });
   }
 

@@ -76,9 +76,10 @@
     flex: 1; min-height: 0; max-height: none !important;
     padding: 0.75rem 0 0.5rem;
     overflow-y: auto;
-    /* Rubber-band stays inside the chat list — overscroll bounce area shows
-       the app background color instead of the raw native layer. Propagation
-       to the body is blocked so the body doesn't also bounce. */
+    /* Native momentum + rubber-band: the chat list bounces and snaps back into
+       place when overscrolled past top/bottom. `contain` keeps that bounce on
+       the chat list (showing the app bg) without chaining to the body. */
+    -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     background: var(--bg-primary);
   }
@@ -120,31 +121,25 @@
     border: none !important;
     background: none !important;
   }
+  /* "Red stained glass" — translucent accent fill (217,51,72 = --accent) so the
+     page shows through, with a slightly stronger leading-style border edge.
+     Text stays theme-primary (dark on light, light on dark) so it's readable. */
   body.thread-view .message-mine .message-bubble {
-    background: var(--accent) !important;
+    background: rgba(217,51,72,0.16) !important;
+    border: 1px solid rgba(217,51,72,0.32) !important;
     border-bottom-right-radius: 4px !important;
   }
   body.thread-view .message-mine .message-text,
-  body.thread-view .message-mine .message-author { color: rgba(255,255,255,0.95); }
-  body.thread-view .message-mine .message-time  { color: rgba(255,255,255,0.65); }
-  body.thread-view .message-mine .reaction-btn  { border-color: rgba(255,255,255,0.3); }
+  body.thread-view .message-mine .message-author { color: var(--text-primary); }
   body.thread-view .message-theirs .message-bubble {
     background: var(--bg-input) !important;
     border-bottom-left-radius: 4px !important;
   }
   body.thread-view .message-footer {
     display: flex; align-items: center; gap: 0.3rem;
-    margin-top: 0.25rem; flex-wrap: wrap;
+    margin-top: 0.2rem;
   }
   body.thread-view .message-mine .message-footer { justify-content: flex-end; }
-  body.thread-view .reaction-btn {
-    font-size: 0.72rem; padding: 0.1rem 0.35rem;
-    background: var(--bg-input); border-radius: 10px;
-    border: 1px solid var(--border);
-  }
-  body.thread-view .reaction-btn.reacted {
-    background: var(--accent-sub); border-color: var(--accent);
-  }
   body.thread-view .message-time {
     font-size: 0.68rem; color: var(--text-muted);
   }
@@ -222,14 +217,6 @@
           {% endif %}
           <div class="message-text">{{ msg.body }}</div>
           <div class="message-footer">
-            <div class="reaction-bar">
-              {% for rtype, emoji in [('laugh','😂'),('cook','👨‍🍳'),('fraud','🚨'),('receipt','🧾')] %}
-              <button class="reaction-btn {% if rtype in (msg.user_reaction(current_user.id)) %}reacted{% endif %}"
-                      data-message-id="{{ msg.id }}" data-reaction="{{ rtype }}" title="{{ rtype }}">
-                {{ emoji }} <span class="reaction-count">{{ msg.reaction_counts().get(rtype, 0) or '' }}</span>
-              </button>
-              {% endfor %}
-            </div>
             <span class="message-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</span>
             {% if msg.message_type == 'user' and msg.user_id != current_user.id %}
             <button class="report-btn" data-message-id="{{ msg.id }}"
