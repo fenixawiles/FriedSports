@@ -1,4 +1,5 @@
 import UIKit
+import WebKit
 import Capacitor
 
 @UIApplicationMain
@@ -46,4 +47,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+}
+
+/// Root web view controller — re-enables native iOS elastic overscroll.
+///
+/// Capacitor's `CAPBridgeViewController` hard-sets `scrollView.bounces = false`
+/// in `prepareWebView`, and there is NO capacitor.config option to change it.
+/// That is why the packaged app never rubber-bands the way mobile Safari does —
+/// CSS (`overscroll-behavior`, `-webkit-overflow-scrolling`) cannot re-enable a
+/// `UIScrollView` whose `bounces` is off. `capacitorDidLoad()` runs right after
+/// the web view is created, so it's the supported place to flip it back on.
+///
+/// - `bounces = true`: the document rubber-bands at the top/bottom of any
+///   scrollable page, and overflow scrollers (the chat message list) bounce too.
+/// - `alwaysBounceVertical` is left at its default (false) on purpose: a page
+///   whose content fits the viewport exactly — the locked 100dvh chat shell —
+///   must not bounce as a whole block; only its inner `.chat-window` scrolls and
+///   bounces. Pages taller than the viewport still bounce because their content
+///   exceeds the scroll-view bounds.
+class MainViewController: CAPBridgeViewController {
+    override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        webView?.scrollView.bounces = true
+    }
 }
