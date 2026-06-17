@@ -11,8 +11,14 @@
      onto the threads list — the bug where the bottom nav stayed hidden and the
      page went full-bleed / off-center after leaving a chat. */
 
-  /* Dynamic viewport height keeps the input above the mobile browser chrome */
-  body.thread-view { height: 100dvh; overflow: hidden; }
+  /* Dynamic viewport height keeps the input above the mobile browser chrome.
+     overscroll-behavior:none here is the key to native chat feel: it disables
+     the DOCUMENT-level rubber-band (WKWebView's main scrollView bounces=true
+     even on a non-scrolling page) so dragging never bounces the whole fixed
+     UI — header + composer stay pinned. `overscroll-behavior` set on <body>
+     propagates to the viewport per spec. Only the inner .chat-window bounces.
+     (Scoped to .thread-view so normal pages keep their elastic document bounce.) */
+  body.thread-view { height: 100dvh; overflow: hidden; overscroll-behavior: none; }
   /* min-height:0 all the way down the flex chain so a tall chat window can
      shrink+scroll instead of pushing the input area below the viewport
      (which is what buried the input behind the browser nav bar on send). */
