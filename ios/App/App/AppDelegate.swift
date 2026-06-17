@@ -89,10 +89,20 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         // Retain cycle self<-controller<-webView<-self is benign: this is the
         // root view controller and lives for the whole app session.
         webView?.configuration.userContentController.add(self, name: "fsTheme")
+        webView?.configuration.userContentController.add(self, name: "fsBounce")
     }
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
+        // Per-page document bounce: "0" on chat pages (so the fixed UI can't be
+        // dragged by overscroll), "1" elsewhere. The inner .chat-window keeps its
+        // own elastic bounce regardless.
+        if message.name == "fsBounce" {
+            let on = (message.body as? String) == "1"
+            let wv = webView
+            DispatchQueue.main.async { wv?.scrollView.bounces = on }
+            return
+        }
         guard message.name == "fsTheme",
               let hex = message.body as? String,
               let color = MainViewController.color(fromHex: hex) else { return }

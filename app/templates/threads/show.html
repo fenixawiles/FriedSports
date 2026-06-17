@@ -18,7 +18,15 @@
      UI — header + composer stay pinned. `overscroll-behavior` set on <body>
      propagates to the viewport per spec. Only the inner .chat-window bounces.
      (Scoped to .thread-view so normal pages keep their elastic document bounce.) */
-  body.thread-view { height: 100dvh; overflow: hidden; overscroll-behavior: none; }
+  /* height tracks the keyboard: native.js publishes --kb (keyboard height) from
+     the Keyboard plugin's keyboardWillShow, and this transition rides up in sync
+     with the keyboard instead of the plugin's delayed frame snap. --kb is 0 when
+     the keyboard is closed. */
+  body.thread-view {
+    height: calc(100dvh - var(--kb, 0px));
+    overflow: hidden; overscroll-behavior: none;
+    transition: height 0.25s ease-out;
+  }
   /* min-height:0 all the way down the flex chain so a tall chat window can
      shrink+scroll instead of pushing the input area below the viewport
      (which is what buried the input behind the browser nav bar on send). */

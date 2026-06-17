@@ -72,16 +72,46 @@
   // home-indicator inset while the keyboard is up. The Keyboard plugin's events
   // are the reliable signal here (visualViewport can't see it once the frame
   // itself resizes). Wired once — these native listeners survive Turbo swaps.
+  // With resize:"none" the web view stays full-height (no late frame snap), so
+  // we shrink the thread layout ourselves: publish the keyboard height as --kb
+  // and let CSS transition `height: calc(100dvh - var(--kb))` in sync with the
+  // keyboard. keyboardWillShow fires at the START of the keyboard animation, so
+  // the CSS transition rides up with it. .keyboard-open also drops the composer's
+  // home-indicator inset (the web view still touches the bottom under resize:none).
   if (isNative && !window._fsKeyboardWired) {
     var Keyboard = plugin('Keyboard');
     if (Keyboard && Keyboard.addListener) {
       window._fsKeyboardWired = true;
-      Keyboard.addListener('keyboardWillShow', function () {
+      Keyboard.addListener('keyboardWillShow', function (info) {
+        var h = (info && info.keyboardHeight) ? info.keyboardHeight : 0;
+        document.body.style.setProperty('--kb', h + 'px');
         document.body.classList.add('keyboard-open');
       });
       Keyboard.addListener('keyboardWillHide', function () {
+        document.body.style.setProperty('--kb', '0px');
         document.body.classList.remove('keyboard-open');
       });
+    }
+  }
+
+  // ── Per-page document bounce ────────────────────────────────────────────────
+  // The elastic document rubber-band is great on scrolling pages, but on a chat
+  // (fixed-height body) it drags the whole UI — including the composer — when you
+  // overscroll the message list. Tell native to disable the MAIN scroll view's
+  // bounce on thread pages (the inner .chat-window keeps its own bounce); re-enable
+  // it everywhere else. Posted on every Turbo visit.
+  if (isNative) {
+    var syncBounce = function () {
+      try {
+        var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.fsBounce;
+        if (!h) return;
+        h.postMessage(document.body.classList.contains('thread-view') ? '0' : '1');
+      } catch (e) { /* no-op on web */ }
+    };
+    syncBounce();
+    if (!window._fsBounceWired) {
+      window._fsBounceWired = true;
+      document.addEventListener('turbo:load', syncBounce);
     }
   }
 
