@@ -304,8 +304,11 @@ def notifications():
         .limit(100)
         .all()
     )
-    messages = [n for n in all_notifs if n.type in ("thread_started", "message_received")]
+    # "Messages" = every informational notification EXCEPT group invites (own tab)
+    # and friend_request (shown as an actionable row below). This catch-all means
+    # new notification types (e.g. friend_accepted) can never be silently dropped.
     invites  = [n for n in all_notifs if n.type == "group_invite"]
+    messages = [n for n in all_notifs if n.type not in ("group_invite", "friend_request")]
 
     pending_fr = (
         FriendRequest.query

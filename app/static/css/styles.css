@@ -84,13 +84,17 @@ body {
   flex-direction: column;
 }
 /* Subtle content-appear animation — makes every page load feel like an intentional
-   transition rather than a raw DOM paint. 120ms is fast enough to feel instant. */
+   transition rather than a raw DOM paint. 120ms is fast enough to feel instant.
+   Opacity-only on purpose: a lingering transform (from a translate keyframe held
+   by fill-mode) would turn .main-content into a containing block for fixed
+   elements, which pinned the threads FAB to the content instead of the viewport
+   (so it scrolled with the list instead of floating over it). */
 .main-content {
-  animation: _content-appear 0.12s ease-out both;
+  animation: _content-appear 0.14s ease-out both;
 }
 @keyframes _content-appear {
-  from { opacity: 0; transform: translateY(3px); }
-  to   { opacity: 1; transform: translateY(0);   }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* Kill double-tap zoom delay on interactive elements */

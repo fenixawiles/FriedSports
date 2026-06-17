@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="shortcut icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=18">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=19">
   <!-- Turbo Drive — app-shell navigation (content swap without full page reload) -->
   <!-- no-preview: never show stale cached snapshots before fresh data arrives -->
   <meta name="turbo-cache-control" content="no-preview">
@@ -270,7 +270,9 @@
   // Global back button — only show when there's history and we're not on a primary tab
   (function() {
     var primaryTabs = ['/', '/login', '/signup', '/dashboard', '/threads', '/more', '/friends', '/notifications'];
-    var path = window.location.pathname;
+    // Strip trailing slash so '/friends/' still matches '/friends' — otherwise a
+    // blueprint root URL with a slash falls through and shows the global back btn.
+    var path = window.location.pathname.replace(/\/+$/, '') || '/';
     var isPrimary = primaryTabs.some(function(p) { return path === p; });
     if (!isPrimary && history.length > 1) {
       var el = document.getElementById('page-back');

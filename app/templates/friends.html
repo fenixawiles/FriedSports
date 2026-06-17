@@ -3,30 +3,32 @@
 {% block content %}
 <div class="group-container" style="max-width:680px">
 
-  <div class="group-header">
-    <div>
-      <h1>Friends</h1>
-      <div class="friend-summary">
-        {{ friends|length }} friend{{ 's' if friends|length != 1 }}
-        · {{ pending_requests|length }} pending
-        · {{ total_shared_groups }} shared group{{ 's' if total_shared_groups != 1 }}
-      </div>
+  <div class="threads-header-wrap" style="margin-bottom:0.6rem">
+    <div class="threads-header-left">
+      <a href="{{ url_for('dashboard.dashboard') }}" class="threads-back-btn" id="friends-back-link" aria-label="Back">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </a>
+      <span class="section-title">Friends</span>
     </div>
   </div>
+  <p class="friends-tagline">
+    {% if friends %}The crew you watch with — {{ friends|length }} friend{{ 's' if friends|length != 1 }}{% if total_shared_groups %}, {{ total_shared_groups }} shared group{{ 's' if total_shared_groups != 1 }}{% endif %}.{% else %}Add the people you watch (and argue) with.{% endif %}
+  </p>
 
   {% if pending_requests %}
-  <section class="group-section" style="border-top:none;padding-top:0">
-    <div class="section-header" style="margin-bottom:0.5rem">
-      <span class="section-title">Pending Requests</span>
-    </div>
+  <section class="friends-block">
+    <div class="friends-block-title">Wants to connect</div>
     {% for fr in pending_requests %}
-    <div class="friend-req-row" id="friend-req-{{ fr.id }}">
+    <div class="social-row" id="friend-req-{{ fr.id }}">
       <span class="avatar-initials">{{ fr.from_user.initials }}</span>
-      <div class="friend-info">
+      <div class="social-row-info">
         <span class="member-name">{{ fr.from_user.shown_name }}</span>
-        <div class="friend-meta">@{{ fr.from_user.uid }} · wants to connect</div>
+        <span class="social-row-sub">sent you a request</span>
       </div>
-      <div class="friend-req-actions">
+      <div class="social-row-actions">
         <button class="btn-primary-small friend-req-btn" data-req-id="{{ fr.id }}" data-action="accept">Accept</button>
         <button class="btn-secondary-small friend-req-btn" data-req-id="{{ fr.id }}" data-action="decline">Ignore</button>
       </div>
@@ -35,24 +37,21 @@
   </section>
   {% endif %}
 
-  <!-- Search + add -->
-  <section class="group-section" {% if not pending_requests %}style="border-top:none;padding-top:0"{% endif %}>
-    <div class="section-header" style="margin-bottom:0.5rem">
-      <span class="section-title">Add Friends</span>
-      <span class="section-sub">Search name, email, or FS ID</span>
-    </div>
+  <!-- Find people -->
+  <section class="friends-block">
+    <div class="friends-block-title">Find people</div>
     <form method="get" action="{{ url_for('friends.index') }}" class="friend-search-form" id="friend-search-form">
       <input type="text" name="q" value="{{ q or '' }}" id="friend-search-input"
-             placeholder="Search name, email, or FS ID…"
+             placeholder="Search a name, email, or friend code…"
              autocomplete="off" autocorrect="off" spellcheck="false"
              style="font-size:16px">
-      <button type="submit" class="btn-primary-small">Search</button>
       {% if q %}<a href="{{ url_for('friends.index') }}" class="btn-secondary-small" id="friend-search-clear">Clear</a>{% endif %}
     </form>
-    <div class="fsid-row">
-      <span>Your FS ID</span>
+
+    <div class="friend-code-card">
+      <span class="friend-code-label">Your friend code</span>
       <code id="my-fsid">{{ current_user.uid }}</code>
-      <button type="button" class="btn-secondary-tiny" id="copy-fsid-btn">Copy</button>
+      <button type="button" class="btn-secondary-tiny" id="copy-fsid-btn" style="margin-left:auto">Copy</button>
     </div>
 
     <!-- JS live-search results go here; server-rendered results below as fallback -->
@@ -61,64 +60,61 @@
     <!-- Search results (server-rendered fallback) -->
     {% if q %}
     {% if results %}
-    <div class="member-table" style="margin-top:1rem" id="friend-server-results">
-      <div class="member-row member-header" style="grid-template-columns:1fr auto auto">
-        <span>User</span><span>UID</span><span></span>
-      </div>
+    <div class="user-result-list" style="margin-top:0.85rem" id="friend-server-results">
       {% for item in results %}
-      <div class="member-row" style="grid-template-columns:1fr auto auto">
-        <span class="member-name">{{ item.user.shown_name }}</span>
-        <span style="font-family:monospace;font-size:0.75rem;color:var(--text-muted)">{{ item.user.uid }}</span>
-        <span>
+      <div class="user-result" data-user-id="{{ item.user.id }}">
+        <span class="avatar-initials">{{ item.user.initials }}</span>
+        <div class="user-result-info">
+          <span class="member-name">{{ item.user.shown_name }}</span>
+          <span class="user-result-uid">@{{ item.user.uid }}</span>
+        </div>
+        <div class="user-result-action">
           {% if item.status == 'friends' %}
-          <span class="badge-role member">Friends</span>
+          <span class="social-tag">Friends</span>
           {% elif item.status == 'pending_sent' %}
-          <span style="font-size:0.75rem;color:var(--text-muted)">Request sent</span>
+          <span class="social-muted">Requested</span>
           {% elif item.status == 'pending_received' %}
-          <span style="font-size:0.75rem;color:var(--text-muted)">Wants to add you</span>
+          <span class="social-muted">Wants to add you</span>
           {% else %}
           <form action="{{ url_for('friends.send_request', user_id=item.user.id) }}" method="post" style="display:inline">
-            <button type="submit" class="btn-secondary-small">Add Friend</button>
+            <button type="submit" class="btn-primary-small">Add</button>
           </form>
           {% endif %}
-        </span>
+        </div>
       </div>
       {% endfor %}
     </div>
     {% else %}
     <div class="empty-state" style="margin-top:1rem">
-      <p>No users found for "{{ q }}".</p>
+      <p>No one found for "{{ q }}".</p>
     </div>
     {% endif %}
     {% endif %}
   </section>
 
   <!-- Friends list -->
-  <section class="group-section">
-    <div class="section-header" style="margin-bottom:0.85rem">
-      <span class="section-title">Your Friends</span>
-    </div>
+  <section class="friends-block">
+    <div class="friends-block-title">Your people</div>
     {% if friends %}
     <div class="friend-list">
       {% for friend in friends %}
-      <div class="friend-row">
+      {% set sc = shared_counts.get(friend.id, 0) %}
+      <div class="social-row">
         <span class="avatar-initials">{{ friend.initials }}</span>
-        <div class="friend-info">
+        <div class="social-row-info">
           <span class="member-name">{{ friend.shown_name }}</span>
-          <div class="friend-meta">
-            @{{ friend.uid }}
-            · {{ shared_counts.get(friend.id, 0) }} shared group{{ 's' if shared_counts.get(friend.id, 0) != 1 }}
-            {% if friend.last_active_at %}· active {{ time_ago(friend.last_active_at) }}{% endif %}
-          </div>
+          <span class="social-row-sub">
+            {% if sc %}{{ sc }} group{{ 's' if sc != 1 }} together{% else %}No shared groups yet{% endif %}{% if friend.last_active_at %} · active {{ time_ago(friend.last_active_at) }}{% endif %}
+          </span>
         </div>
         <div class="overflow-wrap">
           <button type="button" class="overflow-menu-btn" aria-controls="friend-menu-{{ friend.id }}"
                   aria-label="More actions for {{ friend.shown_name }}">⋯</button>
           <div class="overflow-menu" id="friend-menu-{{ friend.id }}" hidden>
-            <button type="button" class="overflow-item copy-friend-id" data-uid="{{ friend.uid }}">Copy FS ID</button>
+            <button type="button" class="overflow-item copy-friend-id" data-uid="{{ friend.uid }}">Copy friend code</button>
             <form action="{{ url_for('friends.remove_friend', user_id=friend.id) }}" method="post"
                   onsubmit="return confirm('Remove {{ friend.shown_name }} from friends?')">
-              <button type="submit" class="overflow-item overflow-danger">Remove Friend</button>
+              <button type="submit" class="overflow-item overflow-danger">Remove friend</button>
             </form>
             <form action="{{ url_for('friends.block_user', user_id=friend.id) }}" method="post"
                   onsubmit="return confirm('Block {{ friend.shown_name }}? They will be removed as a friend and you will no longer see their messages.')">
@@ -131,8 +127,8 @@
     </div>
     {% else %}
     <div class="empty-state">
-      <p>No friends added yet. Dangerous way to watch sports.</p>
-      <p>Search by name, email, or FS ID above to add someone.</p>
+      <p>No friends yet. Way more fun with a crew.</p>
+      <p>Search a name or drop in a friend code above.</p>
     </div>
     {% endif %}
   </section>
@@ -140,12 +136,43 @@
 </div>
 
 <style>
-.friend-search-form {
-  display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
-}
-.friend-search-form input {
-  flex: 1; min-width: 200px;
-}
+  .friends-tagline { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 1.2rem; line-height: 1.45; }
+  .friends-block { margin-bottom: 1.6rem; }
+  .friends-block-title {
+    font-size: 0.74rem; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.6rem;
+  }
+  .friend-search-form { display: flex; gap: 0.5rem; align-items: center; }
+  .friend-search-form input { flex: 1; min-width: 0; }
+  .friend-code-card {
+    display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;
+    background: var(--bg-input); border-radius: 12px;
+    padding: 0.6rem 0.8rem; margin-top: 0.7rem; font-size: 0.82rem;
+  }
+  .friend-code-label { color: var(--text-secondary); }
+  .friend-code-card code {
+    font-family: monospace; font-weight: 700; color: var(--text-primary); letter-spacing: 0.04em;
+  }
+  /* social rows — friends, requests, search results all share this feel */
+  .social-row, .user-result {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.65rem 0; border-bottom: 1px solid var(--border);
+  }
+  .social-row:last-child, .user-result:last-child { border-bottom: none; }
+  .social-row-info, .user-result-info {
+    flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;
+  }
+  .social-row-sub, .user-result-uid {
+    font-size: 0.76rem; color: var(--text-muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .user-result-uid { font-family: monospace; }
+  .social-row-actions, .user-result-action { flex-shrink: 0; display: flex; gap: 0.4rem; align-items: center; }
+  .social-muted { font-size: 0.76rem; color: var(--text-muted); }
+  .social-tag {
+    font-size: 0.72rem; font-weight: 600; color: var(--green);
+    background: rgba(29,135,66,0.1); padding: 0.12rem 0.5rem; border-radius: 10px;
+  }
 </style>
 {% endblock %}
 
@@ -166,6 +193,13 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function initialsOf(name) {
+    var parts = String(name || '').trim().split(/\s+/);
+    var a = (parts[0] || '')[0] || '';
+    var b = (parts.length > 1 ? parts[parts.length - 1][0] : '') || '';
+    return (a + b).toUpperCase() || '?';
+  }
+
   function renderResults(items, query) {
     if (!query || query.length < 2) {
       liveResults.innerHTML = '';
@@ -176,33 +210,33 @@
     if (serverResults) serverResults.style.display = 'none';
 
     if (!items.length) {
-      liveResults.innerHTML = '<div class="empty-state" style="margin-top:1rem"><p>No users found.</p></div>';
+      liveResults.innerHTML = '<div class="empty-state" style="margin-top:1rem"><p>No one found.</p></div>';
       return;
     }
 
-    var html = '<div class="member-table" style="margin-top:1rem">';
-    html += '<div class="member-row member-header" style="grid-template-columns:1fr auto auto">';
-    html += '<span>User</span><span>UID</span><span></span></div>';
-
+    var html = '<div class="user-result-list" style="margin-top:0.85rem">';
     items.forEach(function (item) {
-      var action = '';
+      var action;
       if (item.status === 'friends') {
-        action = '<span class="badge-role member">Friends</span>';
+        action = '<span class="social-tag">Friends</span>';
       } else if (item.status === 'pending_sent') {
-        action = '<span style="font-size:0.75rem;color:var(--text-muted)">Request sent</span>';
+        action = '<span class="social-muted">Requested</span>';
       } else if (item.status === 'pending_received') {
-        action = '<span style="font-size:0.75rem;color:var(--text-muted)">Wants to add you</span>';
+        action = '<span class="social-muted">Wants to add you</span>';
       } else {
-        action = '<button class="btn-secondary-small friend-add-btn"'
+        action = '<button class="btn-primary-small friend-add-btn"'
                + ' data-user-id="' + esc(item.id) + '"'
-               + ' data-user-name="' + esc(item.name) + '">Add Friend</button>';
+               + ' data-user-name="' + esc(item.name) + '">Add</button>';
       }
-      html += '<div class="member-row" style="grid-template-columns:1fr auto auto">';
-      html += '<span class="member-name">' + esc(item.name) + '</span>';
-      html += '<span style="font-family:monospace;font-size:0.75rem;color:var(--text-muted)">' + esc(item.uid) + '</span>';
-      html += '<span>' + action + '</span></div>';
+      html += '<div class="user-result" data-user-id="' + esc(item.id) + '">'
+            +   '<span class="avatar-initials">' + esc(initialsOf(item.name)) + '</span>'
+            +   '<div class="user-result-info">'
+            +     '<span class="member-name">' + esc(item.name) + '</span>'
+            +     '<span class="user-result-uid">@' + esc(item.uid) + '</span>'
+            +   '</div>'
+            +   '<div class="user-result-action">' + action + '</div>'
+            + '</div>';
     });
-
     html += '</div>';
     liveResults.innerHTML = html;
   }
@@ -250,12 +284,13 @@
     })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function () {
-        var cell = btn.closest('span');
-        if (cell) cell.innerHTML = '<span style="font-size:0.75rem;color:var(--text-muted)">Request sent</span>';
+        var cell = btn.closest('.user-result-action');
+        if (cell) cell.innerHTML = '<span class="social-muted">Requested</span>';
+        if (typeof showToast === 'function') showToast('Request sent', 'success');
       })
       .catch(function () {
         btn.disabled = false;
-        btn.textContent = 'Add Friend';
+        btn.textContent = 'Add';
       });
   });
 
@@ -321,10 +356,18 @@
   document.querySelectorAll('.copy-friend-id').forEach(function (btn) {
     btn.addEventListener('click', function () {
       copy(btn.getAttribute('data-uid'))
-        .then(function () { if (typeof showToast === 'function') showToast('FS ID copied', 'success'); })
+        .then(function () { if (typeof showToast === 'function') showToast('Friend code copied', 'success'); })
         .catch(function () {});
     });
   });
+})();
+
+// ── Back link — prefer in-app history ───────────────────────────────────────
+(function () {
+  var back = document.getElementById('friends-back-link');
+  if (back && history.length > 1) {
+    back.addEventListener('click', function (e) { e.preventDefault(); history.back(); });
+  }
 })();
 </script>
 {% endblock %}
