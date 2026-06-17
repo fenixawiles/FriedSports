@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="shortcut icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=16">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=17">
   <!-- Turbo Drive — app-shell navigation (content swap without full page reload) -->
   <!-- no-preview: never show stale cached snapshots before fresh data arrives -->
   <meta name="turbo-cache-control" content="no-preview">
@@ -222,8 +222,8 @@
   </nav>
   {% endif %}
 
-  <script src="{{ url_for('static', filename='js/native.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/native.js') }}?v=17"></script>
+  <script src="{{ url_for('static', filename='js/main.js') }}?v=17"></script>
   {% block scripts %}{% endblock %}
   <!-- ── Turbo Drive lifecycle hooks ───────────────────────────────────────── -->
   <script>

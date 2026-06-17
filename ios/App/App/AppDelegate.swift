@@ -65,9 +65,47 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 ///   must not bounce as a whole block; only its inner `.chat-window` scrolls and
 ///   bounces. Pages taller than the viewport still bounce because their content
 ///   exceeds the scroll-view bounds.
-class MainViewController: CAPBridgeViewController {
+class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
         webView?.scrollView.bounces = true
+
+        // Theme-correct overscroll: the rubber-band region is painted by the
+        // native layer (scrollView.backgroundColor / underPageBackgroundColor),
+        // which Capacitor hard-codes to a single light color. The app's dark mode
+        // is a web-only toggle (localStorage), so the native side can't know the
+        // theme on its own. The web posts its current --bg-primary here whenever
+        // the theme changes; we mirror it onto the scroll view so the bounce
+        // matches light/dark instead of flashing the wrong color.
+        // (Registered on the live content controller; the JS side is fully
+        // guarded, so a missing handler is simply a no-op — never a regression.)
+        // Retain cycle self<-controller<-webView<-self is benign: this is the
+        // root view controller and lives for the whole app session.
+        webView?.configuration.userContentController.add(self, name: "fsTheme")
+    }
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        guard message.name == "fsTheme",
+              let hex = message.body as? String,
+              let color = MainViewController.color(fromHex: hex) else { return }
+        let wv = webView
+        DispatchQueue.main.async {
+            wv?.backgroundColor = color
+            wv?.scrollView.backgroundColor = color
+            if #available(iOS 15.0, *) { wv?.underPageBackgroundColor = color }
+        }
+    }
+
+    /// Parse a "#RRGGBB" string into an opaque UIColor. Returns nil on anything
+    /// it doesn't recognize so a bad value just leaves the current color intact.
+    private static func color(fromHex hex: String) -> UIColor? {
+        var s = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let v = UInt32(s, radix: 16) else { return nil }
+        return UIColor(red:   CGFloat((v >> 16) & 0xFF) / 255.0,
+                       green: CGFloat((v >>  8) & 0xFF) / 255.0,
+                       blue:  CGFloat( v        & 0xFF) / 255.0,
+                       alpha: 1.0)
     }
 }

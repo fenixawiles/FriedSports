@@ -63,4 +63,34 @@
       else if (t.closest && (t.closest('.vote-btn') || t.closest('.reaction-btn'))) haptic('MEDIUM');
     }, true);
   }
+
+  // ── Theme-aware native overscroll color ─────────────────────────────────────
+  // The WKWebView's rubber-band/overscroll area is painted by the native layer,
+  // which can't read the web-only (localStorage) dark-mode toggle. Post the
+  // current resolved --bg-primary to MainViewController so the bounce matches
+  // the active theme instead of flashing a fixed color. Fully guarded: on the
+  // mobile web (no fsTheme handler) every call is a silent no-op.
+  if (isNative) {
+    var syncThemeColor = function () {
+      try {
+        var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.fsTheme;
+        if (!h) return;
+        var hex = getComputedStyle(document.documentElement)
+                    .getPropertyValue('--bg-primary').trim();
+        if (hex) h.postMessage(hex);
+      } catch (e) { /* never let theme sync throw */ }
+    };
+    // Sync now (CSS is applied by the time this body script runs) and on every
+    // Turbo navigation (this script re-runs per visit).
+    syncThemeColor();
+    // Wire long-lived listeners exactly once — they survive Turbo body swaps.
+    if (!window._fsThemeWired) {
+      window._fsThemeWired = true;
+      document.addEventListener('turbo:load', syncThemeColor);
+      // Fires the instant the in-app toggle flips data-theme on <html>.
+      new MutationObserver(syncThemeColor).observe(document.documentElement, {
+        attributes: true, attributeFilter: ['data-theme']
+      });
+    }
+  }
 })();
