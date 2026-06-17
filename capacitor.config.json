@@ -14,10 +14,13 @@
     "contentInset": "never",
     "backgroundColor": "#f2f2f7",
     "allowsLinkPreview": false,
-    "scrollEnabled": true,
-    "keyboardResize": "native"
+    "scrollEnabled": true
   },
   "plugins": {
+    "Keyboard": {
+      "resize": "native",
+      "resizeOnFullScreen": true
+    },
     "SplashScreen": {
       "launchShowDuration": 1500,
       "launchAutoHide": true,

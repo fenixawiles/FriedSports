@@ -64,6 +64,27 @@
     }, true);
   }
 
+  // ── Native keyboard ─────────────────────────────────────────────────────────
+  // resize:"native" (capacitor.config) shrinks the web view frame above the
+  // keyboard, so the flex chat layout fits on its own — the header stays pinned
+  // and the composer rides just above the keyboard instead of the whole page
+  // scrolling up. We still toggle .keyboard-open so the composer can drop its
+  // home-indicator inset while the keyboard is up. The Keyboard plugin's events
+  // are the reliable signal here (visualViewport can't see it once the frame
+  // itself resizes). Wired once — these native listeners survive Turbo swaps.
+  if (isNative && !window._fsKeyboardWired) {
+    var Keyboard = plugin('Keyboard');
+    if (Keyboard && Keyboard.addListener) {
+      window._fsKeyboardWired = true;
+      Keyboard.addListener('keyboardWillShow', function () {
+        document.body.classList.add('keyboard-open');
+      });
+      Keyboard.addListener('keyboardWillHide', function () {
+        document.body.classList.remove('keyboard-open');
+      });
+    }
+  }
+
   // ── Theme-aware native overscroll color ─────────────────────────────────────
   // The WKWebView's rubber-band/overscroll area is painted by the native layer,
   // which can't read the web-only (localStorage) dark-mode toggle. Post the
