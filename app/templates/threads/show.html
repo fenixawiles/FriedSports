@@ -224,6 +224,39 @@
     text-align: center; margin-top: 0.25rem;
     color: var(--text-secondary); font-weight: 600;
   }
+
+  /* ── Quote-reply ── */
+  /* quoted parent shown at the top of a reply bubble */
+  body.thread-view .reply-quote {
+    display: flex; flex-direction: column; gap: 1px;
+    border-left: 2px solid var(--accent);
+    padding: 0.05rem 0.45rem; margin-bottom: 0.28rem; opacity: 0.9;
+  }
+  body.thread-view .reply-quote-author {
+    font-size: 0.66rem; font-weight: 700; color: var(--accent);
+  }
+  body.thread-view .reply-quote-text {
+    font-size: 0.78rem; color: var(--text-secondary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw;
+  }
+  /* reply-context bar above the composer */
+  body.thread-view .reply-bar {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.4rem 0.55rem; margin-bottom: 0.45rem;
+    background: var(--bg-input); border-radius: 10px;
+    border-left: 3px solid var(--accent);
+  }
+  body.thread-view .reply-bar[hidden] { display: none; }
+  body.thread-view .reply-bar-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  body.thread-view .reply-bar-author { font-size: 0.7rem; font-weight: 700; color: var(--accent); }
+  body.thread-view .reply-bar-text {
+    font-size: 0.78rem; color: var(--text-secondary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  body.thread-view .reply-bar-cancel {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 1rem; cursor: pointer; padding: 0 0.3rem; flex-shrink: 0;
+  }
 </style>
 {% endblock %}
 
@@ -287,6 +320,12 @@
       {% else %}
         <div class="message-col">
           <div class="message-bubble">
+            {% if msg.reply_to_id and msg.reply_to and not msg.reply_to.is_deleted %}
+            <div class="reply-quote">
+              <span class="reply-quote-author">{{ msg.reply_to.author.shown_name if msg.reply_to.author else 'FriedSports' }}</span>
+              <span class="reply-quote-text">{{ msg.reply_to.body | truncate(80, True, '…') }}</span>
+            </div>
+            {% endif %}
             {% if not mine %}
             <div class="message-author">
               {{ msg.author.display_name if msg.author else 'Unknown' }}
@@ -313,6 +352,13 @@
 
   {% if thread.status == 'active' %}
   <div class="chat-input-area">
+    <div class="reply-bar" id="reply-bar" hidden>
+      <div class="reply-bar-content">
+        <span class="reply-bar-author" id="reply-bar-author"></span>
+        <span class="reply-bar-text" id="reply-bar-text"></span>
+      </div>
+      <button type="button" class="reply-bar-cancel" id="reply-bar-cancel" aria-label="Cancel reply">✕</button>
+    </div>
     <form method="post" action="{{ url_for('threads.post_message', thread_id=thread.id) }}" class="chat-form" id="chat-form">
       <div class="chat-input-pill">
         <textarea name="body" id="chat-input"
@@ -412,6 +458,7 @@
       <button type="button" class="msg-react" data-reaction="fraud"   aria-label="React 🚨">🚨</button>
       <button type="button" class="msg-react" data-reaction="receipt" aria-label="React 🧾">🧾</button>
     </div>
+    <button type="button" class="msg-action" data-action="reply">Reply</button>
     <button type="button" class="msg-action" data-action="copy">Copy</button>
     <button type="button" class="msg-action msg-action-danger" data-action="delete" hidden>Delete</button>
     <button type="button" class="msg-action" data-action="report" hidden>Report message</button>
@@ -425,7 +472,7 @@
   const THREAD_ID = {{ thread.id }};
   const CURRENT_USER_ID = {{ current_user.id }};
 </script>
-<script src="{{ url_for('static', filename='js/threads.js') }}?v=18"></script>
+<script src="{{ url_for('static', filename='js/threads.js') }}?v=19"></script>
 <script>
   (function() {
     var ta = document.getElementById('chat-input');

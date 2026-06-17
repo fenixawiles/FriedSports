@@ -373,9 +373,14 @@ class GameThreadMessage(db.Model):
     message_type = db.Column(db.String(16), nullable=False, default="user")  # system, user
     body = db.Column(db.Text, nullable=False)
     is_deleted = db.Column(db.Boolean, default=False)
+    # Optional "reply to" reference for native quote-replies. Nullable; no DB-level
+    # cascade — an orphaned reference simply renders no quote.
+    reply_to_id = db.Column(db.Integer, db.ForeignKey("game_thread_messages.id"), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
 
     author = db.relationship("User", foreign_keys=[user_id])
+    reply_to = db.relationship("GameThreadMessage", remote_side=[id],
+                               foreign_keys=[reply_to_id], uselist=False)
     reactions = db.relationship("MessageReaction", backref="message", lazy="select")
     reports = db.relationship("MessageReport", backref="message", lazy="select")
 

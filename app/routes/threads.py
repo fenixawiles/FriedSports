@@ -110,11 +110,20 @@ def post_message(thread_id):
         flash(reason, "error")
         return redirect(url_for("threads.show", thread_id=thread_id))
 
+    # Optional quote-reply — only honor a parent that lives in THIS thread.
+    reply_to_id = request.form.get("reply_to", type=int)
+    if reply_to_id:
+        parent = GameThreadMessage.query.filter_by(
+            id=reply_to_id, thread_id=thread_id, is_deleted=False
+        ).first()
+        reply_to_id = parent.id if parent else None
+
     msg = GameThreadMessage(
         thread_id=thread_id,
         user_id=current_user.id,
         message_type="user",
         body=body,
+        reply_to_id=reply_to_id,
     )
     db.session.add(msg)
     db.session.flush()

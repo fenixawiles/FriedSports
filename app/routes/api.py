@@ -37,6 +37,12 @@ def thread_messages(thread_id):
     user_is_admin = _is_admin(current_user.id, thread.group_id)
     result = []
     for m in messages:
+        reply = None
+        if m.reply_to_id and m.reply_to and not m.reply_to.is_deleted:
+            reply = {
+                "author": m.reply_to.author.shown_name if m.reply_to.author else "FriedSports",
+                "body": m.reply_to.body,
+            }
         result.append({
             "id": m.id,
             "type": m.message_type,
@@ -48,6 +54,7 @@ def thread_messages(thread_id):
             "reactions": m.reaction_counts(),
             "user_reactions": m.user_reaction(current_user.id),
             "can_delete": m.user_id == current_user.id or user_is_admin,
+            "reply_to": reply,
         })
     return jsonify(result)
 

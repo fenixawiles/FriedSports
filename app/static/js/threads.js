@@ -19,6 +19,21 @@
 
   const REACT_EMOJI = { laugh: '😂', cook: '👨‍🍳', fraud: '🚨', receipt: '🧾' };
 
+  // Quoted-parent element shown at the top of a reply bubble. `reply` is
+  // { author, body } (from messages.json) or the active reply context.
+  function replyQuoteEl(reply) {
+    const q = document.createElement('div');
+    q.className = 'reply-quote';
+    const a = document.createElement('span');
+    a.className = 'reply-quote-author';
+    a.textContent = reply.author;
+    const t = document.createElement('span');
+    t.className = 'reply-quote-text';
+    t.textContent = reply.body;
+    q.appendChild(a); q.appendChild(t);
+    return q;
+  }
+
   // ── Reaction badges (compact, under the bubble) ───────────────────────────
   function renderReactions(msgEl, counts) {
     const col = msgEl.querySelector('.message-col');
@@ -64,6 +79,7 @@
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
 
+    if (msg.reply_to) bubble.appendChild(replyQuoteEl(msg.reply_to));
     if (!isMine) {
       const author = document.createElement('div');
       author.className = 'message-author';
@@ -222,6 +238,7 @@
       if (!act) return;
       const action = act.getAttribute('data-action');
       if (action === 'cancel') { closeMenu(); return; }
+      if (action === 'reply')  { startReply(menuCtx); closeMenu(); return; }
       if (action === 'copy')   { copyText(menuCtx.text); closeMenu(); return; }
       if (action === 'delete') {
         closeMenu();
@@ -331,7 +348,27 @@
   const chatSendBtn  = document.getElementById('chat-send');
   let _pendingSeq = 0;
 
-  function buildOptimisticEl(body, tempId) {
+  // ── Reply state (set from the long-press "Reply" action) ──
+  const replyBar       = document.getElementById('reply-bar');
+  const replyBarAuthor = document.getElementById('reply-bar-author');
+  const replyBarText   = document.getElementById('reply-bar-text');
+  const replyBarCancel = document.getElementById('reply-bar-cancel');
+  let replyState = null; // { id, author, body }
+
+  function startReply(ctx) {
+    replyState = { id: ctx.id, author: ctx.mine ? 'You' : (ctx.authorName || 'them'), body: ctx.text || '' };
+    if (replyBarAuthor) replyBarAuthor.textContent = 'Replying to ' + replyState.author;
+    if (replyBarText)   replyBarText.textContent = replyState.body;
+    if (replyBar) replyBar.hidden = false;
+    if (chatTextarea) chatTextarea.focus();
+  }
+  function cancelReply() {
+    replyState = null;
+    if (replyBar) replyBar.hidden = true;
+  }
+  if (replyBarCancel) replyBarCancel.addEventListener('click', cancelReply);
+
+  function buildOptimisticEl(body, tempId, reply) {
     const wrapper = document.createElement('div');
     wrapper.className = 'message message-user message-mine message-pending';
     wrapper.id = tempId;
@@ -342,6 +379,7 @@
     col.className = 'message-col';
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
+    if (reply) bubble.appendChild(replyQuoteEl(reply));
     const text = document.createElement('div');
     text.className = 'message-text';
     text.textContent = body;
@@ -367,17 +405,20 @@
       const body = chatTextarea.value.trim();
       if (!body || !chatWindow) return;
 
+      const activeReply = replyState; // capture before the bar is cleared
       const tempId = 'opt-' + (++_pendingSeq);
-      const optEl  = buildOptimisticEl(body, tempId);
+      const optEl  = buildOptimisticEl(body, tempId, activeReply);
       chatWindow.appendChild(optEl);
       scrollToBottom();
 
       chatTextarea.value = '';
       chatTextarea.style.height = '';
+      cancelReply();
       if (chatSendBtn) { chatSendBtn.disabled = true; chatSendBtn.classList.add('sending'); }
 
       const fd = new FormData();
       fd.append('body', body);
+      if (activeReply) fd.append('reply_to', activeReply.id);
 
       fetch(chatForm.action, {
         method: 'POST',
