@@ -70,6 +70,13 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         super.capacitorDidLoad()
         webView?.scrollView.bounces = true
 
+        // Paint the view BEHIND the web view the app color. When the keyboard
+        // resizes the web-view frame, this backing view is what shows in the
+        // briefly-exposed strip during the animation — without this it's the
+        // system black, which is the "black corners around the keyboard". Default
+        // to light; the fsTheme bridge below corrects it to the live theme.
+        view.backgroundColor = MainViewController.color(fromHex: "#f2f2f7")
+
         // Theme-correct overscroll: the rubber-band region is painted by the
         // native layer (scrollView.backgroundColor / underPageBackgroundColor),
         // which Capacitor hard-codes to a single light color. The app's dark mode
@@ -93,6 +100,9 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         DispatchQueue.main.async {
             wv?.backgroundColor = color
             wv?.scrollView.backgroundColor = color
+            // Backing view + window so the keyboard-resize strip matches the theme.
+            self.view.backgroundColor = color
+            self.view.window?.backgroundColor = color
             if #available(iOS 15.0, *) { wv?.underPageBackgroundColor = color }
         }
     }
