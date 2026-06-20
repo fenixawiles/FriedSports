@@ -3,7 +3,7 @@
 {% block content %}
 <div class="threads-page-container">
 
-  {# ── Header row with filter menu ── #}
+  {# ── Header row with group filter menu ── #}
   <div class="threads-header-wrap">
     <div class="threads-header-left">
       <a href="{{ url_for('dashboard.dashboard') }}" class="threads-back-btn" id="threads-back-link" aria-label="Back">
@@ -12,12 +12,12 @@
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </a>
-      <span class="section-title">Active Threads</span>
+      <span class="section-title">Threads</span>
     </div>
-    {% if threads %}
+    {% if memberships %}
     <div class="threads-filter-wrap">
       <button class="threads-filter-btn" id="threads-filter-btn"
-              aria-label="Filter threads" aria-expanded="false">
+              aria-label="Filter by group" aria-expanded="false">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
              fill="none" stroke="currentColor" stroke-width="2.2"
              stroke-linecap="round" stroke-linejoin="round">
@@ -25,11 +25,11 @@
           <line x1="3" y1="12" x2="21" y2="12"/>
           <line x1="3" y1="18" x2="21" y2="18"/>
         </svg>
-        Filter
+        Group
       </button>
       <div class="threads-filter-menu" id="threads-filter-menu" hidden>
         <button class="threads-filter-item active" data-group="all">
-          <span class="threads-filter-checkmark">✓</span>All Groups
+          <span class="threads-filter-checkmark">✓</span>All groups
         </button>
         {% for m in memberships %}
         <button class="threads-filter-item" data-group="{{ m.group_id }}">
@@ -41,87 +41,69 @@
     {% endif %}
   </div>
 
-  {# ── Filter chips ── #}
-  {% if threads %}
-  <div class="filter-chips" id="thread-filter-chips" role="group" aria-label="Filter threads">
-    <button class="filter-chip active" data-filter="all">All</button>
-    <button class="filter-chip" data-filter="unread">Unread</button>
-    <button class="filter-chip" data-filter="hot">Hot</button>
-    {% if fav_team_ids %}
-    <button class="filter-chip" data-filter="myteams">My Teams</button>
-    {% endif %}
+  {# ── Tabs: Threads · Archived · Recently Deleted ── #}
+  <div class="thread-tabs" id="thread-tabs" role="tablist">
+    <button class="thread-tab active" data-cat="active" role="tab">Threads{% if cat_counts.active %} <span class="tab-count">{{ cat_counts.active }}</span>{% endif %}</button>
+    <button class="thread-tab" data-cat="archived" role="tab">Archived{% if cat_counts.archived %} <span class="tab-count">{{ cat_counts.archived }}</span>{% endif %}</button>
+    <button class="thread-tab" data-cat="deleted" role="tab">Recently Deleted{% if cat_counts.deleted %} <span class="tab-count">{{ cat_counts.deleted }}</span>{% endif %}</button>
   </div>
-  {% endif %}
 
   {# ── Thread rows ── #}
-  {% if threads %}
   <div class="threads-list-wrap" id="threads-list">
     {% for thread in threads %}
+    {% set cat = categories.get(thread.id, 'active') %}
     {% set ir = thread.group_trigger.game_event.incident_report if thread.group_trigger and thread.group_trigger.game_event else none %}
     {% set lm = last_msgs.get(thread.id) %}
-    {# Format timestamp iMessage-style #}
     {% if lm %}
       {% set lm_date = lm.created_at.date() %}
-      {% if lm_date == today %}
-        {% set ts = lm.created_at.strftime('%I:%M %p').lstrip('0') %}
-      {% elif lm_date == yesterday %}
-        {% set ts = 'Yesterday' %}
-      {% elif (today - lm_date).days < 7 %}
-        {% set ts = lm.created_at.strftime('%a') %}
-      {% else %}
-        {% set ts = lm.created_at.strftime('%-m/%-d') %}
-      {% endif %}
-    {% else %}
-      {% set ts = thread.created_at.strftime('%-m/%-d') %}
-    {% endif %}
+      {% if lm_date == today %}{% set ts = lm.created_at.strftime('%I:%M %p').lstrip('0') %}
+      {% elif lm_date == yesterday %}{% set ts = 'Yesterday' %}
+      {% elif (today - lm_date).days < 7 %}{% set ts = lm.created_at.strftime('%a') %}
+      {% else %}{% set ts = lm.created_at.strftime('%-m/%-d') %}{% endif %}
+    {% else %}{% set ts = thread.created_at.strftime('%-m/%-d') %}{% endif %}
     {% set t_unread = unread_counts.get(thread.id, 0) %}
-    <a href="{{ url_for('threads.show', thread_id=thread.id) }}"
-       class="thread-row-item"
-       data-group-id="{{ thread.group_id }}"
-       data-unread="{{ t_unread }}"
-       data-hot="{{ thread.hot_score or 0 }}"
-       data-myteam="{{ '1' if thread.target_team_id in fav_team_ids else '0' }}">
-      {# Team-colored avatar #}
-      <div class="thread-avatar-circle"
-           style="background-color:{{ thread.target_team.primary_color }}20;border-color:{{ thread.target_team.primary_color }}">
-        <span style="color:{{ thread.target_team.primary_color }}">
-          {{ thread.target_team.abbreviation[:3] }}
-        </span>
+    <div class="thread-swipe" data-thread-id="{{ thread.id }}" data-category="{{ cat }}"
+         data-group-id="{{ thread.group_id }}" data-unread="{{ t_unread }}">
+      <div class="thread-swipe-actions">
+        {% if cat == 'deleted' %}
+        <button class="swipe-act swipe-restore" data-act="restore" type="button">Restore</button>
+        {% else %}
+        <button class="swipe-act swipe-archive" data-act="{{ 'unarchive' if cat == 'archived' else 'archive' }}" type="button">{{ 'Unarchive' if cat == 'archived' else 'Archive' }}</button>
+        <button class="swipe-act swipe-delete" data-act="delete" type="button">Delete</button>
+        {% endif %}
       </div>
-      {# Text column #}
-      <div class="thread-preview-col">
-        <div class="thread-preview-top">
-          <span class="thread-preview-name">
-            {% if t_unread > 0 %}<span class="unread-dot" aria-label="unread"></span>{% endif %}
-            {{ thread.group.name }}
-            {% if ir %}
-            <span class="thread-type-sep">·</span>
-            <span class="thread-type-label">{{ ir.incident_type.replace('_',' ').title() }}</span>
-            {% endif %}
-          </span>
-          <span class="thread-preview-ts">{{ ts }}</span>
+      <a href="{{ url_for('threads.show', thread_id=thread.id) }}" class="thread-row-item">
+        <div class="thread-avatar-circle"
+             style="background-color:{{ thread.target_team.primary_color }}20;border-color:{{ thread.target_team.primary_color }}">
+          <span style="color:{{ thread.target_team.primary_color }}">{{ thread.target_team.abbreviation[:3] }}</span>
         </div>
-        <div class="thread-preview-msg">
-          {% if lm %}
-            {{ lm.body | truncate(75, True, '…') }}
-          {% else %}
-            No takes yet. Be the first to pile on.
-          {% endif %}
+        <div class="thread-preview-col">
+          <div class="thread-preview-top">
+            <span class="thread-preview-name">
+              {% if t_unread > 0 and cat == 'active' %}<span class="unread-dot" aria-label="unread"></span>{% endif %}
+              {{ thread.group.name }}
+              {% if ir %}<span class="thread-type-sep">·</span><span class="thread-type-label">{{ ir.incident_type.replace('_',' ').title() }}</span>{% endif %}
+            </span>
+            <span class="thread-preview-ts">{{ ts }}</span>
+          </div>
+          <div class="thread-preview-msg">
+            {% if lm %}{{ lm.body | truncate(75, True, '…') }}{% else %}No takes yet. Be the first to pile on.{% endif %}
+          </div>
+          <div class="thread-preview-activity">
+            {% set rc = msg_counts.get(thread.id, 0) %}
+            <span>{{ rc }} repl{{ 'y' if rc == 1 else 'ies' }}</span>
+            {% if t_unread > 0 and cat == 'active' %}<span class="unread-chip">{{ t_unread }} new</span>{% endif %}
+            {% if lm and lm.author %}<span>last by {{ lm.author.shown_name }}</span>{% endif %}
+          </div>
         </div>
-        <div class="thread-preview-activity">
-          {% set rc = msg_counts.get(thread.id, 0) %}
-          <span>{{ rc }} repl{{ 'y' if rc == 1 else 'ies' }}</span>
-          {% if t_unread > 0 %}<span class="unread-chip">{{ t_unread }} new</span>{% endif %}
-          {% if lm and lm.author %}<span>last by {{ lm.author.shown_name }}</span>{% endif %}
-        </div>
-      </div>
-    </a>
+      </a>
+    </div>
     {% endfor %}
   </div>
-  <div class="empty-state" id="thread-filter-empty" hidden>
-    <p>Nothing matches that filter.</p>
-  </div>
-  {% else %}
+
+  <div class="empty-state" id="thread-tab-empty" hidden></div>
+
+  {% if not threads %}
   <div class="empty-state">
     <p>No one's talking reckless yet.</p>
     <p>Open a group and start a thread before the takes go undocumented.</p>
@@ -132,22 +114,17 @@
   {% if memberships %}
   <button class="threads-fab" id="threads-fab" aria-label="Start a thread">
     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
-         fill="none" stroke="currentColor" stroke-width="2.5"
-         stroke-linecap="round" stroke-linejoin="round">
-      <line x1="12" y1="5" x2="12" y2="19"/>
-      <line x1="5" y1="12" x2="19" y2="12"/>
+         fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
     </svg>
   </button>
-
   <div class="threads-fab-backdrop" id="threads-fab-backdrop" hidden></div>
   <div class="threads-fab-sheet" id="threads-fab-sheet" hidden>
     <div class="threads-fab-sheet-handle"></div>
     <div class="threads-fab-sheet-title">Start a thread — which group?</div>
     {% for m in memberships %}
-    <a href="{{ url_for('groups.report_incident', group_id=m.group_id) }}"
-       class="threads-fab-group-row">
-      {{ m.group.name }}
-      <span style="color:var(--text-muted);font-size:1rem">›</span>
+    <a href="{{ url_for('groups.report_incident', group_id=m.group_id) }}" class="threads-fab-group-row">
+      {{ m.group.name }}<span style="color:var(--text-muted);font-size:1rem">›</span>
     </a>
     {% endfor %}
     <button class="threads-fab-cancel" id="threads-fab-cancel">Cancel</button>
@@ -155,25 +132,99 @@
   {% endif %}
 
 </div>
+
+<style>
+  .thread-tabs { display: flex; gap: 0.4rem; margin: 0.2rem 0 0.9rem; }
+  .thread-tab {
+    flex: 1; padding: 0.45rem 0.5rem; border: none; cursor: pointer;
+    background: var(--bg-input); color: var(--text-secondary);
+    border-radius: 9px; font-size: 0.8rem; font-weight: 600; font-family: var(--font);
+    display: flex; align-items: center; justify-content: center; gap: 0.3rem;
+    white-space: nowrap;
+  }
+  .thread-tab.active { background: var(--accent); color: #fff; }
+  .thread-tab .tab-count {
+    font-size: 0.66rem; background: rgba(255,255,255,0.25); padding: 0 0.32rem;
+    border-radius: 8px; font-weight: 700;
+  }
+  .thread-tab:not(.active) .tab-count { background: var(--bg-surface); color: var(--text-muted); }
+
+  /* swipe row: actions sit behind the sliding row */
+  .thread-swipe { position: relative; overflow: hidden; }
+  .thread-swipe-actions {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    display: flex; align-items: stretch;
+  }
+  .swipe-act {
+    border: none; cursor: pointer; color: #fff; font-size: 0.8rem; font-weight: 600;
+    font-family: var(--font); width: 80px; display: flex; align-items: center; justify-content: center;
+  }
+  .swipe-archive   { background: var(--blue); }
+  .swipe-restore   { background: var(--green); }
+  .swipe-delete    { background: var(--accent); }
+  .thread-row-item {
+    position: relative; background: var(--bg-primary);
+    will-change: transform; touch-action: pan-y;
+  }
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function () {
-  // Back button: prefer in-app history when we have it, else fall back to the
-  // dashboard href already on the link.
+  // Back button — prefer in-app history
   var backLink = document.getElementById('threads-back-link');
   if (backLink && window.history.length > 1) {
-    backLink.addEventListener('click', function (e) {
-      e.preventDefault();
-      history.back();
+    backLink.addEventListener('click', function (e) { e.preventDefault(); history.back(); });
+  }
+
+  var list = document.getElementById('threads-list');
+  var emptyEl = document.getElementById('thread-tab-empty');
+  var EMPTY = {
+    active:   'No active threads. Start one with the +.',
+    archived: 'Nothing archived.',
+    deleted:  'Nothing in Recently Deleted. Deleted threads land here for 30 days.'
+  };
+  var activeCat = 'active';
+  var activeGroup = 'all';
+
+  function applyFilters() {
+    if (!list) return;
+    var shown = 0;
+    list.querySelectorAll('.thread-swipe').forEach(function (row) {
+      var catOk = row.getAttribute('data-category') === activeCat;
+      var grpOk = activeGroup === 'all' || row.getAttribute('data-group-id') === activeGroup;
+      var show = catOk && grpOk;
+      row.style.display = show ? '' : 'none';
+      if (show) shown++;
+    });
+    if (emptyEl) {
+      if (shown === 0 && list.querySelector('.thread-swipe')) {
+        emptyEl.textContent = EMPTY[activeCat] || 'Nothing here.';
+        emptyEl.hidden = false;
+      } else {
+        emptyEl.hidden = true;
+      }
+    }
+  }
+
+  // ── Tabs ──
+  var tabs = document.getElementById('thread-tabs');
+  if (tabs) {
+    tabs.addEventListener('click', function (e) {
+      var tab = e.target.closest('.thread-tab');
+      if (!tab) return;
+      tabs.querySelectorAll('.thread-tab').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      activeCat = tab.getAttribute('data-cat');
+      closeAllRows();
+      applyFilters();
     });
   }
 
-  // ── Filter dropdown ──────────────────────────────────────────────────
+  // ── Group filter ──
   var filterBtn  = document.getElementById('threads-filter-btn');
   var filterMenu = document.getElementById('threads-filter-menu');
-
   if (filterBtn && filterMenu) {
     filterBtn.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -181,15 +232,10 @@
       filterMenu.hidden = open;
       filterBtn.setAttribute('aria-expanded', String(!open));
     });
-    document.addEventListener('click', function () {
-      if (!filterMenu.hidden) filterMenu.hidden = true;
-    });
-    filterMenu.addEventListener('click', function(e) { e.stopPropagation(); });
-
+    document.addEventListener('click', function () { if (!filterMenu.hidden) filterMenu.hidden = true; });
+    filterMenu.addEventListener('click', function (e) { e.stopPropagation(); });
     filterMenu.querySelectorAll('.threads-filter-item').forEach(function (item) {
       item.addEventListener('click', function () {
-        var groupId = item.getAttribute('data-group');
-        // Update active state + checkmarks
         filterMenu.querySelectorAll('.threads-filter-item').forEach(function (i) {
           i.classList.remove('active');
           i.querySelector('.threads-filter-checkmark').textContent = '';
@@ -198,79 +244,124 @@
         item.querySelector('.threads-filter-checkmark').textContent = '✓';
         filterMenu.hidden = true;
         filterBtn.setAttribute('aria-expanded', 'false');
-        // Apply filter
-        document.querySelectorAll('.thread-row-item[data-group-id]').forEach(function (row) {
-          row.style.display = (groupId === 'all' || row.getAttribute('data-group-id') === groupId)
-            ? '' : 'none';
-        });
+        activeGroup = item.getAttribute('data-group');
+        applyFilters();
       });
     });
   }
 
-  // ── FAB sheet ────────────────────────────────────────────────────────
-  var fab      = document.getElementById('threads-fab');
+  // ── FAB sheet ──
+  var fab = document.getElementById('threads-fab');
   var backdrop = document.getElementById('threads-fab-backdrop');
-  var sheet    = document.getElementById('threads-fab-sheet');
-  var cancel   = document.getElementById('threads-fab-cancel');
-
-  function openSheet() {
-    if (!sheet) return;
-    sheet.hidden = false;
-    if (backdrop) backdrop.hidden = false;
-  }
-  function closeSheet() {
-    if (!sheet) return;
-    sheet.hidden = true;
-    if (backdrop) backdrop.hidden = true;
-  }
-
+  var sheet = document.getElementById('threads-fab-sheet');
+  var cancel = document.getElementById('threads-fab-cancel');
+  function openSheet() { if (sheet) { sheet.hidden = false; if (backdrop) backdrop.hidden = false; } }
+  function closeSheet() { if (sheet) { sheet.hidden = true; if (backdrop) backdrop.hidden = true; } }
   if (fab) fab.addEventListener('click', openSheet);
   if (cancel) cancel.addEventListener('click', closeSheet);
   if (backdrop) backdrop.addEventListener('click', closeSheet);
+  if (window.location.hash === '#new') { openSheet(); history.replaceState(null, '', window.location.pathname); }
 
-  // Sidebar "Start Incident" lands here with #new — open the group sheet
-  if (window.location.hash === '#new') {
-    openSheet();
-    history.replaceState(null, '', window.location.pathname);
+  // ── Swipe-to-act on rows ──
+  var openRow = null;
+  function closeAllRows(except) {
+    list && list.querySelectorAll('.thread-swipe').forEach(function (w) {
+      if (w !== except && w._close) w._close();
+    });
+    openRow = null;
   }
 
-  // ── Filter chips: All / Unread / Hot / My Teams ──────────────────────
-  var chipWrap = document.getElementById('thread-filter-chips');
-  var list = document.getElementById('threads-list');
-  var filterEmpty = document.getElementById('thread-filter-empty');
-  if (chipWrap && list) {
-    var originalOrder = Array.prototype.slice.call(
-      list.querySelectorAll('.thread-row-item')
-    );
-    chipWrap.addEventListener('click', function (e) {
-      var chip = e.target.closest('.filter-chip');
-      if (!chip) return;
-      chipWrap.querySelectorAll('.filter-chip').forEach(function (c) {
-        c.classList.remove('active');
-      });
-      chip.classList.add('active');
-      var mode = chip.getAttribute('data-filter');
+  function rebuildActions(wrap, cat) {
+    var actions = wrap.querySelector('.thread-swipe-actions');
+    if (!actions) return;
+    if (cat === 'deleted') {
+      actions.innerHTML = '<button class="swipe-act swipe-restore" data-act="restore" type="button">Restore</button>';
+    } else {
+      var arch = cat === 'archived' ? 'unarchive' : 'archive';
+      var lbl = cat === 'archived' ? 'Unarchive' : 'Archive';
+      actions.innerHTML = '<button class="swipe-act swipe-archive" data-act="' + arch + '" type="button">' + lbl + '</button>'
+                        + '<button class="swipe-act swipe-delete" data-act="delete" type="button">Delete</button>';
+    }
+  }
 
-      var rows = originalOrder.slice();
-      if (mode === 'hot') {
-        rows.sort(function (a, b) {
-          return (+b.getAttribute('data-hot')) - (+a.getAttribute('data-hot'));
-        });
+  function doAction(wrap, act) {
+    var id = wrap.getAttribute('data-thread-id');
+    var urls = {
+      archive: '/api/threads/' + id + '/archive',
+      unarchive: '/api/threads/' + id + '/unarchive',
+      delete: '/api/threads/' + id + '/delete-local',
+      restore: '/api/threads/' + id + '/restore'
+    };
+    var newCat = { archive: 'archived', unarchive: 'active', delete: 'deleted', restore: 'active' }[act];
+    if (!urls[act]) return;
+    if (wrap._close) wrap._close();
+    fetch(urls[act], { method: 'POST', headers: { 'X-Fetch': '1' }, credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function () {
+        wrap.setAttribute('data-category', newCat);
+        rebuildActions(wrap, newCat);
+        applyFilters(); // row leaves the current tab
+        if (typeof showToast === 'function') {
+          var msg = { archive: 'Archived', unarchive: 'Unarchived', delete: 'Moved to Recently Deleted', restore: 'Restored' }[act];
+          showToast(msg, 'success');
+        }
+      })
+      .catch(function () { if (typeof showToast === 'function') showToast('Something went wrong', 'error'); });
+  }
+
+  function initSwipe(wrap) {
+    var row = wrap.querySelector('.thread-row-item');
+    var actions = wrap.querySelector('.thread-swipe-actions');
+    if (!row || !actions) return;
+    var startX = 0, startY = 0, dragging = false, openX = 0, curX = 0;
+
+    function width() { return actions.offsetWidth || 160; }
+    function close() { openX = 0; row.style.transition = 'transform 0.2s'; row.style.transform = 'translateX(0)'; }
+    wrap._close = close;
+
+    row.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      dragging = false; curX = openX; row.style.transition = 'none';
+    }, { passive: true });
+
+    row.addEventListener('touchmove', function (e) {
+      var dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
+      if (!dragging) {
+        if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+          dragging = true; closeAllRows(wrap);
+        } else { return; }
       }
-      // Re-append in display order (hot re-sorts, others keep original)
-      rows.forEach(function (row) { list.appendChild(row); });
+      e.preventDefault();
+      curX = Math.max(-width(), Math.min(0, openX + dx));
+      row.style.transform = 'translateX(' + curX + 'px)';
+    }, { passive: false });
 
-      var visible = 0;
-      rows.forEach(function (row) {
-        var show = true;
-        if (mode === 'unread') show = +row.getAttribute('data-unread') > 0;
-        else if (mode === 'myteams') show = row.getAttribute('data-myteam') === '1';
-        row.style.display = show ? '' : 'none';
-        if (show) visible++;
-      });
-      if (filterEmpty) filterEmpty.hidden = visible > 0;
+    row.addEventListener('touchend', function () {
+      if (!dragging) return;
+      row.style.transition = 'transform 0.2s';
+      if (curX < -width() / 2) { openX = -width(); openRow = wrap; }
+      else { openX = 0; if (openRow === wrap) openRow = null; }
+      row.style.transform = 'translateX(' + openX + 'px)';
+      wrap._swiped = true;
+      setTimeout(function () { wrap._swiped = false; }, 60);
+    });
+
+    // Tapping an open/just-swiped row closes it instead of navigating
+    row.addEventListener('click', function (e) {
+      if (openX !== 0 || wrap._swiped) { e.preventDefault(); close(); openRow = null; }
+    });
+
+    actions.addEventListener('click', function (e) {
+      var btn = e.target.closest('.swipe-act');
+      if (!btn) return;
+      doAction(wrap, btn.getAttribute('data-act'));
     });
   }
+
+  if (list) list.querySelectorAll('.thread-swipe').forEach(initSwipe);
+
+  applyFilters();
 })();
 </script>
 {% endblock %}

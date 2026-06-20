@@ -633,6 +633,28 @@ class ThreadVote(db.Model):
     user = db.relationship("User")
 
 
+class ThreadUserState(db.Model):
+    """Per-user view state on a thread: archive + local delete (history clear).
+
+    Deletion is local to the user and never touches the shared message store:
+    `cleared_at` hides every message at/before it FROM THIS USER only. A deleted
+    thread sits in Recently Deleted; if a new message arrives after cleared_at it
+    resurfaces in the user's list as a fresh thread (only the new messages)."""
+    __tablename__ = "thread_user_states"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    thread_id  = db.Column(db.Integer, db.ForeignKey("game_threads.id"), nullable=False, index=True)
+    cleared_at = db.Column(db.DateTime(timezone=True), nullable=True)   # hide msgs at/before this
+    archived   = db.Column(db.Boolean, default=False, nullable=False)
+    deleted    = db.Column(db.Boolean, default=False, nullable=False)
+    deleted_at = db.Column(db.DateTime(timezone=True), nullable=True)   # for 30-day purge window
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "thread_id", name="uq_thread_user_state"),
+    )
+
+
 class ActivityEvent(db.Model):
     """Group activity feed — thread starts, replies, votes, joins."""
     __tablename__ = "activity_events"

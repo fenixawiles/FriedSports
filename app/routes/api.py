@@ -32,6 +32,11 @@ def thread_messages(thread_id):
     )
     if hidden_ids:
         mq = mq.filter(GameThreadMessage.user_id.notin_(hidden_ids))
+    # Local-delete: hide messages at/before this user's clear watermark.
+    from app.services.thread_state import cleared_at_for
+    cleared = cleared_at_for(current_user.id, thread_id)
+    if cleared:
+        mq = mq.filter(GameThreadMessage.created_at > cleared)
     messages = mq.order_by(GameThreadMessage.created_at).all()
 
     user_is_admin = _is_admin(current_user.id, thread.group_id)
@@ -174,6 +179,52 @@ def report_message(message_id):
                         "already": True}), 409
     db.session.commit()
     return jsonify({"success": True})
+
+
+def _require_member(thread_id):
+    """Load a thread and 403 unless the current user is in its group."""
+    thread = GameThread.query.get_or_404(thread_id)
+    if not Group.query.get(thread.group_id).is_member(current_user.id):
+        abort(403)
+    return thread
+
+
+@api_bp.route("/threads/<int:thread_id>/archive", methods=["POST"])
+@login_required
+def thread_archive(thread_id):
+    from app.services import thread_state
+    _require_member(thread_id)
+    thread_state.archive_thread(current_user.id, thread_id)
+    return jsonify({"ok": True, "state": "archived"})
+
+
+@api_bp.route("/threads/<int:thread_id>/unarchive", methods=["POST"])
+@login_required
+def thread_unarchive(thread_id):
+    from app.services import thread_state
+    _require_member(thread_id)
+    thread_state.unarchive_thread(current_user.id, thread_id)
+    return jsonify({"ok": True, "state": "active"})
+
+
+@api_bp.route("/threads/<int:thread_id>/delete-local", methods=["POST"])
+@login_required
+def thread_delete_local(thread_id):
+    """Delete the thread for THIS user only — clears their history, leaves the
+    shared message store untouched. Moves to Recently Deleted."""
+    from app.services import thread_state
+    _require_member(thread_id)
+    thread_state.delete_thread(current_user.id, thread_id)
+    return jsonify({"ok": True, "state": "deleted"})
+
+
+@api_bp.route("/threads/<int:thread_id>/restore", methods=["POST"])
+@login_required
+def thread_restore(thread_id):
+    from app.services import thread_state
+    _require_member(thread_id)
+    thread_state.restore_thread(current_user.id, thread_id)
+    return jsonify({"ok": True, "state": "active"})
 
 
 @api_bp.route("/device-token", methods=["POST"])

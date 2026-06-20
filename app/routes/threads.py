@@ -37,6 +37,12 @@ def show(thread_id):
         msg_query = msg_query.filter(
             GameThreadMessage.user_id.notin_(hidden_ids)
         )
+    # Local-delete: hide messages at/before this user's clear watermark, so a
+    # resurfaced thread opens as a fresh conversation for them.
+    from app.services.thread_state import cleared_at_for
+    cleared = cleared_at_for(current_user.id, thread_id)
+    if cleared:
+        msg_query = msg_query.filter(GameThreadMessage.created_at > cleared)
     messages = msg_query.order_by(GameThreadMessage.created_at).all()
 
     last_id = messages[-1].id if messages else 0

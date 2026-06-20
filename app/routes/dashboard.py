@@ -354,9 +354,12 @@ def threads_list():
     msg_counts = {}
     last_msgs = {}
     unread_counts = {}
+    categories = {}
+    cat_counts = {"active": 0, "archived": 0, "deleted": 0}
 
     if group_ids:
         from app.models import GroupTrigger, GameEvent
+        from app.services import thread_state
         threads = (
             GameThread.query
             .options(
@@ -381,6 +384,19 @@ def threads_list():
             last_msgs = latest_messages(thread_ids)
             unread_counts = unread_map(current_user.id, thread_ids)
 
+            # Per-user archive / local-delete categorization
+            states = thread_state.states_for(current_user.id, thread_ids)
+            last_msg_at = {
+                t.id: (last_msgs[t.id].created_at if last_msgs.get(t.id) else t.created_at)
+                for t in threads
+            }
+            categories = thread_state.categorize(states, thread_ids, last_msg_at)
+            # Purged threads (deleted > 30d, no new activity) show nowhere
+            threads = [t for t in threads if categories.get(t.id) != "purged"]
+            for t in threads:
+                cat_counts[categories.get(t.id, "active")] = \
+                    cat_counts.get(categories.get(t.id, "active"), 0) + 1
+
     fav_team_ids = {uft.team_id for uft in current_user.favorite_teams.all()}
 
     today     = date.today()
@@ -394,6 +410,8 @@ def threads_list():
         unread_counts=unread_counts,
         fav_team_ids=fav_team_ids,
         memberships=memberships,
+        categories=categories,
+        cat_counts=cat_counts,
         today=today,
         yesterday=yesterday,
     )
