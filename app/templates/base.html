@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="shortcut icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=19">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=20">
   <!-- Turbo Drive — app-shell navigation (content swap without full page reload) -->
   <!-- no-preview: never show stale cached snapshots before fresh data arrives -->
   <meta name="turbo-cache-control" content="no-preview">
@@ -166,7 +166,13 @@
   <div class="app-main-col">
   <main class="main-content">
     <div id="page-back" style="display:none" class="page-back-wrap">
-      <button type="button" class="page-back-btn" onclick="history.back()">← Back</button>
+      <button type="button" class="page-back-btn" onclick="history.back()" aria-label="Back">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Back
+      </button>
     </div>
     {% block content %}{% endblock %}
   </main>
@@ -264,7 +270,30 @@
       var main = document.querySelector('.main-content');
       if (main) main.style.paddingBottom = 'calc(66px + env(safe-area-inset-bottom))';
     }
+    // New page lands at the top — make sure the navbar is shown
+    var _nav = document.getElementById('main-nav');
+    if (_nav) _nav.classList.remove('nav-hidden');
   });
+
+  // ── Auto-hide the top navbar on scroll-down, reveal it back at the top ─────
+  // Smooth via the CSS transform transition on .navbar. Wired once (survives
+  // Turbo). On desktop the navbar is display:none, so this is a harmless no-op.
+  (function () {
+    if (window._navHideWired) return;
+    window._navHideWired = true;
+    var ticking = false;
+    function update() {
+      ticking = false;
+      var nav = document.getElementById('main-nav');
+      if (!nav) return;
+      var y = window.scrollY || document.documentElement.scrollTop || 0;
+      if (y > 64) nav.classList.add('nav-hidden');
+      else if (y < 12) nav.classList.remove('nav-hidden');
+    }
+    window.addEventListener('scroll', function () {
+      if (!ticking) { ticking = true; window.requestAnimationFrame(update); }
+    }, { passive: true });
+  })();
   </script>
   <script>
   // Global back button — only show when there's history and we're not on a primary tab

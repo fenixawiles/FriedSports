@@ -115,7 +115,11 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   -webkit-backdrop-filter: blur(12px);
   /* Safe area: push content below Dynamic Island / notch */
   padding-top: env(safe-area-inset-top);
+  /* Smooth hide-on-scroll-down / show-at-top (toggled by .nav-hidden in main.js) */
+  transition: transform 0.3s ease;
+  will-change: transform;
 }
+.navbar.nav-hidden { transform: translateY(-100%); }
 .nav-inner {
   max-width: 1120px; margin: 0 auto;
   padding: 0 1.5rem;
@@ -867,7 +871,6 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 
 /* Chat input — iMessage pill style */
 .chat-input-area {
-  border-top: 1px solid var(--border);
   background: var(--bg-primary);
 }
 .chat-form {
@@ -875,15 +878,17 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   background: transparent; border: none; padding: 0;
 }
 /* Pill wraps textarea + send button using natural flex (no absolute) */
+/* Floating pill — no boxed border/container; a soft shadow lifts it off the bg */
 .chat-input-pill {
   flex: 1;
   display: flex; align-items: flex-end; gap: 6px;
   background: var(--bg-surface);
-  border: 1px solid var(--border); border-radius: 22px;
-  padding: 5px 6px 5px 14px;
-  transition: border-color 0.15s;
+  border: none; border-radius: 22px;
+  padding: 6px 6px 6px 15px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  transition: box-shadow 0.15s;
 }
-.chat-input-pill:focus-within { border-color: var(--border-mid); }
+.chat-input-pill:focus-within { box-shadow: 0 1px 7px rgba(0,0,0,0.13); }
 .chat-input-pill textarea {
   flex: 1; min-width: 0; background: none; border: none; resize: none;
   padding: 4px 0; font-size: 16px; font-family: var(--font);
@@ -1185,13 +1190,16 @@ body.receipt-page {
 .nav-link-admin { color: var(--accent) !important; }
 
 /* ── Global back button ── */
-.page-back-wrap { margin-bottom: 0.5rem; }
+.page-back-wrap { margin-bottom: 0.75rem; }
 .page-back-btn {
-  display: inline-flex; align-items: center; min-height: 44px;
-  font-size: 0.875rem; color: var(--text-muted); padding-right: 1rem;
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  min-height: 36px; padding: 0.2rem 0.5rem 0.2rem 0;
+  font-size: 0.9rem; font-weight: 500; color: var(--text-secondary);
+  background: none; border: none; cursor: pointer; font-family: var(--font);
   transition: color 0.15s;
 }
-.page-back-btn:hover { color: var(--text-secondary); text-decoration: none; }
+.page-back-btn svg { width: 19px; height: 19px; flex-shrink: 0; }
+.page-back-btn:hover, .page-back-btn:active { color: var(--text-muted); text-decoration: none; }
 
 /* ── Site footer ── */
 .site-footer {

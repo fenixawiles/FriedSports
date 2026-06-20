@@ -208,6 +208,32 @@
     }
   }
 
+  // Recompute the per-tab totals from the current rows (after archive/delete/
+  // restore) so the tab badges stay accurate without a page reload.
+  function updateTabCounts() {
+    if (!tabs || !list) return;
+    var counts = { active: 0, archived: 0, deleted: 0 };
+    list.querySelectorAll('.thread-swipe').forEach(function (r) {
+      var c = r.getAttribute('data-category');
+      if (counts[c] !== undefined) counts[c]++;
+    });
+    tabs.querySelectorAll('.thread-tab').forEach(function (tab) {
+      var n = counts[tab.getAttribute('data-cat')] || 0;
+      var badge = tab.querySelector('.tab-count');
+      if (n > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'tab-count';
+          tab.appendChild(document.createTextNode(' '));
+          tab.appendChild(badge);
+        }
+        badge.textContent = n;
+      } else if (badge) {
+        badge.remove();
+      }
+    });
+  }
+
   // ── Tabs ──
   var tabs = document.getElementById('thread-tabs');
   if (tabs) {
@@ -300,7 +326,8 @@
       .then(function () {
         wrap.setAttribute('data-category', newCat);
         rebuildActions(wrap, newCat);
-        applyFilters(); // row leaves the current tab
+        applyFilters();    // row leaves the current tab
+        updateTabCounts(); // keep the tab totals in sync
         if (typeof showToast === 'function') {
           var msg = { archive: 'Archived', unarchive: 'Unarchived', delete: 'Moved to Recently Deleted', restore: 'Restored' }[act];
           showToast(msg, 'success');
@@ -316,7 +343,7 @@
     var startX = 0, startY = 0, dragging = false, openX = 0, curX = 0;
 
     function width() { return actions.offsetWidth || 160; }
-    function close() { openX = 0; row.style.transition = 'transform 0.2s'; row.style.transform = 'translateX(0)'; }
+    function close() { openX = 0; row.style.transition = 'transform 0.34s cubic-bezier(0.22, 1, 0.36, 1)'; row.style.transform = 'translateX(0)'; }
     wrap._close = close;
 
     row.addEventListener('touchstart', function (e) {
@@ -339,7 +366,7 @@
 
     row.addEventListener('touchend', function () {
       if (!dragging) return;
-      row.style.transition = 'transform 0.2s';
+      row.style.transition = 'transform 0.34s cubic-bezier(0.22, 1, 0.36, 1)';
       if (curX < -width() / 2) { openX = -width(); openRow = wrap; }
       else { openX = 0; if (openRow === wrap) openRow = null; }
       row.style.transform = 'translateX(' + openX + 'px)';
