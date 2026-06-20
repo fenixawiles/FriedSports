@@ -90,6 +90,35 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         // root view controller and lives for the whole app session.
         webView?.configuration.userContentController.add(self, name: "fsTheme")
         webView?.configuration.userContentController.add(self, name: "fsBounce")
+
+        // Keyboard ride. With capacitor.config Keyboard.resize="none" the plugin
+        // does NOT resize the web view (it only disables the default scroll-to-
+        // input and fires its JS events). Instead we resize the web-view frame
+        // ourselves, RIGHT NOW at keyboardWillChangeFrame (the start of the
+        // keyboard animation) and on the keyboard's own duration + curve — so the
+        // composer rides up with the keyboard instead of the plugin's
+        // keyboardDuration+0.2s delayed snap.
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(keyboardWillChangeFrame(_:)),
+            name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+    }
+
+    @objc private func keyboardWillChangeFrame(_ note: Notification) {
+        guard let wv = webView,
+              let info = note.userInfo,
+              let end = (info[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue,
+              let dur = info[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double,
+              let curveN = info[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt,
+              let win = view.window else { return }
+        let screen = win.bounds
+        // How much the keyboard overlaps the window from the bottom (0 = hidden).
+        let overlap = max(0, screen.maxY - end.minY)
+        let target = CGRect(x: wv.frame.origin.x, y: wv.frame.origin.y,
+                            width: screen.width - wv.frame.origin.x,
+                            height: screen.height - wv.frame.origin.y - overlap)
+        let opts = UIView.AnimationOptions(rawValue: curveN << 16).union(.beginFromCurrentState)
+        UIView.animate(withDuration: dur > 0 ? dur : 0.25, delay: 0, options: opts,
+                       animations: { wv.frame = target })
     }
 
     func userContentController(_ userContentController: WKUserContentController,
