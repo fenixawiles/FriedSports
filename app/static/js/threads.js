@@ -103,7 +103,7 @@
       const d = new Date(msg.created_at);
       time.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
     }
-    wrapper.appendChild(time);
+    col.appendChild(time);
     return wrapper;
   }
 
@@ -253,10 +253,10 @@
     });
   }
 
-  // ── Gesture manager: long-press opens the menu, swipe-left reveals the time ─
+  // ── Long-press opens the action menu (no swipe gesture) ───────────────────
   if (chatWindow) {
-    const LONG_MS = 450, MOVE_CANCEL = 10, SWIPE_MIN = 12, MAX_PEEK = 52;
-    let startX = 0, startY = 0, pressTimer = null, pressEl = null, swiping = false, axisLocked = false;
+    const LONG_MS = 450, MOVE_CANCEL = 10;
+    let startX = 0, startY = 0, pressTimer = null, pressEl = null;
 
     // The finger-lift after a long-press synthesizes a click that would land on
     // the just-opened sheet (often the backdrop) and instantly dismiss it.
@@ -280,19 +280,11 @@
       if (pressEl) { pressEl.classList.remove('pressing'); }
       pressEl = null;
     }
-    function endSwipe() {
-      if (swiping) {
-        chatWindow.classList.remove('dragging');
-        chatWindow.style.setProperty('--peek', '0px');
-        swiping = false;
-      }
-    }
 
     chatWindow.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1) return;
       const t = e.touches[0];
       startX = t.clientX; startY = t.clientY;
-      axisLocked = false;
       const msgEl = e.target.closest('.message[data-id]');
       // long-press only on real user messages (system msgs have no data-mine)
       const target = (msgEl && msgEl.getAttribute('data-mine') !== null && menuOverlay) ? msgEl : null;
@@ -311,27 +303,18 @@
       }
     }, { passive: true });
 
+    // Any real finger movement = a scroll, so cancel the pending long-press and
+    // let native vertical scrolling proceed untouched (passive, no preventDefault).
     chatWindow.addEventListener('touchmove', function (e) {
-      if (e.touches.length !== 1) return;
+      if (!pressTimer) return;
       const t = e.touches[0];
-      const dx = t.clientX - startX, dy = t.clientY - startY;
-      if (!axisLocked && (Math.abs(dx) > MOVE_CANCEL || Math.abs(dy) > MOVE_CANCEL)) {
-        clearPress(); // any real movement cancels the long-press
-        if (dx < -SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.3) {
-          swiping = true; chatWindow.classList.add('dragging');
-        }
-        axisLocked = true; // committed to swipe or native scroll for this gesture
+      if (Math.abs(t.clientX - startX) > MOVE_CANCEL || Math.abs(t.clientY - startY) > MOVE_CANCEL) {
+        clearPress();
       }
-      if (swiping) {
-        e.preventDefault(); // we own this horizontal gesture
-        const peek = Math.max(0, Math.min(MAX_PEEK, -dx));
-        chatWindow.style.setProperty('--peek', peek + 'px');
-      }
-    }, { passive: false });
+    }, { passive: true });
 
-    function onEnd() { clearPress(); endSwipe(); }
-    chatWindow.addEventListener('touchend', onEnd);
-    chatWindow.addEventListener('touchcancel', onEnd);
+    chatWindow.addEventListener('touchend', clearPress);
+    chatWindow.addEventListener('touchcancel', clearPress);
 
     // Desktop / fallback — right-click opens the same menu
     chatWindow.addEventListener('contextmenu', function (e) {
@@ -395,7 +378,7 @@
     time.className = 'swipe-time';
     const now = new Date();
     time.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
-    wrapper.appendChild(time);
+    col.appendChild(time);
     return wrapper;
   }
 

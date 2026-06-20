@@ -18,15 +18,7 @@
      UI — header + composer stay pinned. `overscroll-behavior` set on <body>
      propagates to the viewport per spec. Only the inner .chat-window bounces.
      (Scoped to .thread-view so normal pages keep their elastic document bounce.) */
-  /* height tracks the keyboard: native.js publishes --kb (keyboard height) from
-     the Keyboard plugin's keyboardWillShow, and this transition rides up in sync
-     with the keyboard instead of the plugin's delayed frame snap. --kb is 0 when
-     the keyboard is closed. */
-  body.thread-view {
-    height: calc(100dvh - var(--kb, 0px));
-    overflow: hidden; overscroll-behavior: none;
-    transition: height 0.25s ease-out;
-  }
+  body.thread-view { height: 100dvh; overflow: hidden; overscroll-behavior: none; }
   /* min-height:0 all the way down the flex chain so a tall chat window can
      shrink+scroll instead of pushing the input area below the viewport
      (which is what buried the input behind the browser nav bar on send). */
@@ -137,17 +129,12 @@
   body.thread-view .message-mine   { justify-content: flex-end; }
   body.thread-view .message-theirs { justify-content: flex-start; }
   body.thread-view .message-system { justify-content: center; }
-  /* bubble + reaction badges stack on the correct side. The column is what
-     slides left (via --peek on #chat-window) to reveal the timestamp gutter. */
+  /* bubble + reaction badges + timestamp stack on the correct side */
   body.thread-view .message-col {
     display: flex; flex-direction: column; max-width: 80%;
-    transform: translateX(calc(-1 * var(--peek, 0px)));
-    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
   }
   body.thread-view .message-mine   .message-col { align-items: flex-end; }
   body.thread-view .message-theirs .message-col { align-items: flex-start; }
-  body.thread-view #chat-window.dragging .message-col,
-  body.thread-view #chat-window.dragging .swipe-time { transition: none; }
   body.thread-view .message-bubble {
     padding: 0.4rem 0.7rem !important;
     border-radius: 16px !important;
@@ -182,13 +169,11 @@
     background: var(--bg-surface); border: 1px solid var(--border);
     border-radius: 10px; padding: 0.05rem 0.35rem;
   }
-  /* timestamp gutter — parked off the right edge, slides in on swipe-left */
+  /* tiny static timestamp under each message (aligned to the bubble's side) */
   body.thread-view .swipe-time {
-    position: absolute; top: 50%; right: -52px;
-    transform: translate(calc(-1 * var(--peek, 0px)), -50%);
-    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
-    width: 44px; text-align: right; font-size: 0.66rem;
-    color: var(--text-muted); white-space: nowrap; pointer-events: none;
+    display: block; margin-top: 0.12rem; padding: 0 0.2rem;
+    font-size: 0.6rem; color: var(--text-muted); opacity: 0.75;
+    white-space: nowrap;
   }
   body.thread-view .message-system .message-system-body {
     font-size: 0.72rem; color: var(--text-muted);
@@ -350,8 +335,8 @@
             {% for rtype, emoji in [('laugh','😂'),('cook','👨‍🍳'),('fraud','🚨'),('receipt','🧾')] %}{% if rc.get(rtype) %}<span class="msg-react-badge" data-reaction="{{ rtype }}">{{ emoji }} {{ rc.get(rtype) }}</span>{% endif %}{% endfor %}
           </div>
           {% endif %}
+          <span class="swipe-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</span>
         </div>
-        <span class="swipe-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</span>
       {% endif %}
     </div>
     {% endfor %}
@@ -480,7 +465,7 @@
   const THREAD_ID = {{ thread.id }};
   const CURRENT_USER_ID = {{ current_user.id }};
 </script>
-<script src="{{ url_for('static', filename='js/threads.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/threads.js') }}?v=20"></script>
 <script>
   (function() {
     var ta = document.getElementById('chat-input');

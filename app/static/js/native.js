@@ -72,23 +72,18 @@
   // home-indicator inset while the keyboard is up. The Keyboard plugin's events
   // are the reliable signal here (visualViewport can't see it once the frame
   // itself resizes). Wired once — these native listeners survive Turbo swaps.
-  // With resize:"none" the web view stays full-height (no late frame snap), so
-  // we shrink the thread layout ourselves: publish the keyboard height as --kb
-  // and let CSS transition `height: calc(100dvh - var(--kb))` in sync with the
-  // keyboard. keyboardWillShow fires at the START of the keyboard animation, so
-  // the CSS transition rides up with it. .keyboard-open also drops the composer's
-  // home-indicator inset (the web view still touches the bottom under resize:none).
+  // resize:"native" (capacitor.config) shrinks the web-view frame above the
+  // keyboard, so the fixed flex chat layout fits on its own. We only toggle
+  // .keyboard-open so the composer drops its home-indicator inset while the
+  // keyboard is up. Wired once — these native listeners survive Turbo swaps.
   if (isNative && !window._fsKeyboardWired) {
     var Keyboard = plugin('Keyboard');
     if (Keyboard && Keyboard.addListener) {
       window._fsKeyboardWired = true;
-      Keyboard.addListener('keyboardWillShow', function (info) {
-        var h = (info && info.keyboardHeight) ? info.keyboardHeight : 0;
-        document.body.style.setProperty('--kb', h + 'px');
+      Keyboard.addListener('keyboardWillShow', function () {
         document.body.classList.add('keyboard-open');
       });
       Keyboard.addListener('keyboardWillHide', function () {
-        document.body.style.setProperty('--kb', '0px');
         document.body.classList.remove('keyboard-open');
       });
     }

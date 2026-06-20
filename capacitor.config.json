@@ -18,7 +18,7 @@
   },
   "plugins": {
     "Keyboard": {
-      "resize": "none",
+      "resize": "native",
       "resizeOnFullScreen": true
     },
     "SplashScreen": {
