@@ -1,163 +1,176 @@
 {% extends "base.html" %}
-{% block title %}My Account — FriedSports{% endblock %}
+{% block title %}Settings — FriedSports{% endblock %}
 {% block content %}
-<div class="auth-container">
-  <div class="auth-card" style="max-width: 560px">
-    <h1 class="auth-title">My Account</h1>
-    <p class="auth-sub" style="font-size:0.8rem;color:var(--text-muted)">
-      UID: <code style="font-size:0.75rem">{{ current_user.uid }}</code>
-    </p>
+<div class="settings-page">
 
-    <form method="post" action="{{ url_for('dashboard.settings') }}" class="auth-form">
+  <div class="threads-header-wrap" style="margin-bottom:0.4rem">
+    <div class="threads-header-left">
+      <a href="{{ url_for('dashboard.more') }}" class="threads-back-btn" id="settings-back-link" aria-label="Back">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </a>
+      <span class="section-title">Settings</span>
+    </div>
+  </div>
 
-      <div class="form-divider">Identity</div>
+  <form method="post" action="{{ url_for('dashboard.settings') }}" class="settings-form">
 
-      <div class="name-grid">
-        <div class="form-group">
-          <label for="first_name">First Name</label>
-          <input type="text" id="first_name" name="first_name" maxlength="64"
-                 value="{{ current_user.first_name or '' }}" placeholder="First">
-        </div>
-        <div class="form-group">
-          <label for="last_name">Last Name</label>
-          <input type="text" id="last_name" name="last_name" maxlength="64"
-                 value="{{ current_user.last_name or '' }}" placeholder="Last">
-        </div>
-      </div>
-
-      <div class="form-group">
+    <div class="settings-label">Profile</div>
+    <div class="settings-group">
+      <div class="settings-row">
         <label for="display_name">Username</label>
         <input type="text" id="display_name" name="display_name" maxlength="64"
-               value="{{ current_user.display_name }}" placeholder="Your username">
+               value="{{ current_user.display_name }}" placeholder="username">
       </div>
-
-      <div class="form-group">
-        <label>Display As</label>
-        <div style="display:flex;gap:1rem;margin-top:0.35rem">
-          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.87rem">
-            <input type="radio" name="display_preference" value="username"
-                   {% if current_user.display_preference == 'username' %}checked{% endif %}>
-            Username ({{ current_user.display_name }})
-          </label>
-          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.87rem">
-            <input type="radio" name="display_preference" value="real_name"
-                   {% if current_user.display_preference == 'real_name' %}checked{% endif %}>
-            Real Name{% if current_user.first_name %} ({{ current_user.first_name }} {{ current_user.last_name }}){% endif %}
-          </label>
+      <div class="settings-row">
+        <label for="first_name">First name</label>
+        <input type="text" id="first_name" name="first_name" maxlength="64"
+               value="{{ current_user.first_name or '' }}" placeholder="First">
+      </div>
+      <div class="settings-row">
+        <label for="last_name">Last name</label>
+        <input type="text" id="last_name" name="last_name" maxlength="64"
+               value="{{ current_user.last_name or '' }}" placeholder="Last">
+      </div>
+      <div class="settings-row settings-row-stack">
+        <label>Show others my</label>
+        <div class="settings-segment">
+          <label><input type="radio" name="display_preference" value="username"
+                 {% if current_user.display_preference == 'username' %}checked{% endif %}><span>Username</span></label>
+          <label><input type="radio" name="display_preference" value="real_name"
+                 {% if current_user.display_preference == 'real_name' %}checked{% endif %}><span>Real name</span></label>
         </div>
       </div>
+    </div>
+    <div class="settings-hint">Your FS ID is <code>{{ current_user.uid }}</code> — share it to get added.</div>
 
-      <div class="form-group">
-        <label for="avatar_url">Avatar URL <span class="label-hint">(optional)</span></label>
-        <input type="url" id="avatar_url" name="avatar_url"
-               value="{{ current_user.avatar_url or '' }}" placeholder="https://...">
-      </div>
-
-      <div class="form-divider">Team Preferences</div>
-      <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1.2rem">
-        One team per league. Leave blank to keep current selection.
-      </p>
-
+    <div class="settings-label">Teams <span class="settings-label-sub">one per league</span></div>
+    <div class="settings-group">
       {% for league in all_leagues %}
       {% set league_teams = teams_by_league.get(league, []) %}
       {% set current_fav = fav_teams.get(league) %}
       {% if league_teams %}
-      <div class="form-group settings-league-row">
-        <label for="{{ league.lower() }}_team_id">
-          {{ league_labels[league] }}
-          {% if current_fav %}
-          <span class="label-hint">— {{ current_fav.abbreviation }}</span>
-          {% endif %}
-        </label>
-        <div style="display:flex;align-items:center;gap:0.75rem">
-          <select id="{{ league.lower() }}_team_id" name="{{ league.lower() }}_team_id"
-                  class="team-select" onchange="updateSettingsPreview('{{ league }}', this)"
-                  style="flex:1">
-            <option value="">— No change —</option>
-            {% for team in league_teams %}
-            <option value="{{ team.id }}"
-                    data-primary="{{ team.primary_color }}"
-                    data-secondary="{{ team.secondary_color }}"
-                    data-abbr="{{ team.abbreviation }}"
-                    {% if current_fav and current_fav.id == team.id %}selected{% endif %}>
-              {% if team.city and team.city != team.name %}{{ team.city }} {% endif %}{{ team.name }}
-            </option>
-            {% endfor %}
-          </select>
-          <div class="team-color-preview" id="preview-{{ league }}"
-               style="{% if not current_fav %}display:none{% endif %}">
-            <div class="color-swatch" id="swatch-{{ league }}"
-                 {% if current_fav %}
-                 style="background:linear-gradient(135deg, {{ current_fav.primary_color }} 50%, {{ current_fav.secondary_color }} 50%)"
-                 {% endif %}></div>
-            <span class="color-abbr" id="abbr-{{ league }}">{{ current_fav.abbreviation if current_fav else '' }}</span>
-          </div>
-        </div>
+      <div class="settings-row">
+        <label for="{{ league.lower() }}_team_id">{{ league_labels[league] }}</label>
+        <select id="{{ league.lower() }}_team_id" name="{{ league.lower() }}_team_id" class="settings-select">
+          <option value="">None</option>
+          {% for team in league_teams %}
+          <option value="{{ team.id }}" {% if current_fav and current_fav.id == team.id %}selected{% endif %}>
+            {% if team.city and team.city != team.name %}{{ team.city }} {% endif %}{{ team.name }}
+          </option>
+          {% endfor %}
+        </select>
       </div>
       {% endif %}
       {% endfor %}
-
-      <div class="form-divider">Change Password <span class="label-hint">— optional</span></div>
-
-      <div class="form-group">
-        <label for="current_password">Current Password</label>
-        <input type="password" id="current_password" name="current_password"
-               placeholder="Leave blank to keep current password">
-      </div>
-      <div class="form-group">
-        <label for="new_password">New Password</label>
-        <input type="password" id="new_password" name="new_password"
-               placeholder="At least 6 characters">
-      </div>
-      <div class="form-group">
-        <label for="confirm_password">Confirm New Password</label>
-        <input type="password" id="confirm_password" name="confirm_password"
-               placeholder="Repeat new password">
-      </div>
-
-      <button type="submit" class="btn-primary btn-full">Save Changes</button>
-    </form>
-
-    <div class="form-divider">Safety</div>
-    <a href="{{ url_for('friends.blocked_list') }}" class="more-row" style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 0;border-bottom:1px solid var(--border);text-decoration:none;color:var(--text-primary)">
-      <span>Blocked Users</span>
-      <span style="color:var(--text-muted)">→</span>
-    </a>
-
-    <div class="danger-zone">
-      <div class="form-divider" style="color:var(--accent)">Delete Account</div>
-      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1rem">
-        Permanently deletes your account, all your messages, and removes you from all groups. This cannot be undone.
-      </p>
-      <form method="post" action="{{ url_for('dashboard.delete_account') }}"
-            onsubmit="return confirm('This permanently deletes your account and all data. There is no undo.')">
-        <div class="form-group" style="max-width:320px">
-          <label for="confirm_password_delete">Confirm with your password</label>
-          <input type="password" id="confirm_password_delete" name="confirm_password"
-                 placeholder="Enter your current password" required>
-        </div>
-        <button type="submit" class="btn-danger-small" style="padding:0.5rem 1.25rem;font-size:0.87rem">
-          Delete My Account
-        </button>
-      </form>
     </div>
+
+    <div class="settings-label">Password <span class="settings-label-sub">optional</span></div>
+    <div class="settings-group">
+      <div class="settings-row">
+        <label for="current_password">Current</label>
+        <input type="password" id="current_password" name="current_password" placeholder="Leave blank to keep">
+      </div>
+      <div class="settings-row">
+        <label for="new_password">New</label>
+        <input type="password" id="new_password" name="new_password" placeholder="6+ characters">
+      </div>
+      <div class="settings-row">
+        <label for="confirm_password">Confirm</label>
+        <input type="password" id="confirm_password" name="confirm_password" placeholder="Repeat new">
+      </div>
+    </div>
+
+    <button type="submit" class="btn-primary btn-full" style="margin-top:1rem">Save changes</button>
+  </form>
+
+  <div class="settings-label">Safety</div>
+  <div class="settings-group">
+    <a href="{{ url_for('friends.blocked_list') }}" class="settings-row settings-link">
+      <span>Blocked users</span>
+      <span class="more-chevron">›</span>
+    </a>
   </div>
+
+  <div class="settings-label settings-label-danger">Danger zone</div>
+  <div class="settings-group">
+    <form method="post" action="{{ url_for('dashboard.delete_account') }}" class="settings-delete"
+          onsubmit="return confirm('This permanently deletes your account and all data. There is no undo.')">
+      <div class="settings-row settings-row-stack" style="border-bottom:none">
+        <label for="confirm_password_delete">Delete account — confirm with your password</label>
+        <input type="password" id="confirm_password_delete" name="confirm_password"
+               placeholder="Your password" required>
+      </div>
+      <button type="submit" class="settings-delete-btn">Delete my account</button>
+    </form>
+  </div>
+
 </div>
 
-<script>
-function updateSettingsPreview(league, selectEl) {
-  const preview = document.getElementById('preview-' + league);
-  const swatch = document.getElementById('swatch-' + league);
-  const abbr = document.getElementById('abbr-' + league);
-  const opt = selectEl.options[selectEl.selectedIndex];
-  if (!selectEl.value) { preview.style.display = 'none'; return; }
-  const primary = opt.dataset.primary || '#333';
-  const secondary = opt.dataset.secondary || '#fff';
-  swatch.style.background = `linear-gradient(135deg, ${primary} 50%, ${secondary} 50%)`;
-  abbr.textContent = opt.dataset.abbr || '';
-  preview.style.display = 'flex';
-}
-</script>
+<style>
+  .settings-page { max-width: 560px; margin: 0 auto; padding-bottom: 2rem; }
+  .settings-label {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--text-muted); margin: 1.4rem 0.3rem 0.5rem; display: flex; gap: 0.4rem; align-items: baseline;
+  }
+  .settings-label-sub { font-weight: 500; letter-spacing: 0; text-transform: none; opacity: 0.8; }
+  .settings-label-danger { color: var(--accent); }
+  .settings-group {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .settings-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--border); min-height: 48px;
+  }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row > label {
+    font-size: 0.9rem; color: var(--text-secondary); flex-shrink: 0; margin: 0;
+  }
+  .settings-row input[type="text"],
+  .settings-row input[type="password"],
+  .settings-select {
+    flex: 1; min-width: 0; border: none; background: none; outline: none;
+    font-size: 0.92rem; color: var(--text-primary); padding: 0;
+    text-align: right; -webkit-appearance: none; appearance: none; font-family: var(--font);
+  }
+  .settings-select { text-align-last: right; cursor: pointer; }
+  .settings-row input::placeholder { color: var(--text-muted); }
+  .settings-row-stack { flex-direction: column; align-items: stretch; gap: 0.55rem; }
+  .settings-row-stack > label { font-size: 0.8rem; color: var(--text-muted); }
+  .settings-row-stack input { text-align: left !important; }
+  .settings-segment { display: flex; gap: 0.5rem; }
+  .settings-segment label {
+    flex: 1; text-align: center; padding: 0.5rem; border-radius: 8px; margin: 0;
+    background: var(--bg-input); font-size: 0.85rem; cursor: pointer; color: var(--text-secondary);
+  }
+  .settings-segment input { position: absolute; opacity: 0; pointer-events: none; }
+  .settings-segment label:has(input:checked) { background: var(--accent); color: #fff; font-weight: 600; }
+  .settings-link { text-decoration: none; }
+  .settings-link span:first-child { color: var(--text-primary); font-size: 0.9rem; }
+  .more-chevron { color: var(--text-muted); font-size: 1.1rem; }
+  .settings-hint { font-size: 0.76rem; color: var(--text-muted); margin: 0.45rem 0.3rem 0; }
+  .settings-hint code { font-family: monospace; color: var(--text-secondary); }
+  .settings-delete { width: 100%; padding: 0; }
+  .settings-delete-btn {
+    margin: 0.2rem 0.9rem 0.9rem; width: calc(100% - 1.8rem); padding: 0.65rem;
+    background: none; border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: var(--font);
+  }
+  .settings-delete-btn:active { background: var(--accent-sub); }
+</style>
 {% endblock %}
 
-{% block page_back_href %}{{ url_for("dashboard.dashboard") }}{% endblock %}
+{% block page_back_href %}{{ url_for("dashboard.more") }}{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var back = document.getElementById('settings-back-link');
+  if (back && history.length > 1) {
+    back.addEventListener('click', function (e) { e.preventDefault(); history.back(); });
+  }
+})();
+</script>
+{% endblock %}

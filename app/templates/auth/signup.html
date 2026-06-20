@@ -78,10 +78,5 @@
   </div>
 </div>
 {% endblock %}
-{% block footer %}
-<footer class="site-footer">
-  <span>© 2025 FriedSports</span>
-  <a href="{{ url_for('legal.privacy') }}">Privacy Policy</a>
-  <a href="{{ url_for('legal.terms') }}">Terms</a>
-</footer>
-{% endblock %}
+{# Footer removed — Terms/Privacy are already linked in the agree-to-terms row. #}
+{% block footer %}{% endblock %}
