@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <title>{% block title %}FriedSports{% endblock %}</title>
-  <!-- Apply theme before CSS paints to prevent flash of wrong theme -->
-  <script>(function(){var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}());</script>
+  <!-- Apply theme before CSS paints to prevent flash of wrong theme.
+       Modes: 'light' | 'dark' | 'system'. Default (no choice yet) = dark. -->
+  <script>(function(){var t=localStorage.getItem('theme')||'dark';var d=t==='dark'||(t==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.setAttribute('data-theme','dark');}());</script>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="shortcut icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/fs-logo.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=20">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=21">
   <!-- Turbo Drive — app-shell navigation (content swap without full page reload) -->
   <!-- no-preview: never show stale cached snapshots before fresh data arrives -->
   <meta name="turbo-cache-control" content="no-preview">
@@ -303,7 +304,10 @@
     // blueprint root URL with a slash falls through and shows the global back btn.
     var path = window.location.pathname.replace(/\/+$/, '') || '/';
     var isPrimary = primaryTabs.some(function(p) { return path === p; });
-    if (!isPrimary && history.length > 1) {
+    // Suppress the floating back button when the page already renders its own
+    // back arrow next to the title — otherwise both show (duplicate backs).
+    var hasInlineBack = document.querySelector('.threads-back-btn, .thread-back-btn');
+    if (!isPrimary && !hasInlineBack && history.length > 1) {
       var el = document.getElementById('page-back');
       if (el) el.style.display = '';
     }

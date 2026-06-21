@@ -30,6 +30,11 @@ class User(UserMixin, db.Model):
     email_verified = db.Column(db.Boolean, nullable=False, default=False)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
+    # Rotating per-account session secret. When set, every live session cookie
+    # must carry the matching token (see get_id / load_user) — bumping it signs
+    # out all other devices. NULL = legacy session (pre-feature), accepted as-is
+    # so shipping this never force-logs-out existing users.
+    session_token = db.Column(db.String(32), nullable=True)
     avatar_url = db.Column(db.String(256))
     role = db.Column(db.String(16), nullable=False, default="user")  # "user", "admin"
     last_active_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -68,6 +73,14 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def get_id(self):
+        """Flask-Login session id. Embeds the rotating session_token so other
+        devices can be invalidated by bumping it. Falls back to the bare id for
+        accounts that have never rotated (legacy sessions stay valid)."""
+        if self.session_token:
+            return f"{self.id}|{self.session_token}"
+        return str(self.id)
 
     def get_favorite_team(self, league):
         uft = self.favorite_teams.filter_by(league=league).first()

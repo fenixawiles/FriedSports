@@ -1,5 +1,7 @@
+import secrets
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from flask_login import login_required, current_user, logout_user
+from flask_login import login_required, current_user, logout_user, login_user
 from sqlalchemy import func
 from app.models import db, Team, UserFavoriteTeam, GroupMember, GameThread, GameThreadMessage
 
@@ -240,6 +242,11 @@ def settings():
         current_pw = request.form.get("current_password", "")
         new_pw = request.form.get("new_password", "")
         confirm_pw = request.form.get("confirm_password", "")
+        # Which devices stay signed in after a password change. Chosen in the
+        # confirmation sheet on the settings page; only honored when the
+        # password actually changes.
+        session_scope = request.form.get("session_scope", "")
+        password_changed = False
         if current_pw or new_pw:
             if not current_user.check_password(current_pw):
                 flash("Current password is incorrect.", "error")
@@ -249,10 +256,26 @@ def settings():
                 flash("New passwords do not match.", "error")
             else:
                 current_user.set_password(new_pw)
-                flash("Password updated.", "success")
+                password_changed = True
+
+        # Rotating the session token invalidates every other device's cookie.
+        if password_changed and session_scope in ("this_device", "sign_out_all"):
+            current_user.session_token = secrets.token_hex(16)
 
         db.session.commit()
-        flash("Account updated.", "success")
+
+        if password_changed and session_scope == "sign_out_all":
+            logout_user()
+            flash("Password updated. Signed out of all devices — please log in again.", "success")
+            return redirect(url_for("auth.login"))
+
+        if password_changed and session_scope == "this_device":
+            # Re-issue this device's cookie with the new token so only it survives.
+            login_user(current_user, remember=True)
+            flash("Password updated. Other devices have been signed out.", "success")
+            return redirect(url_for("dashboard.settings"))
+
+        flash("Password updated." if password_changed else "Account updated.", "success")
         return redirect(url_for("dashboard.settings"))
 
     return render_template(

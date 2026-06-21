@@ -84,7 +84,7 @@ def signup():
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("auth/signup.html")
+            return render_template("auth/signup.html"), 422
 
         user = User(
             first_name=first_name,
@@ -103,7 +103,7 @@ def signup():
         except IntegrityError:
             db.session.rollback()
             flash("An account with that email or username already exists.", "error")
-            return render_template("auth/signup.html")
+            return render_template("auth/signup.html"), 422
 
         _maybe_elevate_admin(user)
 
@@ -155,8 +155,11 @@ def login():
 
         user = User.query.filter_by(email=email).first()
         if not user or not user.check_password(password):
+            # 422 (not 200) so Turbo Drive re-renders the form with the flash —
+            # a 200 response to a form POST is ignored, leaving the submit button
+            # stuck in its loading state with no error shown.
             flash("Invalid email or password.", "error")
-            return render_template("auth/login.html")
+            return render_template("auth/login.html"), 422
 
         _maybe_elevate_admin(user)
 
@@ -213,7 +216,7 @@ def send_code():
         email = request.form.get("email", "").strip().lower()
         if not email:
             flash("Enter your email address.", "error")
-            return render_template("auth/send_code.html")
+            return render_template("auth/send_code.html"), 422
 
         user = User.query.filter_by(email=email).first()
         if not user:
@@ -254,7 +257,7 @@ def verify_code():
         user = User.query.filter_by(email=email).first()
         if not user:
             flash("Invalid code.", "error")
-            return render_template("auth/verify_code.html", email=email)
+            return render_template("auth/verify_code.html", email=email), 422
 
         tok = (
             LoginToken.query
@@ -267,7 +270,7 @@ def verify_code():
         )
         if not tok:
             flash("That code is invalid or has expired.", "error")
-            return render_template("auth/verify_code.html", email=email)
+            return render_template("auth/verify_code.html", email=email), 422
 
         tok.used_at = datetime.now(timezone.utc)
         if not user.email_verified:
@@ -323,10 +326,10 @@ def reset_password(token):
         confirm = request.form.get("confirm_password", "")
         if not password or len(password) < 6:
             flash("Password must be at least 6 characters.", "error")
-            return render_template("auth/reset_password.html", token=token)
+            return render_template("auth/reset_password.html", token=token), 422
         if password != confirm:
             flash("Passwords do not match.", "error")
-            return render_template("auth/reset_password.html", token=token)
+            return render_template("auth/reset_password.html", token=token), 422
 
         user = tok.user
         if not user:

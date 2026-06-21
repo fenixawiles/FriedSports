@@ -15,7 +15,8 @@
     </div>
   </div>
 
-  <form method="post" action="{{ url_for('dashboard.settings') }}" class="settings-form">
+  <form method="post" action="{{ url_for('dashboard.settings') }}" class="settings-form" id="settings-form">
+    <input type="hidden" name="session_scope" id="session-scope" value="">
 
     <div class="settings-label">Profile</div>
     <div class="settings-group">
@@ -107,6 +108,30 @@
     </form>
   </div>
 
+  {# ── Password-change confirmation sheet ── #}
+  <div id="pw-sheet" class="pw-sheet" hidden>
+    <div class="pw-sheet-backdrop" data-pw-cancel></div>
+    <div class="pw-sheet-card" role="dialog" aria-modal="true" aria-labelledby="pw-sheet-title">
+      <div class="pw-sheet-head">
+        <div class="pw-sheet-title" id="pw-sheet-title">Update your password</div>
+        <div class="pw-sheet-sub">Choose which devices stay signed in.</div>
+      </div>
+      <button type="button" class="pw-sheet-opt" data-scope="this_device">
+        <span class="pw-opt-main">Sign out other devices</span>
+        <span class="pw-opt-sub">Stay signed in on this device only</span>
+      </button>
+      <button type="button" class="pw-sheet-opt" data-scope="all_devices">
+        <span class="pw-opt-main">Keep all devices signed in</span>
+        <span class="pw-opt-sub">Nothing else gets logged out</span>
+      </button>
+      <button type="button" class="pw-sheet-opt pw-opt-danger" data-scope="sign_out_all">
+        <span class="pw-opt-main">Sign out everywhere</span>
+        <span class="pw-opt-sub">This device too — you'll log in again</span>
+      </button>
+      <button type="button" class="pw-sheet-cancel" data-pw-cancel>Cancel</button>
+    </div>
+  </div>
+
 </div>
 
 <style>
@@ -136,7 +161,17 @@
     font-size: 0.92rem; color: var(--text-primary); padding: 0;
     text-align: right; -webkit-appearance: none; appearance: none; font-family: var(--font);
   }
-  .settings-select { text-align-last: right; cursor: pointer; }
+  /* Team pickers read as static text otherwise — accent color + a small
+     chevron to the right of the value signal they're tappable & changeable. */
+  .settings-select {
+    text-align-last: right; cursor: pointer;
+    color: var(--accent); font-weight: 600;
+    padding-right: 1.15rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23d93348' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right center;
+    background-size: 10px 6px;
+  }
   .settings-row input::placeholder { color: var(--text-muted); }
   .settings-row-stack { flex-direction: column; align-items: stretch; gap: 0.55rem; }
   .settings-row-stack > label { font-size: 0.8rem; color: var(--text-muted); }
@@ -160,6 +195,38 @@
     border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: var(--font);
   }
   .settings-delete-btn:active { background: var(--accent-sub); }
+
+  /* ── Password-change action sheet ── */
+  .pw-sheet { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: flex-end; justify-content: center; }
+  .pw-sheet[hidden] { display: none; }
+  .pw-sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); animation: pwFade 0.18s ease; }
+  .pw-sheet-card {
+    position: relative; width: 100%; max-width: 460px;
+    margin: 0 0.5rem calc(0.5rem + env(safe-area-inset-bottom));
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 0.5rem; box-shadow: var(--shadow-card);
+    animation: pwRise 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes pwFade { from { opacity: 0; } }
+  @keyframes pwRise { from { transform: translateY(18px); opacity: 0; } }
+  .pw-sheet-head { text-align: center; padding: 0.7rem 0.5rem 0.6rem; }
+  .pw-sheet-title { font-size: 0.98rem; font-weight: 700; color: var(--text-primary); }
+  .pw-sheet-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; }
+  .pw-sheet-opt {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem;
+    width: 100%; text-align: left; background: var(--bg-input); border: none;
+    border-radius: 10px; padding: 0.7rem 0.85rem; margin-top: 0.4rem;
+    cursor: pointer; font-family: var(--font);
+  }
+  .pw-sheet-opt:active { opacity: 0.7; }
+  .pw-opt-main { font-size: 0.92rem; font-weight: 600; color: var(--text-primary); }
+  .pw-sheet-opt.pw-opt-danger .pw-opt-main { color: var(--accent); }
+  .pw-opt-sub { font-size: 0.76rem; color: var(--text-muted); }
+  .pw-sheet-cancel {
+    width: 100%; background: none; border: none; color: var(--text-secondary);
+    font-size: 0.92rem; font-weight: 600; padding: 0.8rem; margin-top: 0.45rem;
+    cursor: pointer; font-family: var(--font);
+  }
 </style>
 {% endblock %}
 
@@ -171,6 +238,38 @@
   if (back && history.length > 1) {
     back.addEventListener('click', function (e) { e.preventDefault(); history.back(); });
   }
+})();
+
+// Password change → confirm which devices stay signed in before saving.
+(function () {
+  var form = document.getElementById('settings-form');
+  var sheet = document.getElementById('pw-sheet');
+  var scopeInput = document.getElementById('session-scope');
+  if (!form || !sheet || !scopeInput) return;
+  var newPw = form.querySelector('#new_password');
+
+  function close() { sheet.hidden = true; document.body.style.overflow = ''; }
+  function open() { sheet.hidden = false; document.body.style.overflow = 'hidden'; }
+
+  form.addEventListener('submit', function (e) {
+    // Only intercept when a new password is actually being set (and a scope
+    // hasn't been chosen yet, so the re-submit below goes straight through).
+    if (newPw && newPw.value.trim() && !scopeInput.value) {
+      e.preventDefault();
+      open();
+    }
+  });
+
+  sheet.addEventListener('click', function (e) {
+    var opt = e.target.closest('[data-scope]');
+    if (opt) {
+      scopeInput.value = opt.getAttribute('data-scope');
+      close();
+      if (form.requestSubmit) form.requestSubmit(); else form.submit();
+      return;
+    }
+    if (e.target.closest('[data-pw-cancel]')) close();
+  });
 })();
 </script>
 {% endblock %}

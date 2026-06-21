@@ -369,6 +369,22 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
   cursor: pointer;
 }
 
+/* Onboarding team pickers live outside .form-group, so give them the same
+   themed surface (bg, border, radius, 16px text) the design system uses —
+   the bare browser <select> looked off-theme. */
+select.team-select {
+  width: 100%;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-mid);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-family: var(--font);
+  padding: 0.6rem 2.5rem 0.6rem 0.85rem;
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s;
+}
+select.team-select:focus { outline: none; border-color: var(--accent); }
+
 .form-divider { border-top: 1px solid var(--border); margin: 1.25rem 0; padding-top: 1rem; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* ── Auth pages ── */
@@ -386,6 +402,8 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .auth-switch a { color: var(--text-secondary); }
 .auth-switch a:hover { color: var(--text-primary); }
 .auth-form { display: flex; flex-direction: column; }
+/* Compact rhythm so the sign-up form fits without overflowing the screen. */
+.auth-form .form-group { margin-bottom: 0.8rem; }
 
 /* ── Hero ── */
 .hero { padding: 6rem 1rem 4rem; text-align: left; max-width: 1120px; margin: 0 auto; }
@@ -1112,8 +1130,9 @@ body.receipt-page {
   /* Thread chat — pill + circle button, both handled globally now */
   .chat-input-pill textarea { min-height: 24px; }
 
-  /* Name grid — single column on narrow screens */
-  .name-grid { grid-template-columns: 1fr; }
+  /* Name grid — keep First/Last side-by-side on mobile too; it's more compact
+     and the two short fields fit comfortably even on a 320px screen. */
+  .name-grid { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 
   /* Profile prompt — stack inputs vertically on mobile */
   .profile-prompt-form { flex-direction: column; align-items: stretch; }
@@ -1444,6 +1463,19 @@ body.receipt-page {
 .more-row-admin { color: var(--text-secondary); }
 .more-row-danger { color: var(--accent) !important; }
 .more-row-danger:hover { background: rgba(217,51,72,0.06) !important; }
+
+/* ── Appearance segmented control (Light / System / Dark) ── */
+.more-row-appearance { gap: 0.75rem; }
+.theme-seg {
+  display: inline-flex; flex-shrink: 0;
+  background: var(--bg-input); border-radius: 9px; padding: 2px;
+}
+.theme-seg-btn {
+  border: none; background: none; cursor: pointer; font-family: var(--font);
+  font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
+  padding: 0.32rem 0.6rem; border-radius: 7px; transition: color 0.12s;
+}
+.theme-seg-btn.active { background: var(--accent); color: #fff; }
 
 /* ── Theme toggle switch (iOS-style) ── */
 .theme-switch {

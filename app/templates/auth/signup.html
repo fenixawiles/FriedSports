@@ -27,22 +27,6 @@
       </div>
 
       <div class="form-group">
-        <label>Display As</label>
-        <div style="display:flex;gap:1rem;margin-top:0.35rem">
-          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.87rem">
-            <input type="radio" name="display_preference" value="username"
-                   {% if request.form.get('display_preference','username') == 'username' %}checked{% endif %}>
-            Username
-          </label>
-          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.87rem">
-            <input type="radio" name="display_preference" value="real_name"
-                   {% if request.form.get('display_preference') == 'real_name' %}checked{% endif %}>
-            Real Name
-          </label>
-        </div>
-      </div>
-
-      <div class="form-group">
         <label for="email">Email</label>
         <input type="email" id="email" name="email" required
                placeholder="your@email.com" value="{{ request.form.get('email', '') }}">

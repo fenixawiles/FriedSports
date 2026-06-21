@@ -21,7 +21,21 @@ compress = Compress()
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.get(User, int(user_id))
+    # Session ids are "<id>" (legacy) or "<id>|<session_token>" (post sign-out
+    # feature). Once an account has a session_token, every cookie must present
+    # the matching token — a mismatch means the device was signed out remotely.
+    raw = str(user_id)
+    uid, _, token = raw.partition("|")
+    try:
+        user = db.session.get(User, int(uid))
+    except (TypeError, ValueError):
+        return None
+    if user is None:
+        return None
+    if user.session_token:
+        return user if token == user.session_token else None
+    # No token on the account yet — accept any cookie (legacy grace).
+    return user
 
 
 def create_app(config=None):

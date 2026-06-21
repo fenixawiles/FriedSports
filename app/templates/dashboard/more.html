@@ -30,13 +30,14 @@
       <span>Profile &amp; Settings</span>
       <span class="more-chevron">›</span>
     </a>
-    <label class="more-row more-row-toggle" for="theme-toggle-check">
-      <span>Dark Mode</span>
-      <span class="theme-switch">
-        <input type="checkbox" id="theme-toggle-check">
-        <span class="theme-switch-track"></span>
-      </span>
-    </label>
+    <div class="more-row more-row-appearance">
+      <span>Appearance</span>
+      <div class="theme-seg" id="theme-seg" role="group" aria-label="Appearance">
+        <button type="button" class="theme-seg-btn" data-theme-val="light">Light</button>
+        <button type="button" class="theme-seg-btn" data-theme-val="system">System</button>
+        <button type="button" class="theme-seg-btn" data-theme-val="dark">Dark</button>
+      </div>
+    </div>
   </div>
 
   {# ── Social ── #}
@@ -112,18 +113,39 @@
 {% block scripts %}
 <script>
 (function() {
-  var check = document.getElementById('theme-toggle-check');
-  if (!check) return;
-  check.checked = document.documentElement.getAttribute('data-theme') === 'dark';
-  check.addEventListener('change', function() {
-    if (this.checked) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-      localStorage.setItem('theme', 'light');
-    }
+  var seg = document.getElementById('theme-seg');
+  if (!seg) return;
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  function resolvesDark(mode) {
+    return mode === 'dark' || (mode === 'system' && mq.matches);
+  }
+  function apply(mode) {
+    if (resolvesDark(mode)) document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+  }
+  function mark(mode) {
+    seg.querySelectorAll('[data-theme-val]').forEach(function (b) {
+      var on = b.getAttribute('data-theme-val') === mode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+  mark(localStorage.getItem('theme') || 'dark');
+  seg.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-theme-val]');
+    if (!b) return;
+    var mode = b.getAttribute('data-theme-val');
+    localStorage.setItem('theme', mode);
+    apply(mode);
+    mark(mode);
   });
+  // Live-flip when the OS theme changes while in System mode. Wire once.
+  if (!window._fsSystemThemeWired) {
+    window._fsSystemThemeWired = true;
+    mq.addEventListener('change', function () {
+      if ((localStorage.getItem('theme') || 'dark') === 'system') apply('system');
+    });
+  }
 })();
 </script>
 {% endblock %}
