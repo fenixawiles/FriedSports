@@ -438,26 +438,66 @@ def _cascade_delete_group_admin(group_id):
     _cascade_delete_group(group_id)
 
 
-def _cascade_delete_user(user_id):
-    """Safely delete a user and all associated records, respecting FK constraints."""
-    # Anonymise messages (preserve thread history but sever user link)
-    GameThreadMessage.query.filter_by(user_id=user_id).update(
-        {"user_id": None, "is_deleted": True}, synchronize_session=False
+def _delete_threads_and_children(thread_ids):
+    """Hard-delete threads and every row that references them, in FK order.
+    Children of game_threads.id: messages (+ their reactions/reports), receipts,
+    thread_reads, thread_votes, thread_user_states (verified via information_schema)."""
+    if not thread_ids:
+        return
+    from app.models import ThreadRead, ThreadVote, ThreadUserState
+    msg_subq = (
+        db.session.query(GameThreadMessage.id)
+        .filter(GameThreadMessage.thread_id.in_(thread_ids))
     )
-    # Delete reactions and reports by this user
-    MessageReaction.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-    MessageReport.query.filter_by(reporter_user_id=user_id).delete(synchronize_session=False)
-    # Cascade-delete all groups this user owns
+    MessageReaction.query.filter(MessageReaction.message_id.in_(msg_subq)).delete(synchronize_session=False)
+    MessageReport.query.filter(MessageReport.message_id.in_(msg_subq)).delete(synchronize_session=False)
+    GameThreadMessage.query.filter(GameThreadMessage.thread_id.in_(thread_ids)).delete(synchronize_session=False)
+    Receipt.query.filter(Receipt.thread_id.in_(thread_ids)).delete(synchronize_session=False)
+    ThreadRead.query.filter(ThreadRead.thread_id.in_(thread_ids)).delete(synchronize_session=False)
+    ThreadVote.query.filter(ThreadVote.thread_id.in_(thread_ids)).delete(synchronize_session=False)
+    ThreadUserState.query.filter(ThreadUserState.thread_id.in_(thread_ids)).delete(synchronize_session=False)
+    GameThread.query.filter(GameThread.id.in_(thread_ids)).delete(synchronize_session=False)
+
+
+def _cascade_delete_user(user_id):
+    """Delete a user and EVERY record referencing them, in FK-safe order.
+
+    Each users.id FK is ON DELETE NO ACTION, so every child reference must be
+    deleted (or nulled where the column is nullable) before the user row can be
+    removed — otherwise the final delete raises an IntegrityError and the account
+    silently survives. The full set of referencing tables was verified against
+    information_schema; if you add a new table with a users.id FK, add it here.
+    """
+    from app.models import (BlockedUser, ThreadRead, ThreadVote,
+                            ThreadUserState, ActivityEvent)
+
+    # Groups owned by the user — full group cascade (their threads + members).
     for g in Group.query.filter_by(owner_id=user_id).all():
         from app.routes.groups import _cascade_delete_group
         _cascade_delete_group(g.id)
-    # Remove group memberships where they don't own (owned groups already deleted above)
-    GroupMember.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-    # Soft-delete threads targeting this user
-    GameThread.query.filter_by(target_user_id=user_id).update(
-        {"status": "deleted"}, synchronize_session=False
+
+    # Threads that TARGET this user: target_user_id is NOT NULL, so the rows must
+    # be removed (with their children), not nulled.
+    target_thread_ids = [
+        t.id for t in GameThread.query.filter_by(target_user_id=user_id).all()
+    ]
+    _delete_threads_and_children(target_thread_ids)
+
+    # Reactions/reports by this user; anonymise the user's own messages so the
+    # rest of each surviving thread's history stays intact.
+    MessageReaction.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    MessageReport.query.filter_by(reporter_user_id=user_id).delete(synchronize_session=False)
+    MessageReport.query.filter_by(reviewed_by_id=user_id).update(
+        {"reviewed_by_id": None}, synchronize_session=False
     )
-    # Delete incident reports (reporter or target)
+    GameThreadMessage.query.filter_by(user_id=user_id).update(
+        {"user_id": None, "is_deleted": True}, synchronize_session=False
+    )
+
+    # Group memberships (owned groups already deleted above).
+    GroupMember.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+    # Incident reports (reporter or target) + their events/triggers.
     ir_ids = [r.id for r in IncidentReport.query.filter(
         db.or_(
             IncidentReport.reporter_user_id == user_id,
@@ -476,24 +516,41 @@ def _cascade_delete_user(user_id):
         IncidentReport.query.filter(IncidentReport.id.in_(ir_ids)).delete(
             synchronize_session=False
         )
-    # Receipts referencing this user
+
+    # Group triggers that target this user directly (separate FK from the event
+    # path handled above).
+    GroupTrigger.query.filter_by(target_user_id=user_id).delete(synchronize_session=False)
+
+    # Receipts referencing this user.
     Receipt.query.filter(
         db.or_(Receipt.target_user_id == user_id, Receipt.top_hater_user_id == user_id)
     ).delete(synchronize_session=False)
-    # Nullify audit log (preserve history, remove FK reference)
+
+    # Audit log — preserve history, drop the FK reference.
     AdminAuditLog.query.filter_by(target_user_id=user_id).update(
         {"target_user_id": None}, synchronize_session=False
     )
     AdminAuditLog.query.filter_by(admin_id=user_id).update(
         {"admin_id": None}, synchronize_session=False
     )
-    # Delete tokens, devices, tickets, favourites, notifications
+
+    # Blocks, thread-scoped state, and activity authored by the user.
+    BlockedUser.query.filter(
+        db.or_(BlockedUser.blocker_id == user_id, BlockedUser.blocked_id == user_id)
+    ).delete(synchronize_session=False)
+    ThreadRead.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    ThreadVote.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    ThreadUserState.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    ActivityEvent.query.filter_by(actor_id=user_id).update(
+        {"actor_id": None}, synchronize_session=False
+    )
+
+    # Tokens, devices, tickets, favourites, notifications, friend requests.
     LoginToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     DeviceToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     SupportTicket.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     UserFavoriteTeam.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     Notification.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-    # Delete friend requests sent or received by this user
     FriendRequest.query.filter(
         db.or_(
             FriendRequest.from_user_id == user_id,

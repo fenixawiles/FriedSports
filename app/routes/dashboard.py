@@ -1,6 +1,6 @@
 import secrets
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user, logout_user, login_user
 from sqlalchemy import func
 from app.models import db, Team, UserFavoriteTeam, GroupMember, GameThread, GameThreadMessage
@@ -298,20 +298,32 @@ def delete_account():
     user    = current_user._get_current_object()
     user_id = user.id
 
-    # Log out first so Flask-Login releases the session reference
-    logout_user()
-
-    # Full cascade — same helper used by admin delete
-    # (handles owned groups, friends, messages, receipts, notifications, etc.)
+    # Full cascade — same helper used by admin delete (handles owned groups,
+    # messages, receipts, blocks, thread state, notifications, etc.). Run the
+    # whole thing in one transaction: if ANY referencing row is missed the
+    # user-row delete raises, and we must roll back and keep the account intact
+    # rather than leave a logged-out-but-undeleted ghost.
     from app.routes.admin import _cascade_delete_user
-    _cascade_delete_user(user_id)
+    try:
+        _cascade_delete_user(user_id)
+        user_obj = db.session.get(User, user_id)
+        if user_obj:
+            db.session.delete(user_obj)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Account deletion failed for user %s", user_id)
+        flash("Something went wrong and your account was not deleted. "
+              "Nothing was changed — please contact support.", "error")
+        return redirect(url_for("dashboard.settings"))
 
-    # Delete the user record itself
-    user_obj = db.session.get(User, user_id)
-    if user_obj:
-        db.session.delete(user_obj)
-    db.session.commit()
+    # Verify the row is actually gone before we tell the user it worked.
+    if db.session.get(User, user_id) is not None:
+        flash("Account deletion did not complete. Please contact support.", "error")
+        return redirect(url_for("dashboard.settings"))
 
+    # Only sign out once deletion is confirmed.
+    logout_user()
     flash("Your account has been permanently deleted.", "info")
     return redirect(url_for("auth.index"))
 
