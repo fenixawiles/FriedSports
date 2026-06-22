@@ -9,9 +9,23 @@ function resolvesDark(mode) {
   return mode === 'dark' || (mode === 'system' && prefersDark().matches)
 }
 
+// Tell the native iOS layer (AppDelegate's fsTheme handler) the current bg color
+// so the rubber-band/overscroll area is painted to match instead of flashing the
+// light default. No-op on web (the handler doesn't exist there).
+function syncNativeTheme() {
+  try {
+    const h = window.webkit?.messageHandlers?.fsTheme
+    if (!h) return
+    const hex = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bg-primary').trim()
+    if (hex) h.postMessage(hex)
+  } catch { /* never let theme sync throw */ }
+}
+
 function applyTheme(mode) {
   if (resolvesDark(mode)) document.documentElement.setAttribute('data-theme', 'dark')
   else document.documentElement.removeAttribute('data-theme')
+  syncNativeTheme()
 }
 
 export function ThemeProvider({ children }) {
