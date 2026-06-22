@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { getSettings, updateSettings, deleteAccount } from '../api/user'
 import { useAuth } from '../context/AuthContext'
@@ -75,97 +75,113 @@ export default function Settings() {
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
   return (
-    <div className="group-container" style={{ maxWidth: 680 }}>
+    <div className="settings-page">
       <BackButton fallback="/more" />
-      <div className="group-header"><h1>Settings</h1></div>
+      <div className="settings-title-row">
+        <span className="section-title">Settings</span>
+      </div>
 
       {error   && <div className="flash flash-error">{error}</div>}
       {success && <div className="flash flash-success">{success}</div>}
 
-      {/* Identity */}
-      <section className="group-section">
-        <div className="section-header"><span className="section-title">Profile</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div className="form-group">
-            <label>First Name</label>
-            <input type="text" maxLength={64} style={{ fontSize: 16 }}
-              value={form.first_name} onChange={set('first_name')} />
+      <form className="settings-form" onSubmit={(e) => { e.preventDefault(); handleSave() }}>
+        <div className="settings-label">Profile</div>
+        <div className="settings-group">
+          <div className="settings-row">
+            <label htmlFor="display_name">Username</label>
+            <input id="display_name" type="text" maxLength={64}
+              value={form.display_name} onChange={set('display_name')} placeholder="username" />
           </div>
-          <div className="form-group">
-            <label>Last Name</label>
-            <input type="text" maxLength={64} style={{ fontSize: 16 }}
-              value={form.last_name} onChange={set('last_name')} />
+          <div className="settings-row">
+            <label htmlFor="first_name">First name</label>
+            <input id="first_name" type="text" maxLength={64}
+              value={form.first_name} onChange={set('first_name')} placeholder="First" />
           </div>
-          <div className="form-group">
-            <label>Username</label>
-            <input type="text" maxLength={64} style={{ fontSize: 16 }}
-              value={form.display_name} onChange={set('display_name')} />
+          <div className="settings-row">
+            <label htmlFor="last_name">Last name</label>
+            <input id="last_name" type="text" maxLength={64}
+              value={form.last_name} onChange={set('last_name')} placeholder="Last" />
           </div>
-          <div className="form-group">
-            <label>Display As</label>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.3rem' }}>
+          <div className="settings-row settings-row-stack">
+            <label>Show others my</label>
+            <div className="settings-segment">
               {['username','real_name'].map(v => (
-                <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                <label key={v}>
                   <input type="radio" name="display_preference" value={v}
                     checked={form.display_preference === v} onChange={set('display_preference')} />
-                  {v === 'username' ? 'Username' : 'Real name'}
+                  <span>{v === 'username' ? 'Username' : 'Real name'}</span>
                 </label>
               ))}
             </div>
           </div>
         </div>
-      </section>
+        {data?.user?.uid && (
+          <div className="settings-hint">Your FS ID is <code>{data.user.uid}</code> — share it to get added.</div>
+        )}
 
-      {/* Teams */}
-      <section className="group-section">
-        <div className="section-header"><span className="section-title">Favorite Teams</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="settings-label">Teams <span className="settings-label-sub">one per league</span></div>
+        <div className="settings-group">
           {Object.entries(teams_by_league).map(([league, teams]) => (
-            <div key={league} className="form-group">
-              <label>{league_labels[league] || league}</label>
+            <div key={league} className="settings-row">
+              <label htmlFor={`${league.toLowerCase()}_team_id`}>{league_labels[league] || league}</label>
               <select value={teamSelections[`${league.toLowerCase()}_team_id`] || ''}
+                id={`${league.toLowerCase()}_team_id`}
+                className="settings-select"
                 onChange={e => setTeamSelections(s => ({ ...s, [`${league.toLowerCase()}_team_id`]: e.target.value }))}>
-                <option value="">No team</option>
+                <option value="">None</option>
                 {teams.map(t => <option key={t.id} value={t.id}>{t.city} {t.name}</option>)}
               </select>
             </div>
           ))}
         </div>
-      </section>
 
-      {/* Password */}
-      <section className="group-section">
-        <div className="section-header"><span className="section-title">Change Password</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {['current_password','new_password','confirm_password'].map(k => (
-            <div key={k} className="form-group">
-              <label>{k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())}</label>
-              <input type="password" style={{ fontSize: 16 }}
-                value={form[k]} onChange={set(k)} />
-            </div>
-          ))}
+        <div className="settings-label">Password <span className="settings-label-sub">optional</span></div>
+        <div className="settings-group">
+          <div className="settings-row">
+            <label htmlFor="current_password">Current</label>
+            <input id="current_password" type="password" value={form.current_password}
+              onChange={set('current_password')} placeholder="Leave blank to keep" />
+          </div>
+          <div className="settings-row">
+            <label htmlFor="new_password">New</label>
+            <input id="new_password" type="password" value={form.new_password}
+              onChange={set('new_password')} placeholder="6+ characters" />
+          </div>
+          <div className="settings-row">
+            <label htmlFor="confirm_password">Confirm</label>
+            <input id="confirm_password" type="password" value={form.confirm_password}
+              onChange={set('confirm_password')} placeholder="Repeat new" />
+          </div>
         </div>
-      </section>
 
-      <button className="btn-primary" style={{ marginBottom: '2rem' }}
-        onClick={handleSave} disabled={saveMut.isPending}>
-        {saveMut.isPending ? 'Saving…' : 'Save Changes'}
-      </button>
+        <button type="submit" className="btn-primary btn-full settings-save-btn" disabled={saveMut.isPending}>
+          {saveMut.isPending ? 'Saving…' : 'Save changes'}
+        </button>
+      </form>
 
-      {/* Danger zone */}
-      <section className="group-section group-danger-zone">
-        <span className="section-title" style={{ color: 'var(--accent)' }}>Delete Account</span>
-        <p className="group-danger-hint">This is permanent and cannot be undone.</p>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input type="password" placeholder="Confirm password" style={{ fontSize: 16, flex: 1, minWidth: 200 }}
-            value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
-          <button className="btn-danger-small"
-            onClick={() => { if(window.confirm('Permanently delete your account?')) deleteMut.mutate() }}
+      <div className="settings-label">Safety</div>
+      <div className="settings-group">
+        <Link to="/friends/blocked" className="settings-row settings-link">
+          <span>Blocked users</span>
+          <span className="more-chevron">›</span>
+        </Link>
+      </div>
+
+      <div className="settings-label settings-label-danger">Danger zone</div>
+      <div className="settings-group">
+        <div className="settings-delete">
+          <div className="settings-row settings-row-stack settings-delete-row">
+            <label htmlFor="confirm_password_delete">Delete account — confirm with your password</label>
+            <input id="confirm_password_delete" type="password" placeholder="Your password"
+              value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
+          </div>
+          <button type="button" className="settings-delete-btn"
+            onClick={() => { if(window.confirm('This permanently deletes your account and all data. There is no undo.')) deleteMut.mutate() }}
             disabled={!confirmPw || deleteMut.isPending}>
-            Delete Account
+            {deleteMut.isPending ? 'Deleting…' : 'Delete my account'}
           </button>
         </div>
-      </section>
+      </div>
 
       {/* Password-change device sign-out sheet */}
       {showPwSheet && (

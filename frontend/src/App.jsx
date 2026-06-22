@@ -20,6 +20,7 @@ import Dashboard    from './pages/Dashboard'
 import Threads      from './pages/Threads'
 import NewThread    from './pages/NewThread'
 import Friends      from './pages/Friends'
+import BlockedUsers from './pages/BlockedUsers'
 import Notifications from './pages/Notifications'
 import More         from './pages/More'
 
@@ -35,6 +36,7 @@ import ThreadChat   from './pages/ThreadChat'
 // Pages — account
 import Onboarding   from './pages/Onboarding'
 import Settings     from './pages/Settings'
+import Admin        from './pages/Admin'
 
 // Pages — support + public
 import Support      from './pages/Support'
@@ -117,9 +119,11 @@ export default function App() {
                 <Route path="/threads"     element={<RequireAuth><Threads /></RequireAuth>} />
                 <Route path="/threads/new" element={<RequireAuth><NewThread /></RequireAuth>} />
                 <Route path="/friends"     element={<RequireAuth><Friends /></RequireAuth>} />
+                <Route path="/friends/blocked" element={<RequireAuth><BlockedUsers /></RequireAuth>} />
                 <Route path="/notifications" element={<RequireAuth><Notifications /></RequireAuth>} />
                 <Route path="/more"        element={<RequireAuth><More /></RequireAuth>} />
                 <Route path="/settings"    element={<RequireAuth><Settings /></RequireAuth>} />
+                <Route path="/admin-tools" element={<RequireAuth><Admin /></RequireAuth>} />
 
                 {/* Groups */}
                 <Route path="/groups/new"          element={<RequireAuth><NewGroup /></RequireAuth>} />

@@ -4,7 +4,8 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 from app.models import (db, Group, GroupMember, GameThread, GameThreadMessage, Receipt,
                         IncidentReport, GameEvent, GroupTrigger, MessageReaction, MessageReport,
-                        User, Notification)
+                        User, Notification, ThreadRead, ThreadVote, ThreadUserState,
+                        ActivityEvent)
 
 groups_bp = Blueprint("groups", __name__)
 
@@ -433,42 +434,46 @@ def transfer_owner(group_id, user_id):
 
 def _cascade_delete_group(group_id):
     """Delete a group and all its associated data in safe dependency order."""
-    # Messages in threads in this group
-    thread_ids = [t.id for t in GameThread.query.filter_by(group_id=group_id).all()]
+    # Threads can still reference the group through group_id/group_trigger_id,
+    # so hard-delete their children first, then the threads, then triggers and
+    # reports. Marking threads deleted is not enough for deleting the group row.
+    threads = GameThread.query.filter_by(group_id=group_id).all()
+    thread_ids = [t.id for t in threads]
+    all_triggers = GroupTrigger.query.filter_by(group_id=group_id).all()
+    trigger_ids = [t.id for t in all_triggers]
+    event_ids = [t.game_event_id for t in all_triggers]
+    incident_report_ids = []
+    if event_ids:
+        incident_report_ids = [
+            rid for (rid,) in db.session.query(GameEvent.incident_report_id)
+            .filter(GameEvent.id.in_(event_ids))
+            .filter(GameEvent.incident_report_id.isnot(None))
+            .all()
+        ]
+
     if thread_ids:
-        MessageReaction.query.filter(
-            MessageReaction.message_id.in_(
-                db.session.query(GameThreadMessage.id)
-                .filter(GameThreadMessage.thread_id.in_(thread_ids))
-            )
-        ).delete(synchronize_session=False)
-        MessageReport.query.filter(
-            MessageReport.message_id.in_(
-                db.session.query(GameThreadMessage.id)
-                .filter(GameThreadMessage.thread_id.in_(thread_ids))
-            )
-        ).delete(synchronize_session=False)
+        msg_ids = db.session.query(GameThreadMessage.id).filter(
+            GameThreadMessage.thread_id.in_(thread_ids)
+        )
+        MessageReaction.query.filter(MessageReaction.message_id.in_(msg_ids)).delete(synchronize_session=False)
+        MessageReport.query.filter(MessageReport.message_id.in_(msg_ids)).delete(synchronize_session=False)
         GameThreadMessage.query.filter(
             GameThreadMessage.thread_id.in_(thread_ids)
         ).delete(synchronize_session=False)
         Receipt.query.filter(Receipt.thread_id.in_(thread_ids)).delete(synchronize_session=False)
-    # Soft-delete threads
-    GameThread.query.filter_by(group_id=group_id).update({"status": "deleted"})
-    # Group triggers and incident reports — load once, not twice.
-    all_triggers = GroupTrigger.query.filter_by(group_id=group_id).all()
-    trigger_ids  = [t.id for t in all_triggers]
+        ThreadRead.query.filter(ThreadRead.thread_id.in_(thread_ids)).delete(synchronize_session=False)
+        ThreadVote.query.filter(ThreadVote.thread_id.in_(thread_ids)).delete(synchronize_session=False)
+        ThreadUserState.query.filter(ThreadUserState.thread_id.in_(thread_ids)).delete(synchronize_session=False)
+        GameThread.query.filter(GameThread.id.in_(thread_ids)).delete(synchronize_session=False)
+
     if trigger_ids:
-        event_ids = [gt.game_event_id for gt in all_triggers]
         GroupTrigger.query.filter_by(group_id=group_id).delete()
-        if event_ids:
-            IncidentReport.query.filter(
-                IncidentReport.id.in_(
-                    db.session.query(GameEvent.incident_report_id)
-                    .filter(GameEvent.id.in_(event_ids))
-                    .filter(GameEvent.incident_report_id.isnot(None))
-                )
-            ).delete(synchronize_session=False)
-            GameEvent.query.filter(GameEvent.id.in_(event_ids)).delete(synchronize_session=False)
+    if event_ids:
+        GameEvent.query.filter(GameEvent.id.in_(event_ids)).delete(synchronize_session=False)
+    if incident_report_ids:
+        IncidentReport.query.filter(IncidentReport.id.in_(incident_report_ids)).delete(synchronize_session=False)
+    IncidentReport.query.filter_by(group_id=group_id).delete(synchronize_session=False)
+    ActivityEvent.query.filter_by(group_id=group_id).delete(synchronize_session=False)
     GroupMember.query.filter_by(group_id=group_id).delete()
     Receipt.query.filter_by(group_id=group_id).delete()
     group = db.session.get(Group, group_id)

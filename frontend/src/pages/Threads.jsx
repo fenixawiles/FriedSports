@@ -1,8 +1,21 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getThreadsList, getThread } from '../api/threads'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { archiveThread, deleteThreadLocal, getThreadsList, getThread,
+         restoreThread, unarchiveThread } from '../api/threads'
 import { Skeleton } from '../components/Skeleton'
+
+const STATUS_FILTERS = [
+  ['active', 'Threads'],
+  ['archived', 'Archived'],
+  ['deleted', 'Recently Deleted'],
+]
+
+const TYPE_FILTERS = [
+  ['all', 'All'],
+  ['direct', 'Direct'],
+  ['groups', 'Groups'],
+]
 
 function ThreadsSkeleton() {
   return (
@@ -40,6 +53,133 @@ function fmtTime(iso) {
   return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
+function threadMeta(thread) {
+  const isIncident = (thread.thread_type || 'incident') === 'incident'
+  const isDirect = thread.thread_type === 'direct_chat'
+  const typeLabel = isIncident
+    ? (thread.incident_type
+      ? thread.incident_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      : 'Thread')
+    : (isDirect ? 'Direct Message' : 'Group Chat')
+  const rowTitle = isIncident
+    ? `${thread.group_name} · ${typeLabel}`
+    : (thread.display_title || thread.title || typeLabel)
+  return { isIncident, isDirect, typeLabel, rowTitle }
+}
+
+function ThreadRow({ thread, last, pending, onAction }) {
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const startRef = useMemo(() => ({ x: 0, y: 0, base: 0, current: 0, active: false, swiped: false }), [])
+  const category = thread.category || 'active'
+  const isDeleted = category === 'deleted'
+  const maxOffset = isDeleted ? 88 : 176
+  const { isIncident, rowTitle } = threadMeta(thread)
+
+  function close() {
+    setDragging(false)
+    startRef.current = 0
+    setOffset(0)
+  }
+
+  function onPointerDown(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    startRef.x = e.clientX
+    startRef.y = e.clientY
+    startRef.base = offset
+    startRef.active = false
+    startRef.swiped = false
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+
+  function onPointerMove(e) {
+    const dx = e.clientX - startRef.x
+    const dy = e.clientY - startRef.y
+    if (!startRef.active) {
+      if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(dy) * 1.2) return
+      startRef.active = true
+      setDragging(true)
+    }
+    const next = Math.max(-maxOffset, Math.min(0, startRef.base + dx))
+    startRef.current = next
+    setOffset(next)
+  }
+
+  function onPointerUp() {
+    if (!startRef.active) return
+    const shouldOpen = startRef.current < -(maxOffset / 2)
+    const next = shouldOpen ? -maxOffset : 0
+    setDragging(false)
+    startRef.current = next
+    setOffset(next)
+    startRef.swiped = true
+    setTimeout(() => { startRef.swiped = false }, 80)
+  }
+
+  function onRowClick(e) {
+    if (offset !== 0 || startRef.swiped) {
+      e.preventDefault()
+      close()
+    }
+  }
+
+  const actions = isDeleted
+    ? [['restore', 'Restore', 'restore']]
+    : [
+        [category === 'archived' ? 'unarchive' : 'archive', category === 'archived' ? 'Unarchive' : 'Archive', 'archive'],
+        ['delete', 'Delete', 'delete'],
+      ]
+
+  return (
+    <div className="thread-swipe">
+      <div className="thread-swipe-actions" aria-hidden={offset === 0}>
+        {actions.map(([action, label, tone]) => (
+          <button
+            key={action}
+            type="button"
+            className={`swipe-act swipe-${tone}`}
+            disabled={pending}
+            onClick={() => { close(); onAction(thread.id, action) }}>
+            {pending ? '...' : label}
+          </button>
+        ))}
+      </div>
+      <Link
+        to={`/threads/${thread.id}`}
+        className={`thread-row-item${dragging ? ' dragging' : ''}`}
+        data-group-id={thread.group_id || ''}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClick={onRowClick}
+        style={{ transform: `translateX(${offset}px)` }}>
+        <div className="thread-avatar-circle"
+          style={{ background: thread.avatar_color || thread.team_color || 'var(--accent)' }}>
+          <span>{thread.avatar_label || thread.team_abbr || '?'}</span>
+        </div>
+        <div className="thread-preview-col">
+          <div className="thread-preview-top">
+            <span className="thread-preview-name">
+              {thread.unread_count > 0 && category === 'active' && <span className="unread-dot" />}
+              {rowTitle}
+            </span>
+            <span className="thread-preview-ts">{fmtTime(last?.created_at)}</span>
+          </div>
+          <div className="thread-preview-msg">
+            {last?.body || (isIncident ? thread.title : 'Start the conversation.')}
+          </div>
+          <div className="thread-preview-activity">
+            <span>{thread.reply_count || 0} {(thread.reply_count || 0) === 1 ? 'reply' : 'replies'}</span>
+            {thread.unread_count > 0 && category === 'active' && <span className="unread-chip">{thread.unread_count} new</span>}
+            {last?.author && <span>last by {last.author}</span>}
+          </div>
+        </div>
+      </Link>
+    </div>
+  )
+}
+
 export default function Threads() {
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -58,17 +198,45 @@ export default function Threads() {
     })
   }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [filterGroup, setFilterGroup]       = useState('all')
   const [filterOpen, setFilterOpen]         = useState(false)
+  const [statusFilter, setStatusFilter]     = useState('active')
+  const [typeFilter, setTypeFilter]         = useState('all')
+  const [actionError, setActionError]       = useState('')
 
   const threads   = data?.threads    ?? []
-  const groups    = data?.groups     ?? []
   const lastMsgs  = data?.last_msgs  ?? {}
+  const catCounts = data?.cat_counts ?? {}
+
+  const actionMut = useMutation({
+    mutationFn: ({ id, action }) => {
+      if (action === 'archive') return archiveThread(id)
+      if (action === 'unarchive') return unarchiveThread(id)
+      if (action === 'delete') return deleteThreadLocal(id)
+      if (action === 'restore') return restoreThread(id)
+      throw new Error('Unknown action')
+    },
+    onSuccess: () => {
+      setActionError('')
+      qc.invalidateQueries(['threads'])
+    },
+    onError: (err) => setActionError(err.message || 'Could not update thread'),
+  })
 
   const filtered = useMemo(() => {
-    if (filterGroup === 'all') return threads
-    return threads.filter(t => String(t.group_id) === String(filterGroup))
-  }, [threads, filterGroup])
+    return threads.filter(t => {
+      const category = t.category || 'active'
+      if (category !== statusFilter) return false
+      if (typeFilter === 'direct') return t.thread_type === 'direct_chat'
+      if (typeFilter === 'groups') return t.thread_type !== 'direct_chat'
+      return true
+    })
+  }, [threads, statusFilter, typeFilter])
+
+  const emptyCopy = {
+    active: 'No active chats yet.',
+    archived: 'Nothing archived.',
+    deleted: 'Nothing in Recently Deleted.',
+  }[statusFilter]
 
   return (
     <div className="threads-page-container">
@@ -81,15 +249,13 @@ export default function Threads() {
           </button>
           {filterOpen && (
             <div className="threads-filter-menu">
-              <button className={`threads-filter-item${filterGroup === 'all' ? ' active' : ''}`}
-                onClick={() => { setFilterGroup('all'); setFilterOpen(false) }}>
-                All Chats
-              </button>
-              {groups.map(g => (
-                <button key={g.id}
-                  className={`threads-filter-item${String(filterGroup) === String(g.id) ? ' active' : ''}`}
-                  onClick={() => { setFilterGroup(String(g.id)); setFilterOpen(false) }}>
-                  {g.name}
+              {STATUS_FILTERS.map(([value, label]) => (
+                <button key={value}
+                  className={`threads-filter-item${statusFilter === value ? ' active' : ''}`}
+                  onClick={() => { setStatusFilter(value); setFilterOpen(false) }}>
+                  <span className="threads-filter-checkmark">{statusFilter === value ? '✓' : ''}</span>
+                  <span>{label}</span>
+                  {catCounts[value] > 0 && <span className="threads-filter-count">{catCounts[value]}</span>}
                 </button>
               ))}
             </div>
@@ -97,44 +263,35 @@ export default function Threads() {
         </div>
       </div>
 
+      <div className="thread-type-tabs" role="tablist" aria-label="Thread type">
+        {TYPE_FILTERS.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={typeFilter === value}
+            className={`thread-type-tab${typeFilter === value ? ' active' : ''}`}
+            onClick={() => setTypeFilter(value)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {actionError && <div className="threads-action-error">{actionError}</div>}
+
       {isLoading ? <ThreadsSkeleton /> : (
         <div className="threads-list-wrap" id="threads-list">
           {filtered.length === 0 ? (
-            <div className="empty-state"><p>No chats yet.</p></div>
-          ) : filtered.map(thread => {
-            const last = lastMsgs[thread.id]
-            const isIncident = (thread.thread_type || 'incident') === 'incident'
-            const isDirect = thread.thread_type === 'direct_chat'
-            const typeLabel = isIncident
-              ? (thread.incident_type
-                ? thread.incident_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-                : 'Thread')
-              : (isDirect ? 'Direct Message' : 'Group Chat')
-            const rowTitle = isIncident
-              ? `${thread.group_name} · ${typeLabel}`
-              : (thread.display_title || thread.title || typeLabel)
-
-            return (
-              <Link key={thread.id} to={`/threads/${thread.id}`}
-                className="thread-row-item" data-group-id={thread.group_id}>
-                <div className="thread-avatar-circle"
-                  style={{ background: thread.avatar_color || thread.team_color || 'var(--accent)' }}>
-                  <span>{thread.avatar_label || thread.team_abbr || '?'}</span>
-                </div>
-                <div className="thread-preview-col">
-                  <div className="thread-preview-top">
-                    <span className="thread-preview-name">
-                      {rowTitle}
-                    </span>
-                    <span className="thread-preview-ts">{fmtTime(last?.created_at)}</span>
-                  </div>
-                  <div className="thread-preview-msg">
-                    {last?.body || (isIncident ? thread.title : 'Start the conversation.')}
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
+            <div className="empty-state"><p>{emptyCopy}</p></div>
+          ) : filtered.map(thread => (
+            <ThreadRow
+              key={thread.id}
+              thread={thread}
+              last={lastMsgs[thread.id]}
+              pending={actionMut.isPending && actionMut.variables?.id === thread.id}
+              onAction={(id, action) => actionMut.mutate({ id, action })}
+            />
+          ))}
         </div>
       )}
 

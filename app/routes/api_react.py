@@ -14,7 +14,7 @@ from ..models import (
     db, User, LoginToken, Group, GroupMember, GameThread, GameThreadMessage,
     MessageReaction, IncidentReport, GameEvent, GroupTrigger, Team,
     UserFavoriteTeam, Notification, FriendRequest, SupportTicket,
-    Receipt, DeviceToken, ThreadUserState,
+    Receipt, DeviceToken, ThreadUserState, BlockedUser,
 )
 
 bp = Blueprint("api_react", __name__, url_prefix="/api")
@@ -531,6 +531,62 @@ def delete_account():
     return ok()
 
 
+# ── Admin ────────────────────────────────────────────────────────────────────
+
+def _require_admin_json():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        return err("Admin access required", 403)
+    return None
+
+
+@bp.route("/admin/overview")
+@login_required
+def admin_overview():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    from app.models import MessageReport
+    from app.analytics.models import LabGame, LabPlayer, DerivedGameMetrics
+
+    derived_count = (
+        db.session.query(LabGame.id)
+        .join(DerivedGameMetrics, DerivedGameMetrics.game_id == LabGame.id)
+        .distinct()
+        .count()
+    )
+    recent_games = (
+        LabGame.query
+        .order_by(LabGame.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    return ok(
+        stats={
+            "users": User.query.count(),
+            "groups": Group.query.count(),
+            "active_threads": GameThread.query.filter_by(status="active").count(),
+            "support_open": SupportTicket.query.filter(SupportTicket.status != "resolved").count(),
+            "reports_open": MessageReport.query.filter_by(status="open").count(),
+            "lab_games": LabGame.query.count(),
+            "lab_players": LabPlayer.query.count(),
+            "derived_games": derived_count,
+        },
+        recent_games=[
+            {
+                "id": g.id,
+                "date": g.date.isoformat() if g.date else None,
+                "status": g.status,
+                "league": g.league.abbreviation if g.league else "",
+                "home_team": g.home_team.name if g.home_team else "",
+                "away_team": g.away_team.name if g.away_team else "",
+            }
+            for g in recent_games
+        ],
+    )
+
+
 # ── Notifications ─────────────────────────────────────────────────────────────
 
 @bp.route("/notifications")
@@ -751,7 +807,13 @@ def delete_group(group_id):
     if not m or m.role != "owner":
         return err("Not authorized", 403)
     from ..routes.groups import _cascade_delete_group
-    _cascade_delete_group(group_id)
+    try:
+        _cascade_delete_group(group_id)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Group deletion failed for group %s", group_id)
+        return err("Group deletion failed. Please try again or contact support.", 500)
     return ok()
 
 
@@ -966,6 +1028,24 @@ def threads_list():
     """), {"gids": group_ids, "uid": uid}).fetchall()
 
     thread_ids = [r.id for r in rows]
+    from app.services import thread_state
+    last_msg_at = {
+        r.id: (r.last_msg_at if r.last_msg_at else r.created_at)
+        for r in rows
+    }
+    categories = thread_state.categorize(
+        thread_state.states_for(uid, thread_ids),
+        thread_ids,
+        last_msg_at,
+    )
+    rows = [r for r in rows if categories.get(r.id) != "purged"]
+    thread_ids = [r.id for r in rows]
+    cat_counts = {"active": 0, "archived": 0, "deleted": 0}
+    for r in rows:
+        cat = categories.get(r.id, "active")
+        if cat in cat_counts:
+            cat_counts[cat] += 1
+
     from app.services.activity import unread_map, message_counts, vote_count_map
     unread = unread_map(uid, thread_ids)
     counts = message_counts(thread_ids)
@@ -995,6 +1075,7 @@ def threads_list():
             "title":            r.title,
             "display_title":    display_title,
             "thread_type":      thread_type,
+            "category":         categories.get(r.id, "active"),
             "status":           r.status,
             "group_id":         r.group_id,
             "group_name":       r.group_name   or "",
@@ -1026,7 +1107,7 @@ def threads_list():
                 "author":     r.last_msg_author,
             }
 
-    return ok(threads=threads, last_msgs=last_msgs, groups=groups)
+    return ok(threads=threads, last_msgs=last_msgs, groups=groups, cat_counts=cat_counts)
 
 
 @bp.route("/threads", methods=["POST"])
@@ -1326,6 +1407,40 @@ def friends_list():
         })
 
     return ok(friends=friends)
+
+
+@bp.route("/blocked-users")
+@login_required
+def blocked_users():
+    rows = (
+        BlockedUser.query
+        .filter_by(blocker_id=current_user.id)
+        .options(joinedload(BlockedUser.blocked))
+        .order_by(BlockedUser.created_at.desc())
+        .all()
+    )
+    users = []
+    for row in rows:
+        if not row.blocked:
+            continue
+        users.append({
+            "id": row.blocked_id,
+            "name": row.blocked.shown_name,
+            "uid": row.blocked.uid,
+            "blocked_at": row.created_at.isoformat() if row.created_at else None,
+        })
+    return ok(blocked_users=users)
+
+
+@bp.route("/blocked-users/<int:user_id>", methods=["DELETE"])
+@login_required
+def unblock_user(user_id):
+    BlockedUser.query.filter_by(
+        blocker_id=current_user.id,
+        blocked_id=user_id,
+    ).delete(synchronize_session=False)
+    db.session.commit()
+    return ok()
 
 
 @bp.route("/friends/request/<int:user_id>", methods=["POST"])

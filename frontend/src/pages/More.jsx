@@ -74,9 +74,9 @@ export default function More() {
       {/* Admin */}
       {user?.is_admin && (
         <div className="more-section">
-          <a href="/admin/dashboard" className="more-row">
+          <Link to="/admin-tools" className="more-row">
             <span>Admin</span><span className="more-chevron">›</span>
-          </a>
+          </Link>
         </div>
       )}
 

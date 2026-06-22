@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getDashboard, getGroup } from '../api/groups'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { deleteGroup, getDashboard, getGroup, leaveGroup } from '../api/groups'
 import { getThread } from '../api/threads'
 import { useAuth } from '../context/AuthContext'
 import { Skeleton } from '../components/Skeleton'
@@ -31,12 +31,109 @@ function DashboardSkeleton() {
   )
 }
 
+function GroupSwipeRow({ group, member, pending, onDelete, onLeave }) {
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const startRef = useMemo(() => ({ x: 0, y: 0, base: 0, current: 0, active: false, swiped: false }), [])
+  const isOwner = member.role === 'owner'
+  const actionLabel = isOwner ? 'Delete' : 'Leave'
+  const maxOffset = 88
+
+  function close() {
+    setDragging(false)
+    startRef.current = 0
+    setOffset(0)
+  }
+  function onPointerDown(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    startRef.x = e.clientX
+    startRef.y = e.clientY
+    startRef.base = offset
+    startRef.active = false
+    startRef.swiped = false
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+  function onPointerMove(e) {
+    const dx = e.clientX - startRef.x
+    const dy = e.clientY - startRef.y
+    if (!startRef.active) {
+      if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(dy) * 1.2) return
+      startRef.active = true
+      setDragging(true)
+    }
+    const next = Math.max(-maxOffset, Math.min(0, startRef.base + dx))
+    startRef.current = next
+    setOffset(next)
+  }
+  function onPointerUp() {
+    if (!startRef.active) return
+    const next = startRef.current < -(maxOffset / 2) ? -maxOffset : 0
+    setDragging(false)
+    startRef.current = next
+    setOffset(next)
+    startRef.swiped = true
+    setTimeout(() => { startRef.swiped = false }, 80)
+  }
+  function onClick(e) {
+    if (offset !== 0 || startRef.swiped) {
+      e.preventDefault()
+      close()
+    }
+  }
+  function runAction() {
+    close()
+    if (isOwner) onDelete(group)
+    else onLeave(group)
+  }
+
+  return (
+    <div className="group-swipe">
+      <div className="group-swipe-actions">
+        <button type="button" className="group-swipe-delete" disabled={pending} onClick={runAction}>
+          {pending ? '...' : actionLabel}
+        </button>
+      </div>
+      <Link
+        to={`/groups/${group.id}`}
+        className={`group-card${dragging ? ' dragging' : ''}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClick={onClick}
+        style={{ transform: `translateX(${offset}px)` }}>
+        <div className="group-card-left">
+          <div className="group-card-name">{group.name}</div>
+          <div className="group-card-meta">
+            <span className="badge-scope">{group.league_scope}</span>
+            <span className={`badge-role ${member.role}`}>{member.role}</span>
+          </div>
+        </div>
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>→</span>
+      </Link>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const qc = useQueryClient()
+  const [groupActionError, setGroupActionError] = useState('')
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
+  })
+  const groupActionMut = useMutation({
+    mutationFn: ({ group, action }) => {
+      if (action === 'delete') return deleteGroup(group.id)
+      return leaveGroup(group.id)
+    },
+    onSuccess: () => {
+      setGroupActionError('')
+      qc.invalidateQueries(['dashboard'])
+      qc.invalidateQueries(['threads'])
+    },
+    onError: (err) => setGroupActionError(err.message || 'Could not update group'),
   })
 
   // Eagerly prefetch every group and active thread visible on this page.
@@ -64,6 +161,7 @@ export default function Dashboard() {
       <div className="dashboard-header">
         <h1>{user?.name}</h1>
       </div>
+      {groupActionError && <div className="flash flash-error">{groupActionError}</div>}
 
       {groups.length === 0 ? (
         <div className="dashboard-no-groups">
@@ -88,16 +186,22 @@ export default function Dashboard() {
             </div>
             <div className="group-list">
               {groups.map(({ group, member }) => (
-                <Link key={group.id} to={`/groups/${group.id}`} className="group-card">
-                  <div className="group-card-left">
-                    <div className="group-card-name">{group.name}</div>
-                    <div className="group-card-meta">
-                      <span className="badge-scope">{group.league_scope}</span>
-                      <span className={`badge-role ${member.role}`}>{member.role}</span>
-                    </div>
-                  </div>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>→</span>
-                </Link>
+                <GroupSwipeRow
+                  key={group.id}
+                  group={group}
+                  member={member}
+                  pending={groupActionMut.isPending && groupActionMut.variables?.group?.id === group.id}
+                  onDelete={(g) => {
+                    if (window.confirm(`Delete ${g.name}? This permanently removes the group and its threads.`)) {
+                      groupActionMut.mutate({ group: g, action: 'delete' })
+                    }
+                  }}
+                  onLeave={(g) => {
+                    if (window.confirm(`Leave ${g.name}?`)) {
+                      groupActionMut.mutate({ group: g, action: 'leave' })
+                    }
+                  }}
+                />
               ))}
             </div>
           </section>

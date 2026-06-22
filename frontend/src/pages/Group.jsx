@@ -29,6 +29,7 @@ export default function Group() {
   const [inviteOpen, setInviteOpen]   = useState(false)
   const [inviteEmail_, setInviteEmail_] = useState('')
   const [copied, setCopied]           = useState(false)
+  const [actionError, setActionError] = useState('')
 
   const { data, isLoading } = useQuery({ queryKey: ['group', id], queryFn: () => getGroup(id) })
   const { data: membersData, isLoading: membersLoading } = useQuery({ queryKey: ['group-members', id], queryFn: () => getMembers(id) })
@@ -36,8 +37,23 @@ export default function Group() {
   const mutOpts = { onSuccess: () => qc.invalidateQueries(['group', id]) }
   const muteMut    = useMutation({ mutationFn: () => muteGroup(id),    ...mutOpts })
   const regenMut   = useMutation({ mutationFn: () => regenerateInvite(id), ...mutOpts })
-  const leaveMut   = useMutation({ mutationFn: () => leaveGroup(id),   onSuccess: () => navigate('/dashboard') })
-  const deleteMut  = useMutation({ mutationFn: () => deleteGroup(id),  onSuccess: () => navigate('/dashboard') })
+  const leaveMut   = useMutation({
+    mutationFn: () => leaveGroup(id),
+    onSuccess: () => {
+      qc.invalidateQueries(['dashboard'])
+      navigate('/dashboard')
+    },
+    onError: (err) => setActionError(err.message || 'Could not leave group'),
+  })
+  const deleteMut  = useMutation({
+    mutationFn: () => deleteGroup(id),
+    onSuccess: () => {
+      qc.invalidateQueries(['dashboard'])
+      qc.invalidateQueries(['threads'])
+      navigate('/dashboard')
+    },
+    onError: (err) => setActionError(err.message || 'Could not delete group'),
+  })
   const inviteMut  = useMutation({
     mutationFn: () => inviteEmail(id, inviteEmail_),
     onSuccess: () => { setInviteEmail_(''); setInviteOpen(false) },
@@ -86,6 +102,7 @@ export default function Group() {
   return (
     <div className="group-container">
       <BackButton fallback="/dashboard" />
+      {actionError && <div className="flash flash-error">{actionError}</div>}
 
       <div className="group-header">
         <div>
@@ -108,8 +125,9 @@ export default function Group() {
             </button>
             {isOwner && (
               <button className="btn-danger-small"
+                disabled={deleteMut.isPending}
                 onClick={() => { if(window.confirm(`Delete ${group.name}?`)) deleteMut.mutate() }}>
-                Delete Group
+                {deleteMut.isPending ? 'Deleting…' : 'Delete Group'}
               </button>
             )}
           </div>
@@ -215,8 +233,9 @@ export default function Group() {
               <span className="section-sub">You'll lose access to this group's threads and members.</span>
             </div>
             <button className="btn-danger-small"
+              disabled={leaveMut.isPending}
               onClick={() => { if(window.confirm(`Leave ${group.name}?`)) leaveMut.mutate() }}>
-              Leave Group
+              {leaveMut.isPending ? 'Leaving…' : 'Leave Group'}
             </button>
           </div>
         </section>
