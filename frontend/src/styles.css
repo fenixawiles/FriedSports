@@ -1314,9 +1314,15 @@ body.receipt-page {
 /* ── Mobile bottom navigation bar ───────────────────────────────────────── */
 /* Layout properties applied whenever nav is visible (display set by JS) */
 .bottom-nav {
-  width: 100%;
-  justify-content: space-evenly;
-  align-items: center;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  display: flex; width: 100%;
+  justify-content: space-evenly; align-items: center;
+  background: var(--bottom-nav-bg);
+  border-top: 1px solid var(--bottom-nav-border);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  /* Safe-area aware: bar is 56px tall + the home-indicator inset below it */
+  height: calc(56px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
 }
 /* Never rendered on desktop regardless of JS */
 @media (min-width: 641px) {
