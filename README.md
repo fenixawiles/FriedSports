@@ -22,11 +22,18 @@ flask run
 
 Visit `http://localhost:5000`
 
+For an iOS build, regenerate Capacitor assets/config before opening Xcode:
+
+```bash
+npm install
+npm run ios:sync
+```
+
 **Dev accounts** (all use password `password123`):
-- `fenix@fraudwatch.dev` — Spurs + Cowboys fan
-- `cody@fraudwatch.dev` — Lakers fan
-- `aj@fraudwatch.dev` — Cowboys fan
-- `lynn@fraudwatch.dev` — Celtics fan
+- `fenix@friedsports.dev` — Spurs + Cowboys fan
+- `cody@friedsports.dev` — Lakers fan
+- `aj@friedsports.dev` — Cowboys fan
+- `lynn@friedsports.dev` — Celtics fan
 
 ---
 

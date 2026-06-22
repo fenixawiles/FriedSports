@@ -80,10 +80,13 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
-    # HTTPS-only cookies in production (friedsports.com is TLS). Left off in dev
-    # so cookies still flow over http://localhost.
+    # HTTPS-only cross-site cookies for the bundled Capacitor app. The native
+    # app runs at capacitor://localhost and calls https://friedsports.com/api,
+    # so authenticated API requests need SameSite=None in production.
     SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = "None"
     REMEMBER_COOKIE_SECURE = True
+    REMEMBER_COOKIE_SAMESITE = "None"
 
 
 config_map = {

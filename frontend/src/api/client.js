@@ -1,10 +1,14 @@
 import axios from 'axios'
 
+const isNative = window.Capacitor?.isNativePlatform?.() === true
+const envApiOrigin = import.meta.env.VITE_API_ORIGIN?.replace(/\/$/, '')
+const apiOrigin = envApiOrigin || (isNative ? 'https://www.friedsports.com' : '')
+
 // Base axios instance — all API calls go through here.
 // `withCredentials: true` ensures Flask-Login session cookies are sent on
-// every request, even during Vite dev (cross-origin to localhost:5001).
+// every request, including native iOS where the bundled app talks to Railway.
 const client = axios.create({
-  baseURL: '/api',
+  baseURL: `${apiOrigin}/api`,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })

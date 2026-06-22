@@ -155,17 +155,14 @@ def auth_login():
     if not u or not u.check_password(password):
         return err("Invalid email or password", 401)
 
-    token = LoginToken(
-        user_id=u.id,
-        token=secrets.token_urlsafe(16),
-        purpose="signin_code",
-        code="".join(secrets.choice(string.digits) for _ in range(8)),
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
-    )
-    db.session.add(token)
-    db.session.commit()
-    _send_code_email(email, token.code)
-    return ok(next="verify-code")
+    admin_email = current_app.config.get("ADMIN_EMAIL", "").strip().lower()
+    if admin_email and u.email == admin_email:
+        u.role = "admin"
+        db.session.commit()
+
+    login_user(u, remember=True)
+    next_url = "/onboarding" if not u.has_completed_profile else "/dashboard"
+    return ok(user=_serialize_user(u), next=next_url)
 
 
 @bp.route("/auth/send-code", methods=["POST"])

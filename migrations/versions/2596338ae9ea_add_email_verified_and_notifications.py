@@ -44,12 +44,22 @@ def upgrade():
     op.execute("UPDATE users SET email_verified = true WHERE email_verified IS NULL")
     with op.batch_alter_table('users', schema=None) as batch_op:
         batch_op.alter_column('email_verified', nullable=False)
-    # Backfill uid to FS-XXXXXX format before shrinking the column
-    op.execute("""
-        UPDATE users
-        SET uid = 'FS-' || LPAD((FLOOR(RANDOM() * 1000000))::INT::TEXT, 6, '0')
-        WHERE LENGTH(uid) > 12
-    """)
+    # Backfill uid to FS-XXXXXX format before shrinking the column. Keep the
+    # Postgres expression for production, but use SQLite-compatible SQL so a
+    # fresh local dev database can run the full migration chain.
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("""
+            UPDATE users
+            SET uid = 'FS-' || LPAD((FLOOR(RANDOM() * 1000000))::INT::TEXT, 6, '0')
+            WHERE LENGTH(uid) > 12
+        """)
+    else:
+        op.execute("""
+            UPDATE users
+            SET uid = 'FS-' || SUBSTR('000000' || ABS(RANDOM() % 1000000), -6, 6)
+            WHERE LENGTH(uid) > 12
+        """)
     with op.batch_alter_table('users', schema=None) as batch_op:
         batch_op.alter_column('uid',
                existing_type=sa.VARCHAR(length=36),

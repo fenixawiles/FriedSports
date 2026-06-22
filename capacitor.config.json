@@ -3,8 +3,6 @@
   "appName": "FriedSports",
   "webDir": "frontend/dist",
   "server": {
-    "url": "https://www.friedsports.com",
-    "cleartext": false,
     "allowNavigation": [
       "www.friedsports.com",
       "friedsports.com"

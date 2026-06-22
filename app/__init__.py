@@ -48,16 +48,21 @@ def create_app(config=None):
     login_manager.init_app(app)
     compress.init_app(app)
 
-    # CORS — allow the Vite dev server (localhost:5173) to make credentialled
-    # requests to Flask. In production Capacitor and the built React SPA are
-    # same-origin, so this only matters in development.
+    # CORS — allow local Vite during development and the bundled Capacitor app
+    # in production. The browser build is same-origin, but the native bundle
+    # runs at capacitor://localhost and calls the Railway API over HTTPS.
     # Allow any localhost port in dev — Vite sometimes bumps to 5174/5175
-    # when 5173 is occupied. In production (Railway + Capacitor) requests are
-    # same-origin so CORS is irrelevant there.
+    # when 5173 is occupied.
     import re as _re
     CORS(app,
          supports_credentials=True,
-         origins=_re.compile(r"http://(localhost|127\.0\.0\.1)(:\d+)?$"),
+         origins=[
+             _re.compile(r"http://(localhost|127\.0\.0\.1)(:\d+)?$"),
+             "capacitor://localhost",
+             "ionic://localhost",
+             "https://friedsports.com",
+             "https://www.friedsports.com",
+         ],
          allow_headers=["Content-Type", "X-Fetch"])
 
     # Blueprints

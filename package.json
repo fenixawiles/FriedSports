@@ -4,6 +4,7 @@
   "description": "FriedSports iOS app — Capacitor wrapper",
   "private": true,
   "scripts": {
+    "ios:sync": "npm --prefix frontend run build && npx cap sync ios",
     "cap:sync": "npx cap sync",
     "cap:open": "npx cap open ios",
     "icons": "npx @capacitor/assets generate --ios"
