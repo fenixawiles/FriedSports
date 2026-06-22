@@ -5,16 +5,16 @@ All routes live under /api/ and return JSON.
 Auth: Flask-Login session cookies (withCredentials on the React side).
 """
 import string, secrets
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy.orm import joinedload
 
 from ..models import (
     db, User, LoginToken, Group, GroupMember, GameThread, GameThreadMessage,
-    MessageReaction, IncidentReport, GameEvent, GroupTrigger, Team,
+    MessageReaction, MessageReport, IncidentReport, GameEvent, GroupTrigger, Team,
     UserFavoriteTeam, Notification, FriendRequest, SupportTicket,
-    Receipt, DeviceToken, ThreadUserState, BlockedUser,
+    Receipt, DeviceToken, ThreadUserState, BlockedUser, AdminAuditLog,
 )
 
 bp = Blueprint("api_react", __name__, url_prefix="/api")
@@ -585,6 +585,819 @@ def admin_overview():
             for g in recent_games
         ],
     )
+
+
+def _admin_audit(action, target_user=None, details=None):
+    db.session.add(AdminAuditLog(
+        admin_id=current_user.id,
+        target_user_id=target_user.id if target_user else None,
+        action=action,
+        details=details,
+        ip_address=request.remote_addr,
+    ))
+
+
+def _iso(dt):
+    return dt.isoformat() if dt else None
+
+
+def _date_iso(value):
+    return value.isoformat() if value else None
+
+
+def _team_label(team):
+    if not team:
+        return ""
+    return f"{team.city} {team.name}".strip()
+
+
+def _admin_user_summary(user):
+    return {
+        "id": user.id,
+        "uid": user.uid,
+        "name": user.shown_name,
+        "display_name": user.display_name,
+        "email": user.email,
+        "role": user.role,
+        "email_verified": user.email_verified,
+        "created_at": _iso(user.created_at),
+        "last_active_at": _iso(user.last_active_at),
+        "agreed_to_terms_at": _iso(user.agreed_to_terms_at),
+    }
+
+
+@bp.route("/admin/users")
+@login_required
+def admin_users():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    q = request.args.get("q", "").strip()
+    query = User.query.order_by(User.created_at.desc())
+    if q:
+        like = f"%{q}%"
+        query = query.filter(db.or_(
+            User.display_name.ilike(like),
+            User.email.ilike(like),
+            User.uid.ilike(like),
+            User.first_name.ilike(like),
+            User.last_name.ilike(like),
+        ))
+    users = query.limit(80).all()
+    return ok(users=[_admin_user_summary(u) for u in users])
+
+
+@bp.route("/admin/users/<int:user_id>")
+@login_required
+def admin_user_detail(user_id):
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    user = User.query.get_or_404(user_id)
+    memberships = (
+        GroupMember.query
+        .filter_by(user_id=user_id)
+        .options(joinedload(GroupMember.group))
+        .all()
+    )
+    fav_teams = (
+        UserFavoriteTeam.query
+        .filter_by(user_id=user_id)
+        .options(joinedload(UserFavoriteTeam.team))
+        .all()
+    )
+    return ok(
+        user={
+            **_admin_user_summary(user),
+            "first_name": user.first_name or "",
+            "last_name": user.last_name or "",
+            "display_preference": user.display_preference,
+            "has_completed_profile": user.has_completed_profile,
+        },
+        groups=[
+            {
+                "id": m.group_id,
+                "name": m.group.name if m.group else "Deleted group",
+                "role": m.role,
+                "joined_at": _iso(m.joined_at),
+            }
+            for m in memberships
+        ],
+        favorite_teams=[
+            {
+                "league": ft.league,
+                "team": _team_label(ft.team),
+                "abbreviation": ft.team.abbreviation if ft.team else "",
+            }
+            for ft in fav_teams
+        ],
+    )
+
+
+@bp.route("/admin/users/<int:user_id>", methods=["PATCH"])
+@login_required
+def admin_update_user(user_id):
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    user = User.query.get_or_404(user_id)
+    d = request.get_json(silent=True) or {}
+    changed = []
+
+    if "email" in d:
+        new_email = (d.get("email") or "").strip().lower()
+        if not new_email:
+            return err("Email cannot be empty")
+        if User.query.filter(User.email == new_email, User.id != user_id).first():
+            return err("Email already in use")
+        if new_email != user.email:
+            old = user.email
+            user.email = new_email
+            changed.append(f"email {old} -> {new_email}")
+
+    if "role" in d:
+        role = d.get("role") or "user"
+        if role not in ("user", "admin"):
+            return err("Invalid role")
+        if user.id == current_user.id and role != user.role:
+            return err("You cannot change your own role", 400)
+        if role != user.role:
+            changed.append(f"role {user.role} -> {role}")
+            user.role = role
+
+    password = d.get("password") or ""
+    if password:
+        if len(password) < 6:
+            return err("Password must be at least 6 characters")
+        user.set_password(password)
+        changed.append("password reset")
+
+    if not changed:
+        return ok(user=_admin_user_summary(user), message="No changes")
+
+    _admin_audit("update_user", user, "; ".join(changed))
+    db.session.commit()
+    return ok(user=_admin_user_summary(user), message="User updated")
+
+
+@bp.route("/admin/users/<int:user_id>", methods=["DELETE"])
+@login_required
+def admin_delete_user(user_id):
+    denied = _require_admin_json()
+    if denied:
+        return denied
+    if user_id == current_user.id:
+        return err("You cannot delete your own account from admin", 400)
+
+    user = User.query.get_or_404(user_id)
+    label = f"{user.display_name} <{user.email}>"
+    try:
+        _admin_audit("delete_user", user, f"Deleted account: {label}")
+        db.session.flush()
+        from ..routes.admin import _cascade_delete_user
+        _cascade_delete_user(user_id)
+        user_obj = db.session.get(User, user_id)
+        if user_obj:
+            db.session.delete(user_obj)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Admin user delete failed for user %s", user_id)
+        return err("User deletion failed", 500)
+    return ok(message="User deleted")
+
+
+@bp.route("/admin/users/invite", methods=["POST"])
+@login_required
+def admin_invite_user():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    d = request.get_json(silent=True) or {}
+    email = (d.get("email") or "").strip().lower()
+    if not email:
+        return err("Email is required")
+    if User.query.filter_by(email=email).first():
+        return err("A user with that email already exists")
+
+    from flask import url_for
+    from app.services.email_service import _send, _wrap
+    invite_url = url_for("auth.signup", _external=True)
+    text = f"You've been invited to FriedSports. Sign up here: {invite_url}"
+    html = _wrap(f"<p>You've been invited to FriedSports.</p><a href=\"{invite_url}\" class=\"btn\">Sign Up</a>")
+    sent = _send(email, "You're invited to FriedSports", html, text)
+    _admin_audit("invite_user", None, email)
+    db.session.commit()
+    return ok(sent=bool(sent), invite_url=invite_url)
+
+
+@bp.route("/admin/users/<int:user_id>/email", methods=["POST"])
+@login_required
+def admin_email_user(user_id):
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    user = User.query.get_or_404(user_id)
+    d = request.get_json(silent=True) or {}
+    subject = (d.get("subject") or "").strip()
+    body = (d.get("body") or "").strip()
+    if not subject or not body:
+        return err("Subject and body are required")
+    from app.services.email_service import _send, _wrap
+    sent = _send(user.email, subject, _wrap(f"<p>{body}</p>"), body)
+    _admin_audit("send_user_email", user, subject)
+    db.session.commit()
+    return ok(sent=bool(sent))
+
+
+@bp.route("/admin/users/<int:user_id>/prompt/<kind>", methods=["POST"])
+@login_required
+def admin_prompt_user(user_id, kind):
+    denied = _require_admin_json()
+    if denied:
+        return denied
+    if kind not in ("password", "username", "email"):
+        return err("Unknown prompt type", 404)
+
+    import secrets as _sec
+    user = User.query.get_or_404(user_id)
+    if kind == "password":
+        purpose = "password_reset"
+        next_url = None
+        expires = timedelta(hours=1)
+    else:
+        purpose = "magic_link"
+        next_url = "/settings"
+        expires = timedelta(hours=24)
+    tok = LoginToken(
+        user_id=user.id,
+        token=_sec.token_urlsafe(32),
+        purpose=purpose,
+        next_url=next_url,
+        expires_at=datetime.now(timezone.utc) + expires,
+    )
+    db.session.add(tok)
+    db.session.commit()
+
+    from flask import url_for
+    if kind == "password":
+        from app.services.email_service import send_admin_password_reset
+        link = url_for("auth.reset_password", token=tok.token, _external=True)
+        sent = send_admin_password_reset(user, link)
+        action = "send_password_reset"
+    elif kind == "username":
+        from app.services.email_service import send_username_change_prompt
+        link = url_for("auth.magic_link", token=tok.token, _external=True)
+        sent = send_username_change_prompt(user, link)
+        action = "send_username_change"
+    else:
+        from app.services.email_service import send_email_change_prompt
+        link = url_for("auth.magic_link", token=tok.token, _external=True)
+        sent = send_email_change_prompt(user, link)
+        action = "send_email_change"
+
+    _admin_audit(action, user, f"Admin sent {kind} prompt")
+    db.session.commit()
+    return ok(sent=bool(sent))
+
+
+def _serialize_ticket(ticket):
+    return {
+        "uid": ticket.uid,
+        "user_id": ticket.user_id,
+        "user_name": ticket.user.shown_name if ticket.user else "",
+        "user_email": ticket.user.email if ticket.user else "",
+        "subject": ticket.subject,
+        "category": ticket.category,
+        "description": ticket.description,
+        "status": ticket.status,
+        "status_label": ticket.status_label,
+        "admin_note": ticket.admin_note or "",
+        "resolved_at": _iso(ticket.resolved_at),
+        "created_at": _iso(ticket.created_at),
+        "updated_at": _iso(ticket.updated_at),
+        "next_statuses": ticket.NEXT_STATUSES.get(ticket.status, []),
+    }
+
+
+@bp.route("/admin/support")
+@login_required
+def admin_support():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    status_filter = request.args.get("status", "all")
+    query = SupportTicket.query.options(joinedload(SupportTicket.user)).order_by(SupportTicket.created_at.desc())
+    if status_filter != "all":
+        query = query.filter_by(status=status_filter)
+    counts = {
+        "all": SupportTicket.query.count(),
+        "received": SupportTicket.query.filter_by(status="received").count(),
+        "in_progress": SupportTicket.query.filter_by(status="in_progress").count(),
+        "resolved": SupportTicket.query.filter_by(status="resolved").count(),
+    }
+    return ok(tickets=[_serialize_ticket(t) for t in query.limit(100).all()], counts=counts)
+
+
+@bp.route("/admin/support/<uid>", methods=["PATCH"])
+@login_required
+def admin_update_support(uid):
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    ticket = SupportTicket.query.filter_by(uid=uid).first_or_404()
+    if ticket.is_resolved:
+        return err("This ticket is already resolved", 400)
+    d = request.get_json(silent=True) or {}
+    new_status = (d.get("status") or "").strip()
+    admin_note = (d.get("admin_note") or "").strip() or None
+    if new_status not in ticket.NEXT_STATUSES.get(ticket.status, []):
+        return err("Invalid status transition")
+
+    old_status = ticket.status
+    ticket.status = new_status
+    ticket.admin_note = admin_note
+    if new_status == "resolved":
+        ticket.resolved_at = datetime.now(timezone.utc)
+    _admin_audit("ticket_status_update", ticket.user, f"{ticket.uid}: {old_status} -> {new_status}")
+    db.session.commit()
+
+    try:
+        from app.services.email_service import send_ticket_status_update
+        send_ticket_status_update(ticket)
+    except Exception:
+        current_app.logger.exception("Ticket status email failed for %s", uid)
+    return ok(ticket=_serialize_ticket(ticket))
+
+
+def _serialize_report(report):
+    msg = db.session.get(GameThreadMessage, report.message_id)
+    thread = db.session.get(GameThread, msg.thread_id) if msg else None
+    author = db.session.get(User, msg.user_id) if msg and msg.user_id else None
+    return {
+        "id": report.id,
+        "message_id": report.message_id,
+        "category": report.category,
+        "category_label": report.category_label,
+        "reason": report.reason or "",
+        "status": report.status,
+        "resolution": report.resolution or "",
+        "reporter": report.reporter.shown_name if report.reporter else "",
+        "author": author.shown_name if author else "",
+        "thread_id": thread.id if thread else None,
+        "thread_title": thread.title if thread else "",
+        "body": msg.body if msg else "",
+        "message_deleted": bool(msg.is_deleted) if msg else True,
+        "reviewed_by": report.reviewed_by.shown_name if report.reviewed_by else "",
+        "reviewed_at": _iso(report.reviewed_at),
+        "created_at": _iso(report.created_at),
+    }
+
+
+@bp.route("/admin/reports")
+@login_required
+def admin_reports():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    status_filter = request.args.get("status", "open")
+    query = (
+        MessageReport.query
+        .options(joinedload(MessageReport.reporter), joinedload(MessageReport.reviewed_by))
+        .order_by(MessageReport.created_at.desc())
+    )
+    if status_filter != "all":
+        query = query.filter(MessageReport.status == status_filter)
+    counts = {
+        "open": MessageReport.query.filter_by(status="open").count(),
+        "resolved": MessageReport.query.filter_by(status="resolved").count(),
+        "dismissed": MessageReport.query.filter_by(status="dismissed").count(),
+        "all": MessageReport.query.count(),
+    }
+    return ok(reports=[_serialize_report(r) for r in query.limit(100).all()], counts=counts)
+
+
+@bp.route("/admin/reports/<int:report_id>/action", methods=["POST"])
+@login_required
+def admin_report_action(report_id):
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    report = MessageReport.query.get_or_404(report_id)
+    d = request.get_json(silent=True) or {}
+    action = d.get("action")
+    msg = db.session.get(GameThreadMessage, report.message_id)
+    if action == "delete_message":
+        if msg and not msg.is_deleted:
+            msg.is_deleted = True
+        report.status = "resolved"
+        report.resolution = "message_deleted"
+        if msg:
+            MessageReport.query.filter(
+                MessageReport.message_id == msg.id,
+                MessageReport.status == "open",
+                MessageReport.id != report.id,
+            ).update(
+                {
+                    "status": "resolved",
+                    "resolution": "message_deleted",
+                    "reviewed_by_id": current_user.id,
+                    "reviewed_at": datetime.now(timezone.utc),
+                },
+                synchronize_session=False,
+            )
+        detail = f"Deleted message #{report.message_id} (report #{report.id})"
+    elif action == "dismiss":
+        report.status = "dismissed"
+        report.resolution = "no_action"
+        detail = f"Dismissed report #{report.id} (message #{report.message_id})"
+    else:
+        return err("Unknown moderation action")
+
+    report.reviewed_by_id = current_user.id
+    report.reviewed_at = datetime.now(timezone.utc)
+    _admin_audit("content_moderation", db.session.get(User, msg.user_id) if msg and msg.user_id else None, detail)
+    db.session.commit()
+    return ok(report=_serialize_report(report))
+
+
+@bp.route("/admin/broadcast", methods=["POST"])
+@login_required
+def admin_broadcast():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    d = request.get_json(silent=True) or {}
+    subject = (d.get("subject") or "").strip()
+    body_html = (d.get("body_html") or "").strip()
+    target = d.get("target") or "all"
+    target_email = (d.get("target_email") or "").strip().lower()
+    if not subject or not body_html:
+        return err("Subject and body are required")
+
+    from app.services.email_service import send_broadcast, _send, _wrap
+    if target == "single":
+        if not target_email:
+            return err("Enter a target email address")
+        sent = 1 if _send(target_email, subject, _wrap(body_html)) else 0
+        failed = 0 if sent else 1
+        detail = f"single: {target_email}"
+    else:
+        users = User.query.filter(User.email.isnot(None)).all()
+        sent, failed = send_broadcast(users, subject, body_html)
+        detail = f"all users: sent {sent}, failed {failed}"
+
+    _admin_audit("broadcast", None, f"{subject}; {detail}")
+    db.session.commit()
+    return ok(sent=sent, failed=failed)
+
+
+@bp.route("/admin/audit-log")
+@login_required
+def admin_audit_log():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    logs = (
+        AdminAuditLog.query
+        .options(joinedload(AdminAuditLog.admin), joinedload(AdminAuditLog.target_user))
+        .order_by(AdminAuditLog.created_at.desc())
+        .limit(120)
+        .all()
+    )
+    return ok(logs=[
+        {
+            "id": log.id,
+            "admin": log.admin.shown_name if log.admin else "Former admin",
+            "target": log.target_user.shown_name if log.target_user else "",
+            "action": log.action,
+            "details": log.details or "",
+            "ip_address": log.ip_address or "",
+            "created_at": _iso(log.created_at),
+        }
+        for log in logs
+    ])
+
+
+TEAM_STAT_FIELDS = [
+    "points", "fgm", "fga", "three_pm", "three_pa", "ftm", "fta",
+    "off_rebounds", "def_rebounds", "assists", "steals", "blocks",
+    "turnovers", "fouls",
+]
+
+
+def _int_value(value, default=0):
+    if value in (None, ""):
+        return default
+    return int(value)
+
+
+def _serialize_team(team):
+    return {
+        "id": team.id,
+        "league": team.league,
+        "name": team.name,
+        "city": team.city or "",
+        "abbreviation": team.abbreviation,
+        "label": _team_label(team),
+    }
+
+
+def _serialize_season(season):
+    return {
+        "id": season.id,
+        "league_id": season.league_id,
+        "league": season.league.abbreviation if season.league else "",
+        "year": season.year,
+        "season_type": season.season_type,
+        "label": f"{season.year} {season.season_type.title()}",
+    }
+
+
+def _serialize_stats(stats):
+    if not stats:
+        return None
+    return {
+        "team_id": stats.team_id,
+        "team": _team_label(stats.team),
+        **{field: getattr(stats, field) for field in TEAM_STAT_FIELDS},
+        "total_rebounds": stats.total_rebounds,
+        "fg_pct": stats.fg_pct,
+        "three_pct": stats.three_pct,
+        "ft_pct": stats.ft_pct,
+    }
+
+
+def _apply_stats_payload(stats, payload):
+    for field in TEAM_STAT_FIELDS:
+        if field in payload:
+            setattr(stats, field, _int_value(payload.get(field)))
+    stats.compute_percentages()
+
+
+def _serialize_game(game):
+    stats = {s.team_id: s for s in game.team_stats.all()}
+    derived = {d.team_id: d for d in game.derived_metrics.all()}
+    return {
+        "id": game.id,
+        "league_id": game.league_id,
+        "league": game.league.abbreviation if game.league else "",
+        "season_id": game.season_id,
+        "season": game.season.label() if game.season else "",
+        "date": _date_iso(game.date),
+        "home_team_id": game.home_team_id,
+        "away_team_id": game.away_team_id,
+        "home_team": _team_label(game.home_team),
+        "away_team": _team_label(game.away_team),
+        "home_score": game.home_score,
+        "away_score": game.away_score,
+        "status": game.status,
+        "attendance": game.attendance,
+        "venue": game.venue or "",
+        "notes": game.notes or "",
+        "has_full_stats": game.has_full_stats(),
+        "has_derived_metrics": game.has_derived_metrics(),
+        "home_stats": _serialize_stats(stats.get(game.home_team_id)),
+        "away_stats": _serialize_stats(stats.get(game.away_team_id)),
+        "derived": [
+            {
+                "team_id": row.team_id,
+                "team": _team_label(row.team),
+                "win": row.win,
+                "point_margin": row.point_margin,
+                "trb_diff": row.trb_diff,
+                "fg_pct_diff": row.fg_pct_diff,
+                "turnover_diff": row.turnover_diff,
+                "computed_at": _iso(row.computed_at),
+            }
+            for row in derived.values()
+        ],
+    }
+
+
+@bp.route("/admin/lab")
+@login_required
+def admin_lab_data():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    from app.analytics.models import (
+        LabLeague, LabSeason, LabGame, LabPlayer, MetricDefinition,
+    )
+    games = LabGame.query.order_by(LabGame.date.desc(), LabGame.id.desc()).limit(25).all()
+    players = LabPlayer.query.options(joinedload(LabPlayer.team)).order_by(LabPlayer.name).limit(150).all()
+    metrics = MetricDefinition.query.order_by(MetricDefinition.name).all()
+    teams = Team.query.order_by(Team.league, Team.city, Team.name).all()
+    leagues = LabLeague.query.order_by(LabLeague.abbreviation).all()
+    seasons = LabSeason.query.options(joinedload(LabSeason.league)).order_by(LabSeason.year.desc()).all()
+
+    return ok(
+        teams=[_serialize_team(t) for t in teams],
+        leagues=[{"id": l.id, "name": l.name, "abbreviation": l.abbreviation, "sport_type": l.sport_type} for l in leagues],
+        seasons=[_serialize_season(s) for s in seasons],
+        games=[_serialize_game(g) for g in games],
+        players=[
+            {
+                "id": p.id,
+                "name": p.name,
+                "position": p.position or "",
+                "active": p.active,
+                "team_id": p.team_id,
+                "team": _team_label(p.team),
+            }
+            for p in players
+        ],
+        metrics=[
+            {
+                "id": m.id,
+                "name": m.name,
+                "slug": m.slug,
+                "description": m.description or "",
+                "formula_type": m.formula_type,
+                "output_entity": m.output_entity,
+                "parameters": m.parameters or "{}",
+            }
+            for m in metrics
+        ],
+    )
+
+
+@bp.route("/admin/lab/seasons", methods=["POST"])
+@login_required
+def admin_create_season():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+    from app.analytics.models import LabSeason
+    d = request.get_json(silent=True) or {}
+    league_id = _int_value(d.get("league_id"), None)
+    year = _int_value(d.get("year"), None)
+    season_type = d.get("season_type") or "regular"
+    if not league_id or not year:
+        return err("League and year are required")
+    existing = LabSeason.query.filter_by(league_id=league_id, year=year, season_type=season_type).first()
+    if existing:
+        return err("Season already exists")
+    season = LabSeason(league_id=league_id, year=year, season_type=season_type)
+    db.session.add(season)
+    _admin_audit("create_lab_season", None, f"{year} {season_type}")
+    db.session.commit()
+    return ok(season=_serialize_season(season)), 201
+
+
+@bp.route("/admin/lab/games", methods=["POST"])
+@login_required
+def admin_create_game():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+    from app.analytics.models import LabGame, TeamGameStats
+    d = request.get_json(silent=True) or {}
+    try:
+        league_id = _int_value(d.get("league_id"), None)
+        home_team_id = _int_value(d.get("home_team_id"), None)
+        away_team_id = _int_value(d.get("away_team_id"), None)
+        if not league_id or not home_team_id or not away_team_id:
+            return err("League, home team, and away team are required")
+        game_date = date.fromisoformat(d.get("date")) if d.get("date") else date.today()
+        game = LabGame(
+            league_id=league_id,
+            season_id=_int_value(d.get("season_id"), None),
+            date=game_date,
+            home_team_id=home_team_id,
+            away_team_id=away_team_id,
+            home_score=_int_value(d.get("home_score")),
+            away_score=_int_value(d.get("away_score")),
+            status=d.get("status") or "final",
+            attendance=_int_value(d.get("attendance"), None),
+            venue=(d.get("venue") or "").strip() or None,
+            notes=(d.get("notes") or "").strip() or None,
+        )
+        if game.home_team_id == game.away_team_id:
+            return err("Home and away teams must be different")
+        db.session.add(game)
+        db.session.flush()
+        home_stats = TeamGameStats(game_id=game.id, team_id=game.home_team_id, opponent_id=game.away_team_id, is_home=True)
+        away_stats = TeamGameStats(game_id=game.id, team_id=game.away_team_id, opponent_id=game.home_team_id, is_home=False)
+        home_stats.points = game.home_score
+        away_stats.points = game.away_score
+        _apply_stats_payload(home_stats, d.get("home_stats") or {})
+        _apply_stats_payload(away_stats, d.get("away_stats") or {})
+        db.session.add(home_stats)
+        db.session.add(away_stats)
+        _admin_audit("create_lab_game", None, f"{game.away_team_id} at {game.home_team_id} on {game.date}")
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception("Admin lab game create failed")
+        return err(f"Game save failed: {exc}", 400)
+    return ok(game=_serialize_game(game)), 201
+
+
+@bp.route("/admin/lab/games/<int:game_id>/stats", methods=["PATCH"])
+@login_required
+def admin_update_game_stats(game_id):
+    denied = _require_admin_json()
+    if denied:
+        return denied
+    from app.analytics.models import LabGame, TeamGameStats
+    game = LabGame.query.get_or_404(game_id)
+    d = request.get_json(silent=True) or {}
+    stats = {s.team_id: s for s in game.team_stats.all()}
+    home_stats = stats.get(game.home_team_id) or TeamGameStats(
+        game_id=game.id, team_id=game.home_team_id, opponent_id=game.away_team_id, is_home=True
+    )
+    away_stats = stats.get(game.away_team_id) or TeamGameStats(
+        game_id=game.id, team_id=game.away_team_id, opponent_id=game.home_team_id, is_home=False
+    )
+    _apply_stats_payload(home_stats, d.get("home_stats") or {})
+    _apply_stats_payload(away_stats, d.get("away_stats") or {})
+    game.home_score = home_stats.points
+    game.away_score = away_stats.points
+    db.session.add(home_stats)
+    db.session.add(away_stats)
+    _admin_audit("update_lab_game_stats", None, f"game #{game.id}")
+    db.session.commit()
+    return ok(game=_serialize_game(game))
+
+
+@bp.route("/admin/lab/games/<int:game_id>/derive", methods=["POST"])
+@login_required
+def admin_derive_game(game_id):
+    denied = _require_admin_json()
+    if denied:
+        return denied
+    from app.analytics.models import LabGame
+    from app.analytics.metric_engine import compute_derived_for_game
+    game = LabGame.query.get_or_404(game_id)
+    try:
+        compute_derived_for_game(game_id)
+        _admin_audit("derive_lab_game", None, f"game #{game_id}")
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        return err(str(exc), 400)
+    return ok(game=_serialize_game(game))
+
+
+@bp.route("/admin/lab/players", methods=["POST"])
+@login_required
+def admin_create_player():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+    from app.analytics.models import LabPlayer
+    d = request.get_json(silent=True) or {}
+    team_id = _int_value(d.get("team_id"), None)
+    name = (d.get("name") or "").strip()
+    position = (d.get("position") or "").strip() or None
+    if not team_id or not name:
+        return err("Team and player name are required")
+    player = LabPlayer(team_id=team_id, name=name, position=position)
+    db.session.add(player)
+    _admin_audit("create_lab_player", None, name)
+    db.session.commit()
+    return ok(player={"id": player.id, "name": player.name, "position": player.position or "", "team_id": player.team_id}), 201
+
+
+@bp.route("/admin/lab/metrics", methods=["POST"])
+@login_required
+def admin_create_metric():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+    from app.analytics.models import MetricDefinition
+    d = request.get_json(silent=True) or {}
+    name = (d.get("name") or "").strip()
+    slug = (d.get("slug") or name).strip().lower().replace(" ", "_")
+    if not name or not slug:
+        return err("Name and slug are required")
+    if MetricDefinition.query.filter_by(slug=slug).first():
+        return err("Metric slug already exists")
+    metric = MetricDefinition(
+        name=name,
+        slug=slug,
+        description=(d.get("description") or "").strip(),
+        formula_type=d.get("formula_type") or "python",
+        parameters=(d.get("parameters") or "{}").strip(),
+        output_entity=d.get("output_entity") or "game_team",
+    )
+    db.session.add(metric)
+    _admin_audit("create_metric", None, slug)
+    db.session.commit()
+    return ok(metric={"id": metric.id, "name": metric.name, "slug": metric.slug}), 201
 
 
 # ── Notifications ─────────────────────────────────────────────────────────────

@@ -45,6 +45,30 @@ export default function Shell() {
     navRef.current?.classList.remove('nav-hidden')
   }, [location.pathname])
 
+  useEffect(() => {
+    function isEditable(el) {
+      if (!el) return false
+      return ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)
+    }
+    function onFocusIn(e) {
+      if (isEditable(e.target)) document.body.classList.add('input-focus-mode')
+    }
+    function onFocusOut() {
+      setTimeout(() => {
+        if (!isEditable(document.activeElement)) {
+          document.body.classList.remove('input-focus-mode')
+        }
+      }, 80)
+    }
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => {
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
+      document.body.classList.remove('input-focus-mode')
+    }
+  }, [])
+
   // Prefetch all main tab data the moment the user is authenticated.
   // Fires 4 parallel requests in the background so every first tab tap is instant.
   useEffect(() => {

@@ -46,15 +46,18 @@ export default function Friends() {
 
       {/* Search */}
       <section className="group-section" style={{ borderTop: 'none', paddingTop: 0 }}>
-        <div className="friend-search-form">
-          <input type="text" value={query} onChange={e => setQuery(e.target.value)}
-            placeholder="Search by name, email, or UID (FS-XXXXXX)…"
-            autoComplete="off" style={{ fontSize: 16, flex: 1 }} />
-          {query && (
-            <button className="btn-secondary-small" onClick={() => { setQuery(''); setResults(null) }}>
-              Clear
-            </button>
-          )}
+        <div className="friend-search-block">
+          <div className="friend-search-form">
+            <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="Search for a friend"
+              autoComplete="off" />
+            {query && (
+              <button className="btn-secondary-small" onClick={() => { setQuery(''); setResults(null) }}>
+                Clear
+              </button>
+            )}
+          </div>
+          <p className="friend-search-hint">Search by username, FS ID, or email. FS IDs look like FS-123456.</p>
         </div>
 
         {results && (

@@ -89,7 +89,6 @@ def create_app(config=None):
     from app.routes.api import api_bp
     from app.routes.api_react import bp as api_react_bp
     from app.routes.reports import reports_bp
-    from app.routes.admin import admin_bp
     from app.routes.legal import legal_bp
     from app.routes.support import support_bp
     from app.routes.friends import friends_bp
@@ -102,7 +101,6 @@ def create_app(config=None):
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(api_react_bp)   # prefix /api defined on blueprint
     app.register_blueprint(reports_bp, url_prefix="/reports")
-    app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(legal_bp)
     app.register_blueprint(support_bp, url_prefix="/support")
     app.register_blueprint(friends_bp, url_prefix="/friends")
@@ -116,6 +114,7 @@ def create_app(config=None):
 
     @app.route("/app/", defaults={"path": ""})
     @app.route("/app/<path:path>")
+    @app.route("/admin-tools", defaults={"path": ""})
     @app.route("/", defaults={"path": ""})
     def serve_react(path):
         """Serve React SPA — root entry point + /app/* catch-all.

@@ -87,7 +87,7 @@ function GroupSwipeRow({ group, member, pending, onDelete, onLeave }) {
   }
 
   return (
-    <div className="group-swipe">
+    <div className={`group-swipe${offset !== 0 ? ' open' : ''}`}>
       <div className="group-swipe-actions">
         <button type="button" className="group-swipe-delete" disabled={pending} onClick={runAction}>
           {pending ? '...' : actionLabel}

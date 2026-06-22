@@ -295,7 +295,7 @@ def send_ticket_received_admin(ticket):
         current_app.logger.info(f"[admin email skipped — ADMIN_EMAIL not set] ticket {ticket.uid}")
         return False
     base_url = "https://friedsports.com"
-    cta_url = f"{base_url}/admin/support/{ticket.uid}"
+    cta_url = f"{base_url}/admin-tools"
     html = _wrap(f"""
 <p>New support ticket submitted.</p>
 <p>

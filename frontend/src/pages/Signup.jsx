@@ -9,17 +9,20 @@ export default function Signup() {
 
   const [form, setForm] = useState({
     first_name: '', last_name: '', display_name: '',
-    display_preference: 'username', email: '', password: '', confirm_password: ''
+    display_preference: 'username', email: '', password: '', confirm_password: '',
+    agree_terms: false,
   })
   const [error, setError]   = useState('')
   const [busy, setBusy]     = useState(false)
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+  const setCheck = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.checked }))
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     if (form.password !== form.confirm_password) { setError('Passwords do not match'); return }
+    if (!form.agree_terms) { setError('You must agree to the Terms and community guidelines to sign up.'); return }
     setBusy(true)
     try {
       const data = await signup(form)
@@ -77,6 +80,14 @@ export default function Signup() {
             <input id="confirm_password" type="password" required style={{ fontSize: 16 }}
               value={form.confirm_password} onChange={set('confirm_password')} />
           </div>
+          <label className="signup-terms-row">
+            <input type="checkbox" checked={form.agree_terms} onChange={setCheck('agree_terms')} required />
+            <span>
+              I agree to the <Link to="/legal/terms" target="_blank" rel="noopener noreferrer">Terms</Link>,
+              {' '}<Link to="/legal/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>,
+              and community guidelines.
+            </span>
+          </label>
           <button type="submit" className="btn-primary btn-full" disabled={busy}>
             {busy ? 'Creating account…' : 'Create Account'}
           </button>

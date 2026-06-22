@@ -17,7 +17,6 @@ from app.analytics.models import (
     TeamGameStats, PlayerGameStats, DerivedGameMetrics, MetricDefinition,
 )
 from app.analytics.metric_engine import compute_derived_for_game
-from app.analytics.rebound_lab import run_rebound_leverage_query
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -256,55 +255,6 @@ def metrics_new():
     db.session.commit()
     flash(f"Metric '{name}' created.", "success")
     return redirect(url_for("admin.metrics_list"))
-
-
-# ── Rebound Leverage Lab ──────────────────────────────────────────────────────
-
-@admin_bp.route("/lab/rebound", methods=["GET", "POST"])
-@login_required
-@admin_required
-def lab_rebound():
-    leagues = LabLeague.query.order_by(LabLeague.abbreviation).all()
-    seasons = LabSeason.query.order_by(LabSeason.year.desc()).all()
-    results = None
-    params = {}
-
-    if request.method == "POST":
-        league_id = request.form.get("league_id", type=int)
-        season_id = request.form.get("season_id", type=int) or None
-        threshold = request.form.get("fg_pct_threshold", 0.02, type=float)
-        bin_size = request.form.get("bin_size", 5, type=int)
-        playoffs_only = bool(request.form.get("playoffs_only"))
-
-        params = {
-            "league_id": league_id,
-            "season_id": season_id,
-            "threshold": threshold,
-            "bin_size": bin_size,
-            "playoffs_only": playoffs_only,
-        }
-
-        if not league_id:
-            flash("Select a league.", "error")
-        else:
-            try:
-                results = run_rebound_leverage_query(
-                    league_id=league_id,
-                    season_id=season_id,
-                    fg_pct_parity_threshold=threshold,
-                    bin_size=bin_size,
-                    playoffs_only=playoffs_only,
-                )
-            except Exception as e:
-                flash(f"Query error: {e}", "error")
-
-    return render_template(
-        "admin/lab/rebound.html",
-        leagues=leagues,
-        seasons=seasons,
-        results=results,
-        params=params,
-    )
 
 
 # ── Seasons (quick create) ────────────────────────────────────────────────────
