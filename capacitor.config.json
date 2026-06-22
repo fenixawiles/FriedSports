@@ -15,6 +15,12 @@
     "scrollEnabled": true
   },
   "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "CapacitorCookies": {
+      "enabled": true
+    },
     "Keyboard": {
       "resize": "none",
       "resizeOnFullScreen": true

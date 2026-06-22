@@ -16,6 +16,21 @@ login_manager.login_view = "auth.login"
 login_manager.login_message = "Please log in to continue."
 login_manager.login_message_category = "warning"
 
+
+@login_manager.unauthorized_handler
+def _unauthorized():
+    """API clients (React/native) get a JSON 401 they can act on; an XHR that
+    receives the default 302→/login silently follows it and renders the HTML
+    login page as 'data', which looks like an empty/broken screen. Web pages
+    keep the normal redirect-to-login behavior."""
+    from flask import request, jsonify, redirect, url_for, flash
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Authentication required"}), 401
+    if login_manager.login_message:
+        flash(login_manager.login_message, login_manager.login_message_category)
+    return redirect(url_for("auth.login", next=request.full_path))
+
+
 compress = Compress()
 
 
