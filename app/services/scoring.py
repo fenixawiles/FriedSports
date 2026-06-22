@@ -77,6 +77,8 @@ def apply_thread_points(thread, new_message):
     sender_id = new_message.user_id
     target_user_id = thread.target_user_id
     group_id = thread.group_id
+    if (thread.thread_type or "incident") != "incident" or not group_id or not target_user_id:
+        return
 
     sender_member = GroupMember.query.filter_by(group_id=group_id, user_id=sender_id).first()
     target_member = GroupMember.query.filter_by(group_id=group_id, user_id=target_user_id).first()
@@ -105,6 +107,8 @@ def apply_reaction_points(message, reactor_user_id):
     if not message.user_id or message.user_id == reactor_user_id:
         return
     thread = message.thread
+    if (thread.thread_type or "incident") != "incident" or not thread.group_id:
+        return
     member = GroupMember.query.filter_by(
         group_id=thread.group_id, user_id=message.user_id
     ).first()
@@ -116,6 +120,8 @@ def apply_redemption_win(thread):
     """Target's team came back — flip the script on scoring."""
     group_id = thread.group_id
     target_user_id = thread.target_user_id
+    if (thread.thread_type or "incident") != "incident" or not group_id or not target_user_id:
+        return
 
     target_member = GroupMember.query.filter_by(
         group_id=group_id, user_id=target_user_id

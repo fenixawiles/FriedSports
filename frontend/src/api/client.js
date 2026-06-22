@@ -13,6 +13,23 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+function isPublicRoute(pathname) {
+  return (
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname === '/send-code' ||
+    pathname === '/verify-code' ||
+    pathname === '/privacy' ||
+    pathname === '/terms' ||
+    pathname === '/legal/privacy' ||
+    pathname === '/legal/terms' ||
+    pathname.startsWith('/reset-password/') ||
+    pathname.startsWith('/public/receipts/') ||
+    pathname.startsWith('/groups/join/')
+  )
+}
+
 // Normalise errors so callers always get { message, status, data }
 client.interceptors.response.use(
   (res) => res,
@@ -20,9 +37,16 @@ client.interceptors.response.use(
     const status  = err.response?.status
     const data    = err.response?.data
     const message = data?.error || data?.message || err.message || 'Something went wrong'
+    const requestUrl = err.config?.url || ''
 
-    // 401 → redirect to /login (unless we're already there)
-    if (status === 401 && !window.location.pathname.startsWith('/login')) {
+    // 401 on protected work should send the user to login. Auth bootstrap and
+    // public pages handle unauthenticated state themselves so Privacy/Terms and
+    // public invite/receipt pages do not get yanked away during /auth/me.
+    if (
+      status === 401 &&
+      !requestUrl.includes('/auth/me') &&
+      !isPublicRoute(window.location.pathname)
+    ) {
       window.location.replace('/login')
     }
 

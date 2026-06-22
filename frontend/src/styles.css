@@ -80,6 +80,14 @@ body {
   display: flex;
   flex-direction: column;
 }
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+@supports (min-height: 100dvh) {
+  #root { min-height: 100dvh; }
+}
 /* ── Page transition ──────────────────────────────────────────────────────────
    Applied to a keyed wrapper inside Shell so it fires on every navigation,
    not just the initial mount. 160ms feels native without being distracting. */
@@ -636,13 +644,23 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 /* Thread chat — focused full-screen layout.
    Shell applies .thread-main to <main> when on /threads/:id and omits both
    navbars, so the entire viewport is available for the conversation. */
-[data-thread] { height: 100%; }
-[data-thread] body { height: 100%; min-height: 0; }
+[data-thread],
+[data-thread] body,
+[data-thread] #root {
+  height: 100%;
+  min-height: 0;
+}
+[data-thread] body,
+[data-thread] #root {
+  overflow: hidden;
+}
 @supports (height: 100dvh) {
-  [data-thread], [data-thread] body { height: 100dvh; }
+  [data-thread],
+  [data-thread] body,
+  [data-thread] #root { height: 100dvh; }
 }
 .thread-main {
-  flex: 1; min-height: 0;
+  flex: 1; min-height: 0; height: 100%;
   padding: 0 !important; max-width: 100% !important; margin: 0 !important;
   display: flex; flex-direction: column; overflow: hidden;
 }
@@ -653,20 +671,28 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 }
 .thread-main .thread-header-wrap {
   flex-shrink: 0;
-  padding: 0.85rem 0.85rem 0;
+  padding: calc(0.55rem + env(safe-area-inset-top)) 0.85rem 0.55rem;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-primary);
 }
-.thread-main .thread-header { margin-bottom: 0.6rem; padding-bottom: 0; border-bottom: none; }
+.thread-main .thread-header { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
 .thread-main .chat-window {
   flex: 1; min-height: 0; max-height: none !important;
   padding: 0.75rem 0 0.5rem; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  background: var(--bg-primary);
 }
 .thread-main .chat-input-area {
   flex-shrink: 0;
   padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+  background: var(--bg-primary);
+}
+body.keyboard-open .thread-main .chat-input-area {
+  padding-bottom: 0.4rem;
 }
 @media (min-width: 641px) {
-  .thread-main .thread-header-wrap { padding: 1rem 2.5rem 0; }
+  .thread-main .thread-header-wrap { padding: calc(0.6rem + env(safe-area-inset-top)) 2.5rem 0.6rem; }
   .thread-main .chat-window { padding-left: 2.5rem; padding-right: 2.5rem; }
   .thread-main .chat-input-area { padding-left: 2.5rem; padding-right: 2.5rem; }
 }
@@ -1548,6 +1574,7 @@ body.receipt-page {
 .thread-avatar-circle span {
   font-size: 0.65rem; font-weight: 800; letter-spacing: -0.01em;
   text-transform: uppercase;
+  color: #fff;
 }
 
 /* Text column */
@@ -1639,7 +1666,9 @@ body.receipt-page {
   padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
   z-index: 92;
   animation: sheet-slide-up 0.28s cubic-bezier(0.4,0,0.2,1);
-  overflow: hidden;
+  max-height: 84dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 @keyframes sheet-slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .threads-fab-sheet-handle {
@@ -1654,12 +1683,36 @@ body.receipt-page {
 }
 .threads-fab-group-row {
   display: flex; align-items: center; justify-content: space-between;
+  width: 100%; gap: 0.9rem; text-align: left;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  color: var(--text-primary); text-decoration: none; font-size: 1rem;
+  border-left: none; border-right: none; border-top: none;
+  background: none; color: var(--text-primary); text-decoration: none; font-size: 1rem;
   transition: background 0.1s;
+  cursor: pointer; font-family: var(--font);
+  -webkit-appearance: none; appearance: none;
 }
 .threads-fab-group-row:hover { background: var(--bg-elevated); text-decoration: none; }
+.threads-fab-group-row:disabled { opacity: 0.55; cursor: default; }
+.threads-fab-row-main {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600;
+}
+.threads-fab-row-sub {
+  flex-shrink: 0; font-size: 0.78rem; color: var(--text-muted);
+}
+.threads-fab-section-label {
+  padding: 0.75rem 1.25rem 0.35rem;
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--text-muted);
+}
+.threads-fab-empty,
+.threads-fab-error {
+  padding: 0.75rem 1.25rem;
+  color: var(--text-muted); font-size: 0.86rem;
+  border-bottom: 1px solid var(--border);
+}
+.threads-fab-error { color: var(--accent); }
 .threads-fab-cancel {
   display: block; width: calc(100% - 2.5rem); margin: 0.75rem 1.25rem;
   padding: 0.85rem; text-align: center;

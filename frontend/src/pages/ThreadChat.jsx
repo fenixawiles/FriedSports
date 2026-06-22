@@ -28,7 +28,11 @@ export default function ThreadChat() {
   // Apply full-height focused layout
   useEffect(() => {
     document.documentElement.setAttribute('data-thread', '')
-    return () => document.documentElement.removeAttribute('data-thread')
+    document.body.classList.add('thread-view')
+    return () => {
+      document.documentElement.removeAttribute('data-thread')
+      document.body.classList.remove('thread-view', 'keyboard-open')
+    }
   }, [])
 
   const { data, isLoading } = useQuery({
@@ -159,8 +163,11 @@ export default function ThreadChat() {
 
   if (isLoading) return <Loading full />
 
+  const threadType = thread?.thread_type || 'incident'
+  const isIncidentThread = threadType === 'incident'
   const isAdmin  = member?.role === 'owner' || member?.role === 'admin'
-  const isTarget = user?.id === thread?.target_user_id
+  const isTarget = isIncidentThread && user?.id === thread?.target_user_id
+  const backLabel = thread?.group_name || 'Chats'
 
   return (
     <div className="thread-container">
@@ -171,17 +178,23 @@ export default function ThreadChat() {
           <button type="button" className="back-link"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
             onClick={() => navigate(-1)}>
-            ← {thread?.group_name}
+            ← {backLabel}
           </button>
           <h1 className="thread-title-large">{thread?.title}</h1>
           {thread && (
             <div className="thread-header-meta">
-              <span className="team-chip-lg"
-                style={{ color: thread.team_color, borderColor: thread.team_color + '40' }}>
-                {thread.team_abbr} · {thread.team_name}
+              {isIncidentThread && thread.team_abbr && (
+                <span className="team-chip-lg"
+                  style={{ color: thread.team_color, borderColor: thread.team_color + '40' }}>
+                  {thread.team_abbr} · {thread.team_name}
+                </span>
+              )}
+              {isIncidentThread && thread.target_user_name && (
+                <span className="target-label">{thread.target_user_name}</span>
+              )}
+              <span className={`status-badge ${thread.status}`}>
+                {isIncidentThread ? thread.status : (threadType === 'direct_chat' ? 'Direct' : 'Group Chat')}
               </span>
-              <span className="target-label">{thread.target_user_name}</span>
-              <span className={`status-badge ${thread.status}`}>{thread.status}</span>
             </div>
           )}
         </div>

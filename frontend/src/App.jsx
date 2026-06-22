@@ -39,6 +39,7 @@ import Settings     from './pages/Settings'
 import Support      from './pages/Support'
 import SupportTicket from './pages/SupportTicket'
 import Receipt      from './pages/Receipt'
+import Legal        from './pages/Legal'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,7 +63,7 @@ const persister = createSyncStoragePersister({
 // Route guard — redirects to /login if not authenticated
 function RequireAuth({ children }) {
   const { user, loading } = useAuth()
-  if (loading) return <Loading full />
+  if (loading && !user) return <Loading full />
   if (!user) return <Navigate to="/login" replace />
   return children
 }
@@ -70,7 +71,7 @@ function RequireAuth({ children }) {
 // Redirect logged-in users away from auth screens
 function RedirectIfAuthed({ children }) {
   const { user, loading } = useAuth()
-  if (loading) return <Loading full />
+  if (loading && !user) return <Loading full />
   if (user) return <Navigate to="/dashboard" replace />
   return children
 }
@@ -104,6 +105,10 @@ export default function App() {
 
                 {/* Public receipt — no auth required */}
                 <Route path="/public/receipts/:slug" element={<Receipt />} />
+                <Route path="/legal/privacy" element={<Legal />} />
+                <Route path="/legal/terms" element={<Legal />} />
+                <Route path="/privacy" element={<Legal />} />
+                <Route path="/terms" element={<Legal />} />
 
                 {/* ── Authenticated routes ── */}
                 <Route path="/onboarding"  element={<RequireAuth><Onboarding /></RequireAuth>} />

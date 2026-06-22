@@ -14,7 +14,7 @@ from ..models import (
     db, User, LoginToken, Group, GroupMember, GameThread, GameThreadMessage,
     MessageReaction, IncidentReport, GameEvent, GroupTrigger, Team,
     UserFavoriteTeam, Notification, FriendRequest, SupportTicket,
-    Receipt, DeviceToken,
+    Receipt, DeviceToken, ThreadUserState,
 )
 
 bp = Blueprint("api_react", __name__, url_prefix="/api")
@@ -49,12 +49,16 @@ def _serialize_thread(t, last_msg=None):
         ir_obj = t.group_trigger.game_event.incident_report
         if ir_obj:
             ir = ir_obj.incident_type
+    thread_type = t.thread_type or "incident"
     return {
         "id":            t.id,
         "title":         t.title,
+        "thread_type":   thread_type,
         "status":        t.status,
         "group_id":      t.group_id,
         "group_name":    t.group.name if t.group else "",
+        "created_by_user_id": t.created_by_user_id,
+        "created_by_user_name": t.created_by.shown_name if t.created_by else "",
         "target_user_id":   t.target_user_id,
         "target_user_name": t.target_user.shown_name if t.target_user else "",
         "team_abbr":     t.target_team.abbreviation if t.target_team else "",
@@ -89,6 +93,70 @@ def _serialize_message(msg, current_user_id):
         "user_reactions": msg.user_reaction(current_user_id),
         "can_delete":    msg.user_id == current_user_id,
     }
+
+
+def _has_accepted_friendship(user_id):
+    return FriendRequest.query.filter(
+        db.or_(
+            db.and_(
+                FriendRequest.from_user_id == current_user.id,
+                FriendRequest.to_user_id == user_id,
+                FriendRequest.status == "accepted",
+            ),
+            db.and_(
+                FriendRequest.from_user_id == user_id,
+                FriendRequest.to_user_id == current_user.id,
+                FriendRequest.status == "accepted",
+            ),
+        )
+    ).first() is not None
+
+
+def _is_direct_participant(thread):
+    return (
+        (thread.created_by_user_id == current_user.id and thread.target_user_id)
+        or (thread.target_user_id == current_user.id and thread.created_by_user_id)
+    )
+
+
+def _thread_member(thread):
+    if not thread.group_id:
+        return None
+    return GroupMember.query.filter_by(
+        group_id=thread.group_id,
+        user_id=current_user.id,
+    ).first()
+
+
+def _can_access_thread(thread):
+    if (thread.thread_type or "incident") == "direct_chat":
+        if not _is_direct_participant(thread):
+            return False
+        other_id = (
+            thread.target_user_id
+            if thread.created_by_user_id == current_user.id
+            else thread.created_by_user_id
+        )
+        return other_id not in current_user.hidden_user_ids()
+    return _thread_member(thread) is not None
+
+
+def _other_direct_user(thread):
+    if (thread.thread_type or "incident") != "direct_chat":
+        return None
+    return thread.target_user if thread.created_by_user_id == current_user.id else thread.created_by
+
+
+def _restore_local_thread_state(thread_id):
+    st = ThreadUserState.query.filter_by(
+        user_id=current_user.id,
+        thread_id=thread_id,
+    ).first()
+    if st:
+        st.deleted = False
+        st.deleted_at = None
+        st.archived = False
+        st.cleared_at = None
 
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
@@ -816,32 +884,42 @@ def threads_list():
         .options(joinedload(GroupMember.group))
         .all()
     )
-    if not memberships:
-        return ok(threads=[], groups=[], last_msgs={})
-
-    group_ids = [m.group_id for m in memberships]
+    group_ids = [m.group_id for m in memberships] or [-1]
     groups    = [{"id": m.group_id, "name": m.group.name} for m in memberships if m.group]
 
-    # Query 2 — all active thread data + last message in one CTE.
+    # Query 2 — all active thread data + last message in one CTE. Includes
+    # incident/group chats from the user's groups plus direct chats where the
+    # current user is one of the two participants.
     # Replaces: threads query (deep 3-level joinedload) + last-msg subquery +
     #           last-msg fetch + redundant Group query  =  was 4 separate round trips.
     rows = db.session.execute(text("""
-        WITH last_msgs AS (
+        WITH candidate_threads AS (
+            SELECT id
+            FROM game_threads
+            WHERE status = 'active'
+              AND (
+                group_id = ANY(:gids)
+                OR (
+                  thread_type = 'direct_chat'
+                  AND (created_by_user_id = :uid OR target_user_id = :uid)
+                )
+              )
+        ),
+        last_msgs AS (
             SELECT DISTINCT ON (thread_id)
                 thread_id, body, created_at, user_id
             FROM game_thread_messages
-            WHERE thread_id IN (
-                SELECT id FROM game_threads
-                WHERE group_id = ANY(:gids) AND status = 'active'
-            )
+            WHERE thread_id IN (SELECT id FROM candidate_threads)
             AND is_deleted = false
             ORDER BY thread_id, id DESC
         )
         SELECT
             gt.id,
             gt.title,
+            gt.thread_type,
             gt.status,
             gt.group_id,
+            gt.created_by_user_id,
             gt.target_user_id,
             gt.created_at,
             gt.hot_score,
@@ -856,6 +934,13 @@ def threads_list():
                 THEN u.first_name || ' ' || u.last_name
                 ELSE u.display_name
             END             AS target_user_name,
+            CASE
+                WHEN cu.display_preference = 'real_name'
+                     AND cu.first_name IS NOT NULL
+                     AND cu.last_name  IS NOT NULL
+                THEN cu.first_name || ' ' || cu.last_name
+                ELSE cu.display_name
+            END             AS creator_user_name,
             ir.incident_type,
             lm.body         AS last_msg_body,
             lm.created_at   AS last_msg_at,
@@ -870,14 +955,15 @@ def threads_list():
         LEFT JOIN groups g              ON g.id  = gt.group_id
         LEFT JOIN teams  te             ON te.id = gt.target_team_id
         LEFT JOIN users  u              ON u.id  = gt.target_user_id
+        LEFT JOIN users  cu             ON cu.id = gt.created_by_user_id
         LEFT JOIN group_triggers  gtr   ON gtr.id = gt.group_trigger_id
         LEFT JOIN game_events     ge    ON ge.id  = gtr.game_event_id
         LEFT JOIN incident_reports ir   ON ir.id  = ge.incident_report_id
         LEFT JOIN last_msgs        lm   ON lm.thread_id = gt.id
         LEFT JOIN users            lmu  ON lmu.id = lm.user_id
-        WHERE gt.group_id = ANY(:gids) AND gt.status = 'active'
+        WHERE gt.id IN (SELECT id FROM candidate_threads)
         ORDER BY gt.updated_at DESC
-    """), {"gids": group_ids}).fetchall()
+    """), {"gids": group_ids, "uid": uid}).fetchall()
 
     thread_ids = [r.id for r in rows]
     from app.services.activity import unread_map, message_counts, vote_count_map
@@ -888,17 +974,39 @@ def threads_list():
     threads   = []
     last_msgs = {}
     for r in rows:
+        thread_type = r.thread_type or "incident"
+        direct_other_name = (
+            r.target_user_name if r.created_by_user_id == uid else r.creator_user_name
+        )
+        display_title = r.title or r.group_name or ""
+        avatar_label = (r.team_abbr or "?")[:3]
+        avatar_color = r.team_color or "#333"
+        if thread_type == "group_chat":
+            display_title = r.group_name or r.title or "Group Chat"
+            avatar_label = "".join(part[:1] for part in display_title.split()[:2]).upper() or "GC"
+            avatar_color = "#d93348"
+        elif thread_type == "direct_chat":
+            display_title = direct_other_name or "Direct Chat"
+            avatar_label = "".join(part[:1] for part in display_title.split()[:2]).upper() or "DM"
+            avatar_color = "#d93348"
+
         threads.append({
             "id":               r.id,
             "title":            r.title,
+            "display_title":    display_title,
+            "thread_type":      thread_type,
             "status":           r.status,
             "group_id":         r.group_id,
             "group_name":       r.group_name   or "",
+            "created_by_user_id": r.created_by_user_id,
+            "created_by_user_name": r.creator_user_name or "",
             "target_user_id":   r.target_user_id,
             "target_user_name": r.target_user_name or "",
             "team_abbr":        r.team_abbr    or "",
             "team_name":        r.team_name    or "",
             "team_color":       r.team_color   or "#333",
+            "avatar_label":     avatar_label,
+            "avatar_color":     avatar_color,
             "incident_type":    r.incident_type,
             "created_at":       r.created_at.isoformat() if r.created_at else None,
             "hot_score":        r.hot_score or 0,
@@ -921,17 +1029,100 @@ def threads_list():
     return ok(threads=threads, last_msgs=last_msgs, groups=groups)
 
 
+@bp.route("/threads", methods=["POST"])
+@login_required
+def create_chat_thread():
+    d = request.get_json(silent=True) or {}
+    chat_type = d.get("type")
+
+    if chat_type == "group":
+        group_id = d.get("group_id")
+        if not group_id:
+            return err("Group is required")
+        group = Group.query.get_or_404(int(group_id))
+        if not group.is_member(current_user.id):
+            return err("Not a member of this group", 403)
+
+        thread = GameThread.query.filter_by(
+            thread_type="group_chat",
+            group_id=group.id,
+            status="active",
+        ).first()
+        created = False
+        if not thread:
+            thread = GameThread(
+                thread_type="group_chat",
+                group_id=group.id,
+                created_by_user_id=current_user.id,
+                title=group.name,
+                status="active",
+            )
+            db.session.add(thread)
+            db.session.flush()
+            created = True
+        else:
+            _restore_local_thread_state(thread.id)
+        db.session.commit()
+        return ok(thread_id=thread.id, created=created), 201
+
+    if chat_type == "direct":
+        user_id = d.get("user_id")
+        if not user_id:
+            return err("User is required")
+        other_id = int(user_id)
+        if other_id == current_user.id:
+            return err("You can't start a chat with yourself", 400)
+        other = User.query.get_or_404(other_id)
+        if other_id in current_user.hidden_user_ids():
+            return err("You can't start a chat with this user", 403)
+        if not _has_accepted_friendship(other_id):
+            return err("You can only message friends", 403)
+
+        thread = GameThread.query.filter(
+            GameThread.thread_type == "direct_chat",
+            db.or_(
+                db.and_(
+                    GameThread.created_by_user_id == current_user.id,
+                    GameThread.target_user_id == other_id,
+                ),
+                db.and_(
+                    GameThread.created_by_user_id == other_id,
+                    GameThread.target_user_id == current_user.id,
+                ),
+            ),
+            GameThread.status == "active",
+        ).first()
+        created = False
+        if not thread:
+            thread = GameThread(
+                thread_type="direct_chat",
+                created_by_user_id=current_user.id,
+                target_user_id=other.id,
+                title=other.shown_name,
+                status="active",
+            )
+            db.session.add(thread)
+            db.session.flush()
+            created = True
+        else:
+            _restore_local_thread_state(thread.id)
+        db.session.commit()
+        return ok(thread_id=thread.id, created=created), 201
+
+    return err("Choose a group or friend")
+
+
 @bp.route("/threads/<int:thread_id>")
 @login_required
 def get_thread(thread_id):
     thread = GameThread.query.get_or_404(thread_id)
-    member = GroupMember.query.filter_by(
-        group_id=thread.group_id, user_id=current_user.id
-    ).first()
+    if not _can_access_thread(thread):
+        return err("Not authorized", 403)
+    member = _thread_member(thread)
 
     _mq = (
         GameThreadMessage.query
-        .filter_by(thread_id=thread_id)
+        .filter_by(thread_id=thread_id, is_deleted=False)
         .options(
             joinedload(GameThreadMessage.author),
             joinedload(GameThreadMessage.reactions),
@@ -940,6 +1131,10 @@ def get_thread(thread_id):
     _hidden = current_user.hidden_user_ids()
     if _hidden:
         _mq = _mq.filter(GameThreadMessage.user_id.notin_(_hidden))
+    from app.services.thread_state import cleared_at_for
+    cleared = cleared_at_for(current_user.id, thread_id)
+    if cleared:
+        _mq = _mq.filter(GameThreadMessage.created_at > cleared)
     messages = _mq.order_by(GameThreadMessage.created_at).all()
 
     ir = None
@@ -956,25 +1151,36 @@ def get_thread(thread_id):
             }
 
     # Opening a thread clears its unread state
-    if member:
-        from app.services.activity import mark_thread_read
-        mark_thread_read(current_user.id, thread_id)
-        db.session.commit()
+    from app.services.activity import mark_thread_read
+    mark_thread_read(current_user.id, thread_id)
+    db.session.commit()
+
+    thread_type = thread.thread_type or "incident"
+    other = _other_direct_user(thread)
+    display_title = thread.title or ""
+    if thread_type == "group_chat":
+        display_title = thread.group.name if thread.group else (thread.title or "Group Chat")
+    elif thread_type == "direct_chat":
+        display_title = other.shown_name if other else "Direct Chat"
 
     return ok(
         thread={
             "id":               thread.id,
-            "title":            thread.title,
+            "title":            display_title,
+            "raw_title":        thread.title,
+            "thread_type":      thread_type,
             "status":           thread.status,
             "group_name":       thread.group.name if thread.group else "",
             "group_id":         thread.group_id,
+            "created_by_user_id": thread.created_by_user_id,
+            "created_by_user_name": thread.created_by.shown_name if thread.created_by else "",
             "target_user_id":   thread.target_user_id,
             "target_user_name": thread.target_user.shown_name if thread.target_user else "",
             "team_abbr":        thread.target_team.abbreviation if thread.target_team else "",
             "team_name":        thread.target_team.name if thread.target_team else "",
             "team_color":       thread.target_team.primary_color if thread.target_team else "#333",
-            "votes":            thread.vote_counts(),
-            "user_vote":        thread.user_vote(current_user.id),
+            "votes":            thread.vote_counts() if thread_type == "incident" else {"confirm": 0, "dismiss": 0, "redeem": 0},
+            "user_vote":        thread.user_vote(current_user.id) if thread_type == "incident" else None,
         },
         messages=[_serialize_message(m, current_user.id) for m in messages],
         member={"role": member.role} if member else None,
@@ -988,11 +1194,8 @@ def post_message(thread_id):
     thread = GameThread.query.get_or_404(thread_id)
     if thread.status != "active":
         return err("Thread is closed", 400)
-    member = GroupMember.query.filter_by(
-        group_id=thread.group_id, user_id=current_user.id
-    ).first()
-    if not member:
-        return err("Not a member of this group", 403)
+    if not _can_access_thread(thread):
+        return err("Not authorized", 403)
 
     d = request.get_json(silent=True) or {}
     body = d.get("body", "").strip()
@@ -1017,7 +1220,8 @@ def post_message(thread_id):
     from app.services.activity import refresh_hot_score, record_event, mark_thread_read
     db.session.flush()
     refresh_hot_score(thread)
-    record_event(thread.group_id, current_user.id, "reply", thread_id)
+    if thread.group_id:
+        record_event(thread.group_id, current_user.id, "reply", thread_id)
     mark_thread_read(current_user.id, thread_id)
     db.session.commit()
     return ok(id=msg.id, created_at=msg.created_at.isoformat() if msg.created_at else None)
@@ -1029,9 +1233,9 @@ def vote_thread(thread_id):
     """Group-member verdict on a thread. Same vote toggles off; a different
     vote switches. Open to every member — not an admin action."""
     thread = GameThread.query.get_or_404(thread_id)
-    member = GroupMember.query.filter_by(
-        group_id=thread.group_id, user_id=current_user.id
-    ).first()
+    if (thread.thread_type or "incident") != "incident":
+        return err("Voting is only available on report threads", 400)
+    member = _thread_member(thread)
     if not member:
         return err("Not a member of this group", 403)
 
@@ -1069,11 +1273,8 @@ def vote_thread(thread_id):
 def mark_read(thread_id):
     """Move the caller's read watermark to now — clears unread badges."""
     thread = GameThread.query.get_or_404(thread_id)
-    member = GroupMember.query.filter_by(
-        group_id=thread.group_id, user_id=current_user.id
-    ).first()
-    if not member:
-        return err("Not a member of this group", 403)
+    if not _can_access_thread(thread):
+        return err("Not authorized", 403)
     from app.services.activity import mark_thread_read
     mark_thread_read(current_user.id, thread_id)
     db.session.commit()

@@ -476,12 +476,22 @@ def _cascade_delete_user(user_id):
         from app.routes.groups import _cascade_delete_group
         _cascade_delete_group(g.id)
 
-    # Threads that TARGET this user: target_user_id is NOT NULL, so the rows must
-    # be removed (with their children), not nulled.
+    # Incident/direct threads involving this user must be removed with their
+    # children. Group chats they created can survive with created_by nulled.
     target_thread_ids = [
         t.id for t in GameThread.query.filter_by(target_user_id=user_id).all()
     ]
+    direct_created_thread_ids = [
+        t.id for t in GameThread.query.filter_by(
+            thread_type="direct_chat",
+            created_by_user_id=user_id,
+        ).all()
+    ]
+    target_thread_ids = list(set(target_thread_ids + direct_created_thread_ids))
     _delete_threads_and_children(target_thread_ids)
+    GameThread.query.filter_by(created_by_user_id=user_id).update(
+        {"created_by_user_id": None}, synchronize_session=False
+    )
 
     # Reactions/reports by this user; anonymise the user's own messages so the
     # rest of each surviving thread's history stays intact.

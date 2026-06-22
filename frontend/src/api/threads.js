@@ -1,6 +1,7 @@
 import client from './client'
 
 export const getThreadsList = ()          => client.get('/threads').then(r => r.data)
+export const createChatThread = (data)    => client.post('/threads', data).then(r => r.data)
 export const getThread      = (id)        => client.get(`/threads/${id}`).then(r => r.data)
 export const sendMessage    = (id, body)  =>
   client.post(`/threads/${id}/messages`, { body }).then(r => r.data)

@@ -11,8 +11,7 @@ api_bp = Blueprint("api", __name__)
 @login_required
 def thread_messages(thread_id):
     thread = GameThread.query.get_or_404(thread_id)
-    group = Group.query.get(thread.group_id)
-    if not group.is_member(current_user.id) and group.privacy != "public_readonly":
+    if not _can_access_thread(thread):
         abort(403)
 
     after_id = request.args.get("after", 0, type=int)
@@ -39,7 +38,7 @@ def thread_messages(thread_id):
         mq = mq.filter(GameThreadMessage.created_at > cleared)
     messages = mq.order_by(GameThreadMessage.created_at).all()
 
-    user_is_admin = _is_admin(current_user.id, thread.group_id)
+    user_is_admin = bool(thread.group_id and _is_admin(current_user.id, thread.group_id))
     result = []
     for m in messages:
         reply = None
@@ -96,7 +95,7 @@ def dashboard_alerts():
 def react(message_id):
     msg = GameThreadMessage.query.get_or_404(message_id)
     thread = GameThread.query.get(msg.thread_id)
-    if not Group.query.get(thread.group_id).is_member(current_user.id):
+    if not _can_access_thread(thread):
         abort(403)
 
     reaction_type = request.json.get("reaction_type") if request.is_json else request.form.get("reaction_type")
@@ -134,11 +133,10 @@ def react(message_id):
 def delete_message(message_id):
     msg = GameThreadMessage.query.get_or_404(message_id)
     thread = GameThread.query.get(msg.thread_id)
-    group = Group.query.get(thread.group_id)
 
     can_delete = (
         msg.user_id == current_user.id or
-        _is_admin(current_user.id, thread.group_id)
+        bool(thread.group_id and _is_admin(current_user.id, thread.group_id))
     )
     if not can_delete:
         abort(403)
@@ -153,7 +151,7 @@ def delete_message(message_id):
 def report_message(message_id):
     msg = GameThreadMessage.query.get_or_404(message_id)
     thread = GameThread.query.get(msg.thread_id)
-    if not Group.query.get(thread.group_id).is_member(current_user.id):
+    if not _can_access_thread(thread):
         abort(403)
 
     # You can't report your own message.
@@ -181,10 +179,33 @@ def report_message(message_id):
     return jsonify({"success": True})
 
 
+def _is_direct_participant(thread):
+    return (
+        (thread.created_by_user_id == current_user.id and thread.target_user_id)
+        or (thread.target_user_id == current_user.id and thread.created_by_user_id)
+    )
+
+
+def _can_access_thread(thread):
+    if not thread:
+        return False
+    if (thread.thread_type or "incident") == "direct_chat":
+        if not _is_direct_participant(thread):
+            return False
+        other_id = (
+            thread.target_user_id
+            if thread.created_by_user_id == current_user.id
+            else thread.created_by_user_id
+        )
+        return other_id not in current_user.hidden_user_ids()
+    group = Group.query.get(thread.group_id) if thread.group_id else None
+    return bool(group and group.is_member(current_user.id))
+
+
 def _require_member(thread_id):
-    """Load a thread and 403 unless the current user is in its group."""
+    """Load a thread and 403 unless the current user can access it."""
     thread = GameThread.query.get_or_404(thread_id)
-    if not Group.query.get(thread.group_id).is_member(current_user.id):
+    if not _can_access_thread(thread):
         abort(403)
     return thread
 
@@ -291,6 +312,8 @@ def group_members(group_id):
 
 
 def _is_admin(user_id, group_id):
+    if not group_id:
+        return False
     member = GroupMember.query.filter_by(group_id=group_id, user_id=user_id).first()
     return member and member.role in ("owner", "admin")
 

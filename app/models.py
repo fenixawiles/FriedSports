@@ -319,16 +319,22 @@ class GameThread(db.Model):
     __tablename__ = "game_threads"
 
     id = db.Column(db.Integer, primary_key=True)
-    group_trigger_id = db.Column(db.Integer, db.ForeignKey("group_triggers.id"), nullable=False)
-    group_id = db.Column(db.Integer, db.ForeignKey("groups.id"), nullable=False)
-    target_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    target_team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=False)
+    # incident: report/scoring thread created from a GroupTrigger
+    # group_chat: plain persistent group chat
+    # direct_chat: plain 1:1 chat between created_by_user_id and target_user_id
+    thread_type = db.Column(db.String(24), nullable=False, default="incident")
+    group_trigger_id = db.Column(db.Integer, db.ForeignKey("group_triggers.id"), nullable=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("groups.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    target_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    target_team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=True)
     title = db.Column(db.String(256))
     status = db.Column(db.String(16), default="active")  # active, closed
     hot_score = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
     updated_at = db.Column(db.DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
     target_user = db.relationship("User", foreign_keys=[target_user_id])
     target_team = db.relationship("Team", foreign_keys=[target_team_id])
     messages = db.relationship("GameThreadMessage", backref="thread", lazy="dynamic",
