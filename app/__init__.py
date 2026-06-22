@@ -92,6 +92,7 @@ def create_app(config=None):
     from app.routes.legal import legal_bp
     from app.routes.support import support_bp
     from app.routes.friends import friends_bp
+    from app.routes.admin import admin_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -104,6 +105,7 @@ def create_app(config=None):
     app.register_blueprint(legal_bp)
     app.register_blueprint(support_bp, url_prefix="/support")
     app.register_blueprint(friends_bp, url_prefix="/friends")
+    app.register_blueprint(admin_bp, url_prefix="/admin")
 
     # Serve the React SPA for all non-API, non-admin, non-static routes.
     # In production (Railway), Flask serves both the API and the built React bundle.

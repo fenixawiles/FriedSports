@@ -29,7 +29,7 @@
           </td>
           <td>
             {% if log.admin %}
-            <a href="{{ url_for('admin.user_detail', user_id=log.admin_id) }}" class="admin-link">
+            <a href="{{ url_for('admin.users_detail', user_id=log.admin_id) }}" class="admin-link">
               {{ log.admin.display_name }}
             </a>
             {% else %}
@@ -39,7 +39,7 @@
           <td><span class="audit-action audit-action-{{ log.action.replace('_', '-') }}">{{ log.action.replace('_', ' ') }}</span></td>
           <td>
             {% if log.target_user %}
-            <a href="{{ url_for('admin.user_detail', user_id=log.target_user_id) }}" class="admin-link">
+            <a href="{{ url_for('admin.users_detail', user_id=log.target_user_id) }}" class="admin-link">
               {{ log.target_user.display_name }}
             </a>
             {% else %}
