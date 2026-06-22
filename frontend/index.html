@@ -4,11 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
     <title>FriedSports</title>
-    <!-- Theme init: read localStorage before first paint to avoid flash -->
+    <!-- Theme init before first paint. Modes: light | dark | system. Default = dark. -->
     <script>
       (function () {
-        var t = localStorage.getItem('theme');
-        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        var t = localStorage.getItem('theme') || 'dark';
+        var d = t === 'dark' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (d) document.documentElement.setAttribute('data-theme', 'dark');
       }());
     </script>
   </head>

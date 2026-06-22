@@ -45,32 +45,22 @@ export default function Signup() {
         {error && <div className="flash flash-error">{error}</div>}
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="first_name">First Name</label>
-            <input id="first_name" type="text" required maxLength={64} style={{ fontSize: 16 }}
-              value={form.first_name} onChange={set('first_name')} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="last_name">Last Name</label>
-            <input id="last_name" type="text" required maxLength={64} style={{ fontSize: 16 }}
-              value={form.last_name} onChange={set('last_name')} />
+          <div className="name-grid">
+            <div className="form-group">
+              <label htmlFor="first_name">First Name</label>
+              <input id="first_name" type="text" required maxLength={64} style={{ fontSize: 16 }}
+                value={form.first_name} onChange={set('first_name')} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="last_name">Last Name</label>
+              <input id="last_name" type="text" required maxLength={64} style={{ fontSize: 16 }}
+                value={form.last_name} onChange={set('last_name')} />
+            </div>
           </div>
           <div className="form-group">
             <label htmlFor="display_name">Username</label>
             <input id="display_name" type="text" required maxLength={64} style={{ fontSize: 16 }}
               value={form.display_name} onChange={set('display_name')} />
-          </div>
-          <div className="form-group">
-            <label>Show publicly as</label>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.3rem' }}>
-              {['username', 'real_name'].map(v => (
-                <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                  <input type="radio" name="display_preference" value={v}
-                    checked={form.display_preference === v} onChange={set('display_preference')} />
-                  {v === 'username' ? 'Username' : 'Real name'}
-                </label>
-              ))}
-            </div>
           </div>
           <div className="form-group">
             <label htmlFor="email">Email</label>

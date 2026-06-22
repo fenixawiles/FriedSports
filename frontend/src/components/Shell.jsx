@@ -1,7 +1,7 @@
 import { Outlet, NavLink, Link, useNavigate, useMatch, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { getNotifications } from '../api/notifications'
 import { getDashboard } from '../api/groups'
 import { getThreadsList } from '../api/threads'
@@ -17,6 +17,32 @@ export default function Shell() {
   // useMatch returns a truthy object when the current path matches the pattern.
   const isThreadChat = !!useMatch('/threads/:id')
   const location     = useLocation()
+  const navRef       = useRef(null)
+
+  // Auto-hide the top navbar on scroll-down, reveal it back at the top.
+  // Direct classList toggle via ref so it never re-renders the page content.
+  useEffect(() => {
+    let ticking = false
+    function onScroll() {
+      if (ticking) return
+      ticking = true
+      requestAnimationFrame(() => {
+        ticking = false
+        const nav = navRef.current
+        if (!nav) return
+        const y = window.scrollY || document.documentElement.scrollTop || 0
+        if (y > 64) nav.classList.add('nav-hidden')
+        else if (y < 12) nav.classList.remove('nav-hidden')
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Each new page starts at the top — make sure the navbar is shown.
+  useEffect(() => {
+    navRef.current?.classList.remove('nav-hidden')
+  }, [location.pathname])
 
   // Prefetch all main tab data the moment the user is authenticated.
   // Fires 4 parallel requests in the background so every first tab tap is instant.
@@ -46,7 +72,7 @@ export default function Shell() {
     <>
       {/* ── Top navbar — hidden on thread chat (focused conversation view) ── */}
       {!isThreadChat && (
-        <nav className="navbar" id="main-nav">
+        <nav className="navbar" id="main-nav" ref={navRef}>
           <div className="nav-inner">
             <Link to="/" className="nav-logo">
               <img src={logo} className="nav-logo-img" alt="FS" width="24" height="24" />

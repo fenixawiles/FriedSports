@@ -386,6 +386,7 @@ def settings_post():
     if d.get("avatar_url") is not None: current_user.avatar_url = d["avatar_url"].strip() or None
 
     # Password change
+    password_changed = False
     if d.get("new_password"):
         if not d.get("current_password"):
             return err("Current password is required to change password")
@@ -396,6 +397,13 @@ def settings_post():
         if len(d["new_password"]) < 6:
             return err("Password must be at least 6 characters")
         current_user.set_password(d["new_password"])
+        password_changed = True
+
+    # Which devices stay signed in after a password change. Rotating the session
+    # token invalidates every other device's cookie (see User.get_id/load_user).
+    session_scope = d.get("session_scope", "")
+    if password_changed and session_scope in ("this_device", "sign_out_all"):
+        current_user.session_token = secrets.token_hex(16)
 
     # Team preferences
     leagues = ["NBA", "NFL", "MLB", "NHL", "EPL", "FIFA", "F1", "PGA"]
@@ -417,6 +425,14 @@ def settings_post():
                 db.session.delete(uft)
 
     db.session.commit()
+
+    if password_changed and session_scope == "sign_out_all":
+        logout_user()
+        return ok(signed_out=True)
+    if password_changed and session_scope == "this_device":
+        # Re-issue this device's cookie with the new token so only it survives.
+        login_user(current_user, remember=True)
+
     return ok(user=_serialize_user(current_user))
 
 
@@ -427,7 +443,22 @@ def delete_account():
     if not current_user.check_password(d.get("password", "")):
         return err("Incorrect password", 401)
     from ..routes.admin import _cascade_delete_user
-    _cascade_delete_user(current_user.id)
+    user_id = current_user.id
+    # The cascade only clears child rows + flushes; we must delete the user row
+    # AND commit, or the whole transaction is rolled back on teardown and the
+    # account (email included) silently survives.
+    try:
+        _cascade_delete_user(user_id)
+        u = db.session.get(User, user_id)
+        if u:
+            db.session.delete(u)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Account deletion failed for user %s", user_id)
+        return err("Account deletion failed. Please contact support.", 500)
+    if db.session.get(User, user_id) is not None:
+        return err("Account deletion did not complete. Please contact support.", 500)
     logout_user()
     return ok()
 

@@ -63,7 +63,7 @@ export default function Report() {
 
   return (
     <div className="group-container" style={{ maxWidth: 680 }}>
-      <BackButton fallback={`/groups/${id}`} label={`← ${data?.group_name || 'Group'}`} />
+      <BackButton fallback={`/groups/${id}`} label={data?.group_name || 'Group'} />
       <div className="group-header"><h1>Start A Thread</h1></div>
 
       {error && <div className="flash flash-error">{error}</div>}

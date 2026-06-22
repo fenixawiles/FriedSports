@@ -20,6 +20,7 @@ export default function Settings() {
   const [error, setError]   = useState('')
   const [success, setSuccess] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
+  const [showPwSheet, setShowPwSheet] = useState(false)
 
   useEffect(() => {
     if (!data?.user) return
@@ -42,10 +43,25 @@ export default function Settings() {
   }, [data])
 
   const saveMut = useMutation({
-    mutationFn: () => updateSettings({ ...form, ...teamSelections }),
-    onSuccess: () => { setSuccess('Settings saved!'); setTimeout(() => setSuccess(''), 3000) },
+    mutationFn: (scope) => updateSettings({ ...form, ...teamSelections, session_scope: scope || '' }),
+    onSuccess: async (data) => {
+      if (data?.signed_out) { await logout(); navigate('/login'); return }
+      setSuccess('Settings saved!'); setTimeout(() => setSuccess(''), 3000)
+      setForm(f => ({ ...f, current_password: '', new_password: '', confirm_password: '' }))
+    },
     onError: (err) => setError(err.message || 'Failed to save'),
   })
+
+  function handleSave() {
+    setError('')
+    // Changing the password requires choosing which devices stay signed in.
+    if (form.new_password) { setShowPwSheet(true); return }
+    saveMut.mutate('')
+  }
+  function chooseScope(scope) {
+    setShowPwSheet(false)
+    saveMut.mutate(scope)
+  }
 
   const deleteMut = useMutation({
     mutationFn: () => deleteAccount({ password: confirmPw }),
@@ -132,7 +148,7 @@ export default function Settings() {
       </section>
 
       <button className="btn-primary" style={{ marginBottom: '2rem' }}
-        onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+        onClick={handleSave} disabled={saveMut.isPending}>
         {saveMut.isPending ? 'Saving…' : 'Save Changes'}
       </button>
 
@@ -150,6 +166,32 @@ export default function Settings() {
           </button>
         </div>
       </section>
+
+      {/* Password-change device sign-out sheet */}
+      {showPwSheet && (
+        <div className="pw-sheet" onClick={(e) => { if (e.target === e.currentTarget) setShowPwSheet(false) }}>
+          <div className="pw-sheet-backdrop" onClick={() => setShowPwSheet(false)} />
+          <div className="pw-sheet-card" role="dialog" aria-modal="true">
+            <div className="pw-sheet-head">
+              <div className="pw-sheet-title">Update your password</div>
+              <div className="pw-sheet-sub">Choose which devices stay signed in.</div>
+            </div>
+            <button type="button" className="pw-sheet-opt" onClick={() => chooseScope('this_device')}>
+              <span className="pw-opt-main">Sign out other devices</span>
+              <span className="pw-opt-sub">Stay signed in on this device only</span>
+            </button>
+            <button type="button" className="pw-sheet-opt" onClick={() => chooseScope('all_devices')}>
+              <span className="pw-opt-main">Keep all devices signed in</span>
+              <span className="pw-opt-sub">Nothing else gets logged out</span>
+            </button>
+            <button type="button" className="pw-sheet-opt pw-opt-danger" onClick={() => chooseScope('sign_out_all')}>
+              <span className="pw-opt-main">Sign out everywhere</span>
+              <span className="pw-opt-sub">This device too — you'll log in again</span>
+            </button>
+            <button type="button" className="pw-sheet-cancel" onClick={() => setShowPwSheet(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

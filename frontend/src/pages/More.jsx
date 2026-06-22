@@ -4,7 +4,7 @@ import { useTheme } from '../context/ThemeContext'
 
 export default function More() {
   const { user, logout } = useAuth()
-  const { dark, toggle } = useTheme()
+  const { mode, setMode } = useTheme()
   const navigate = useNavigate()
 
   async function handleLogout() {
@@ -27,25 +27,22 @@ export default function More() {
           <span>Settings</span>
           <span className="more-chevron">›</span>
         </Link>
-        <label className="more-row more-row-toggle" style={{ cursor: 'pointer' }}>
-          <span>Dark Mode</span>
-          <span className="theme-switch">
-            <input type="checkbox" checked={dark} onChange={toggle} style={{ display: 'none' }} />
-            <span className="theme-switch-track" style={{
-              display: 'inline-block', width: 44, height: 24, borderRadius: 12,
-              background: dark ? 'var(--accent)' : 'var(--bg-elevated)',
-              border: '2px solid var(--border)',
-              position: 'relative', transition: 'background 0.2s',
-            }}>
-              <span style={{
-                position: 'absolute', top: 2, left: dark ? 20 : 2,
-                width: 16, height: 16, borderRadius: '50%',
-                background: dark ? '#fff' : 'var(--text-muted)',
-                transition: 'left 0.2s',
-              }} />
-            </span>
-          </span>
-        </label>
+        <div className="more-row more-row-appearance">
+          <span>Appearance</span>
+          <div className="theme-seg" role="group" aria-label="Appearance">
+            {['light', 'system', 'dark'].map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={'theme-seg-btn' + (mode === m ? ' active' : '')}
+                aria-pressed={mode === m}
+                onClick={() => setMode(m)}
+              >
+                {m === 'light' ? 'Light' : m === 'system' ? 'System' : 'Dark'}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Groups */}
