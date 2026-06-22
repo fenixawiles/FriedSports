@@ -18,6 +18,7 @@ import ResetPassword from './pages/ResetPassword'
 // Pages — main tabs
 import Dashboard    from './pages/Dashboard'
 import Threads      from './pages/Threads'
+import NewThread    from './pages/NewThread'
 import Friends      from './pages/Friends'
 import Notifications from './pages/Notifications'
 import More         from './pages/More'
@@ -83,7 +84,7 @@ export default function App() {
       persistOptions={{
         persister,
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        buster: 'v1',                 // bump this string to wipe old caches after breaking changes
+        buster: 'v2-chat-flow',       // bump this string to wipe old caches after breaking changes
       }}
     >
       <AuthProvider>
@@ -114,6 +115,7 @@ export default function App() {
                 <Route path="/onboarding"  element={<RequireAuth><Onboarding /></RequireAuth>} />
                 <Route path="/dashboard"   element={<RequireAuth><Dashboard /></RequireAuth>} />
                 <Route path="/threads"     element={<RequireAuth><Threads /></RequireAuth>} />
+                <Route path="/threads/new" element={<RequireAuth><NewThread /></RequireAuth>} />
                 <Route path="/friends"     element={<RequireAuth><Friends /></RequireAuth>} />
                 <Route path="/notifications" element={<RequireAuth><Notifications /></RequireAuth>} />
                 <Route path="/more"        element={<RequireAuth><More /></RequireAuth>} />

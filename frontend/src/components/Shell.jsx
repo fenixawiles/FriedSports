@@ -15,7 +15,8 @@ export default function Shell() {
 
   // Thread chat is a focused full-screen view — hide all navigation chrome.
   // useMatch returns a truthy object when the current path matches the pattern.
-  const isThreadChat = !!useMatch('/threads/:id')
+  const threadChatMatch = useMatch('/threads/:id')
+  const isThreadChat = !!threadChatMatch && threadChatMatch.params.id !== 'new'
   const location     = useLocation()
   const navRef       = useRef(null)
 

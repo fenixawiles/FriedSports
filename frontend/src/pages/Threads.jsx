@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getThreadsList, getThread, createChatThread } from '../api/threads'
-import { getFriends } from '../api/friends'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { getThreadsList, getThread } from '../api/threads'
 import { Skeleton } from '../components/Skeleton'
 
 function ThreadsSkeleton() {
@@ -61,43 +60,15 @@ export default function Threads() {
 
   const [filterGroup, setFilterGroup]       = useState('all')
   const [filterOpen, setFilterOpen]         = useState(false)
-  const [fabOpen, setFabOpen]               = useState(false)
-  const [chatError, setChatError]           = useState('')
-
-  const { data: friendsData, isLoading: friendsLoading } = useQuery({
-    queryKey: ['friends'],
-    queryFn: getFriends,
-    enabled: fabOpen,
-  })
-
-  const chatMut = useMutation({
-    mutationFn: createChatThread,
-    onSuccess: (res) => {
-      setFabOpen(false)
-      setChatError('')
-      qc.invalidateQueries(['threads'])
-      navigate(`/threads/${res.thread_id}`)
-    },
-    onError: (err) => setChatError(err.message || 'Could not start chat'),
-  })
 
   const threads   = data?.threads    ?? []
   const groups    = data?.groups     ?? []
-  const friends   = friendsData?.friends ?? []
   const lastMsgs  = data?.last_msgs  ?? {}
 
   const filtered = useMemo(() => {
     if (filterGroup === 'all') return threads
     return threads.filter(t => String(t.group_id) === String(filterGroup))
   }, [threads, filterGroup])
-
-  function startGroupChat(groupId) {
-    chatMut.mutate({ type: 'group', group_id: groupId })
-  }
-
-  function startDirectChat(userId) {
-    chatMut.mutate({ type: 'direct', user_id: userId })
-  }
 
   return (
     <div className="threads-page-container">
@@ -112,7 +83,7 @@ export default function Threads() {
             <div className="threads-filter-menu">
               <button className={`threads-filter-item${filterGroup === 'all' ? ' active' : ''}`}
                 onClick={() => { setFilterGroup('all'); setFilterOpen(false) }}>
-                All Groups
+                All Chats
               </button>
               {groups.map(g => (
                 <button key={g.id}
@@ -168,45 +139,7 @@ export default function Threads() {
       )}
 
       {/* FAB */}
-      <button className="threads-fab" onClick={() => { setChatError(''); setFabOpen(true) }} aria-label="New chat">+</button>
-
-      {fabOpen && (
-        <>
-          <div className="threads-fab-backdrop" onClick={() => setFabOpen(false)} />
-          <div className="threads-fab-sheet">
-            <div className="threads-fab-sheet-handle" />
-            <div className="threads-fab-sheet-title">New chat</div>
-            {chatError && <div className="threads-fab-error">{chatError}</div>}
-
-            <div className="threads-fab-section-label">Groups</div>
-            {groups.length === 0 ? (
-              <div className="threads-fab-empty">Join or create a group first.</div>
-            ) : groups.map(g => (
-              <button key={`group-${g.id}`} type="button" className="threads-fab-group-row"
-                disabled={chatMut.isPending}
-                onClick={() => startGroupChat(g.id)}>
-                <span className="threads-fab-row-main">{g.name}</span>
-                <span className="threads-fab-row-sub">Group chat</span>
-              </button>
-            ))}
-
-            <div className="threads-fab-section-label">Friends</div>
-            {friendsLoading ? (
-              <div className="threads-fab-empty">Loading friends…</div>
-            ) : friends.length === 0 ? (
-              <div className="threads-fab-empty">Add a friend to start a direct chat.</div>
-            ) : friends.map(f => (
-              <button key={`friend-${f.id}`} type="button" className="threads-fab-group-row"
-                disabled={chatMut.isPending}
-                onClick={() => startDirectChat(f.id)}>
-                <span className="threads-fab-row-main">{f.name}</span>
-                <span className="threads-fab-row-sub">Direct message</span>
-              </button>
-            ))}
-            <button className="threads-fab-cancel" onClick={() => setFabOpen(false)}>Cancel</button>
-          </div>
-        </>
-      )}
+      <button className="threads-fab" onClick={() => navigate('/threads/new')} aria-label="New chat">+</button>
     </div>
   )
 }
