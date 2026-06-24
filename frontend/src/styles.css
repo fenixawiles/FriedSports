@@ -2252,6 +2252,14 @@ body.receipt-page {
 }
 .theme-seg-btn.active { background: var(--accent); color: #fff; }
 
+/* ── Friend row options (3-dot) button ── */
+.friend-menu-btn {
+  background: none; border: none; cursor: pointer; padding: 4px;
+  color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px; -webkit-appearance: none; appearance: none;
+}
+.friend-menu-btn:active { background: var(--bg-input); color: var(--text-primary); }
+
 /* ── Password-change device sign-out sheet ── */
 .pw-sheet { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: flex-end; justify-content: center; }
 .pw-sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); animation: pwFade 0.18s ease; }

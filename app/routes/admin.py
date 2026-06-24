@@ -866,6 +866,22 @@ def support_detail(uid):
         if new_status == "resolved":
             from datetime import datetime, timezone
             ticket.resolved_at = datetime.now(timezone.utc)
+            # Never leave a resolved ticket without a response the user can see.
+            if not ticket.admin_note:
+                ticket.admin_note = (
+                    "This ticket has been marked resolved. If your issue isn't fully "
+                    "sorted, just open a new ticket and we'll take another look."
+                )
+
+        # In-app notification so the user knows their ticket moved.
+        from app.models import Notification
+        db.session.add(Notification(
+            user_id=ticket.user_id,
+            type="ticket_update",
+            message=f"Your support ticket {ticket.uid} is now "
+                    f"{SupportTicket.STATUS_LABELS.get(new_status, new_status)}.",
+            link_url=f"/support/{ticket.uid}",
+        ))
 
         log = AdminAuditLog(
             admin_id=current_user.id,

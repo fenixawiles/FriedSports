@@ -2339,6 +2339,55 @@ def remove_friend(user_id):
     return ok()
 
 
+@bp.route("/friends/<int:user_id>/block", methods=["POST"])
+@login_required
+def block_user(user_id):
+    """Block a user: severs friendship + pending requests and hides each user's
+    content from the other (enforced via User.hidden_user_ids)."""
+    if user_id == current_user.id:
+        return err("You can't block yourself", 400)
+    target = db.session.get(User, user_id)
+    if not target:
+        return err("User not found", 404)
+    if not BlockedUser.query.filter_by(blocker_id=current_user.id, blocked_id=user_id).first():
+        db.session.add(BlockedUser(blocker_id=current_user.id, blocked_id=user_id))
+    FriendRequest.query.filter(
+        db.or_(
+            db.and_(FriendRequest.from_user_id == current_user.id, FriendRequest.to_user_id == user_id),
+            db.and_(FriendRequest.from_user_id == user_id, FriendRequest.to_user_id == current_user.id),
+        )
+    ).delete(synchronize_session=False)
+    db.session.commit()
+    return ok(blocked=True)
+
+
+@bp.route("/users/<int:user_id>/report", methods=["POST"])
+@login_required
+def report_user(user_id):
+    """Report a user for moderation. There's no dedicated user-report table, so
+    file it as a support ticket — it lands in the admin queue (/admin/support)."""
+    if user_id == current_user.id:
+        return err("You can't report yourself", 400)
+    target = db.session.get(User, user_id)
+    if not target:
+        return err("User not found", 404)
+    d = request.get_json(silent=True) or {}
+    reason = (d.get("reason") or "").strip()
+    ticket = SupportTicket(
+        user_id=current_user.id,
+        subject=f"User report: @{target.uid}",
+        category="report",
+        description=(
+            f"Reported user: {target.shown_name} (@{target.uid}, id {target.id}).\n\n"
+            f"Reason: {reason or 'No reason provided.'}"
+        ),
+        status="received",
+    )
+    db.session.add(ticket)
+    db.session.commit()
+    return ok(reported=True)
+
+
 # ── Support ───────────────────────────────────────────────────────────────────
 
 @bp.route("/support/tickets")

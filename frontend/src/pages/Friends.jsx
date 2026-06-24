@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getFriends, searchUsers, sendRequest, removeFriend } from '../api/friends'
+import { getFriends, searchUsers, sendRequest, removeFriend, blockUser, reportUser } from '../api/friends'
 import { Skeleton } from '../components/Skeleton'
 
 export default function Friends() {
   const qc = useQueryClient()
   const [query, setQuery]     = useState('')
   const [results, setResults] = useState(null)
+  const [menuFriend, setMenuFriend] = useState(null) // friend whose options sheet is open
   const debounceRef = useRef(null)
 
   const { data, isLoading } = useQuery({ queryKey: ['friends'], queryFn: getFriends })
@@ -19,6 +20,28 @@ export default function Friends() {
     mutationFn: (uid) => removeFriend(uid),
     onSuccess: () => qc.invalidateQueries(['friends']),
   })
+  const blockMut = useMutation({
+    mutationFn: (uid) => blockUser(uid),
+    onSuccess: () => qc.invalidateQueries(['friends']),
+  })
+  const reportMut = useMutation({
+    mutationFn: ({ uid, reason }) => reportUser(uid, reason),
+    onSuccess: () => window.alert('Report submitted. Our moderators will take a look.'),
+  })
+
+  function doRemove(f) {
+    setMenuFriend(null)
+    if (window.confirm(`Remove ${f.name}?`)) removeMut.mutate(f.id)
+  }
+  function doBlock(f) {
+    setMenuFriend(null)
+    if (window.confirm(`Block ${f.name}? You'll be unfriended and you won't see each other's content.`)) blockMut.mutate(f.id)
+  }
+  function doReport(f) {
+    setMenuFriend(null)
+    const reason = window.prompt(`Report ${f.name} to the moderators? Add a reason (optional):`, '')
+    if (reason !== null) reportMut.mutate({ uid: f.id, reason: reason || '' })
+  }
 
   useEffect(() => {
     clearTimeout(debounceRef.current)
@@ -117,9 +140,12 @@ export default function Friends() {
                 <span className="member-name">{f.name}</span>
                 <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{f.uid}</span>
                 <span>
-                  <button className="btn-danger-tiny"
-                    onClick={() => { if (window.confirm(`Remove ${f.name}?`)) removeMut.mutate(f.id) }}>
-                    Remove
+                  <button className="friend-menu-btn" aria-label="Friend options"
+                    onClick={() => setMenuFriend(f)}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                      fill="currentColor" aria-hidden="true">
+                      <circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>
+                    </svg>
                   </button>
                 </span>
               </div>
@@ -127,6 +153,30 @@ export default function Friends() {
           </div>
         )}
       </section>
+
+      {/* Friend options sheet (reuses the pw-sheet styles) */}
+      {menuFriend && (
+        <div className="pw-sheet" onClick={(e) => { if (e.target === e.currentTarget) setMenuFriend(null) }}>
+          <div className="pw-sheet-backdrop" onClick={() => setMenuFriend(null)} />
+          <div className="pw-sheet-card" role="dialog" aria-modal="true">
+            <div className="pw-sheet-head">
+              <div className="pw-sheet-title">{menuFriend.name}</div>
+            </div>
+            <button type="button" className="pw-sheet-opt" onClick={() => doReport(menuFriend)}>
+              <span className="pw-opt-main">Report</span>
+              <span className="pw-opt-sub">Flag this user for the moderators</span>
+            </button>
+            <button type="button" className="pw-sheet-opt" onClick={() => doBlock(menuFriend)}>
+              <span className="pw-opt-main">Block</span>
+              <span className="pw-opt-sub">Unfriend and hide each other's content</span>
+            </button>
+            <button type="button" className="pw-sheet-opt pw-opt-danger" onClick={() => doRemove(menuFriend)}>
+              <span className="pw-opt-main">Remove friend</span>
+            </button>
+            <button type="button" className="pw-sheet-cancel" onClick={() => setMenuFriend(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
