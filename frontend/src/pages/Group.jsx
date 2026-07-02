@@ -28,6 +28,7 @@ export default function Group() {
 
   const [inviteOpen, setInviteOpen]   = useState(false)
   const [inviteEmail_, setInviteEmail_] = useState('')
+  const [inviteMsg, setInviteMsg]     = useState('')
   const [copied, setCopied]           = useState(false)
   const [actionError, setActionError] = useState('')
 
@@ -56,7 +57,13 @@ export default function Group() {
   })
   const inviteMut  = useMutation({
     mutationFn: () => inviteEmail(id, inviteEmail_),
-    onSuccess: () => { setInviteEmail_(''); setInviteOpen(false) },
+    onSuccess: (data) => {
+      setInviteMsg(data?.sent
+        ? `Invite emailed to ${inviteEmail_}.`
+        : `We couldn't email that invite (they'll still get an in-app invite if they have an account). Share the link below instead.`)
+      setInviteEmail_('')
+    },
+    onError: (err) => setInviteMsg(err.message || 'Could not send invite.'),
   })
   const removeMut  = useMutation({ mutationFn: (uid) => removeMember(id, uid), ...mutOpts })
   const transferMut = useMutation({ mutationFn: (uid) => transferOwner(id, uid), ...mutOpts })
@@ -142,8 +149,10 @@ export default function Group() {
             <div className="invite-panel-row">
               <input type="email" className="invite-url-input" placeholder="friend@example.com"
                 value={inviteEmail_} onChange={e => setInviteEmail_(e.target.value)} />
-              <button className="btn-primary-small" onClick={() => inviteMut.mutate()}>Send Invite</button>
+              <button className="btn-primary-small" disabled={inviteMut.isPending || !inviteEmail_}
+                onClick={() => inviteMut.mutate()}>Send Invite</button>
             </div>
+            {inviteMsg && <div className="invite-panel-note">{inviteMsg}</div>}
             <div className="invite-panel-label" style={{ marginTop: '0.75rem' }}>Or share the link directly</div>
             <div className="invite-panel-row">
               <input type="text" className="invite-url-input" readOnly value={inviteUrl} />

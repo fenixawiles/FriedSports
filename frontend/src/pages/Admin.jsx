@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   actionAdminReport,
+  approveAdminUser,
   createAdminGame,
   createAdminMetric,
   createAdminPlayer,
@@ -92,12 +93,14 @@ function UsersPanel() {
   const [edit, setEdit] = useState({ email: '', role: 'user', password: '' })
   const [inviteEmail, setInviteEmail] = useState('')
   const [emailForm, setEmailForm] = useState({ subject: '', body: '' })
+  const [pendingOnly, setPendingOnly] = useState(false)
 
   const usersQuery = useQuery({
-    queryKey: ['admin-users', query],
-    queryFn: () => getAdminUsers(query),
+    queryKey: ['admin-users', query, pendingOnly],
+    queryFn: () => getAdminUsers(query, pendingOnly),
   })
   const users = usersQuery.data?.users ?? []
+  const pendingCount = usersQuery.data?.pending_count ?? 0
   const firstId = users[0]?.id
   const activeId = selectedId || firstId || null
 
@@ -160,6 +163,11 @@ function UsersPanel() {
     },
     onError: err => setError(err.message || 'Prompt failed'),
   })
+  const approveMut = useMutation({
+    mutationFn: (id) => approveAdminUser(id),
+    onSuccess: () => { setNotice('User approved'); setError(''); refresh() },
+    onError: err => setError(err.message || 'Approve failed'),
+  })
 
   return (
     <div className="admin-work-grid">
@@ -180,6 +188,14 @@ function UsersPanel() {
             Invite
           </button>
         </div>
+        <div className="admin-filter-row">
+          <button type="button" className={pendingOnly ? '' : 'active'} onClick={() => setPendingOnly(false)}>
+            All
+          </button>
+          <button type="button" className={pendingOnly ? 'active' : ''} onClick={() => setPendingOnly(true)}>
+            Pending approval {pendingCount > 0 && <span className="notif-count-chip">{pendingCount}</span>}
+          </button>
+        </div>
         <div className="admin-list">
           {usersQuery.isLoading ? <div className="admin-empty">Loading users…</div> : users.map(row => (
             <button
@@ -191,9 +207,14 @@ function UsersPanel() {
                 <strong>{row.name}</strong>
                 <small>{row.email}</small>
               </span>
-              <em>{row.role}</em>
+              {row.email_verified
+                ? <em>{row.role}</em>
+                : <em className="admin-pending-tag">Pending</em>}
             </button>
           ))}
+          {!usersQuery.isLoading && users.length === 0 && (
+            <div className="admin-empty">{pendingOnly ? 'No one is waiting on approval.' : 'No users found.'}</div>
+          )}
         </div>
       </section>
 
@@ -209,8 +230,20 @@ function UsersPanel() {
                 <span className="admin-panel-title">{user.name}</span>
                 <span className="admin-panel-sub">{user.uid} · joined {fmtDate(user.created_at)}</span>
               </div>
-              <span className={`badge-role ${user.role === 'admin' ? 'owner' : 'member'}`}>{user.role}</span>
+              <div className="admin-detail-badges">
+                {!user.email_verified && <span className="admin-pending-tag">Pending</span>}
+                <span className={`badge-role ${user.role === 'admin' ? 'owner' : 'member'}`}>{user.role}</span>
+              </div>
             </div>
+            {!user.email_verified && (
+              <div className="admin-approve-banner">
+                <span>This account is waiting on approval (verification codes are off).</span>
+                <button type="button" className="btn-primary-small" disabled={approveMut.isPending}
+                  onClick={() => approveMut.mutate(user.id)}>
+                  Approve
+                </button>
+              </div>
+            )}
             <div className="admin-form-grid">
               <TextInput label="Email" value={edit.email} onChange={v => setEdit(f => ({ ...f, email: v }))} />
               <SelectInput label="Role" value={edit.role} onChange={v => setEdit(f => ({ ...f, role: v }))}>
@@ -250,7 +283,7 @@ function UsersPanel() {
             <div className="admin-meta-grid">
               <div><span>Terms</span><strong>{fmtDate(user.agreed_to_terms_at)}</strong></div>
               <div><span>Last active</span><strong>{fmtDate(user.last_active_at)}</strong></div>
-              <div><span>Verified</span><strong>{user.email_verified ? 'Yes' : 'No'}</strong></div>
+              <div><span>Status</span><strong>{user.email_verified ? 'Approved' : 'Pending'}</strong></div>
             </div>
             <div className="admin-related">
               <span className="admin-panel-sub">Groups</span>
@@ -711,6 +744,7 @@ export default function Admin() {
 
       <section className="admin-stat-grid" aria-label="Admin summary">
         <Stat label="Users" value={stats.users} />
+        <Stat label="Pending" value={stats.pending_verification} />
         <Stat label="Groups" value={stats.groups} />
         <Stat label="Threads" value={stats.active_threads} />
         <Stat label="Open Support" value={stats.support_open} />

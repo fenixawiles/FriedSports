@@ -293,6 +293,7 @@ def seasons_new():
 @admin_required
 def users_list():
     search = request.args.get("q", "").strip()
+    pending = request.args.get("pending") in ("1", "true", "yes")
     page = request.args.get("page", 1, type=int)
     query = User.query.order_by(User.created_at.desc())
     if search:
@@ -303,8 +304,12 @@ def users_list():
                 User.uid.ilike(f"%{search}%"),
             )
         )
+    if pending:
+        query = query.filter_by(email_verified=False)
     users = query.paginate(page=page, per_page=50, error_out=False)
-    return render_template("admin/users/list.html", users=users, search=search)
+    pending_total = User.query.filter_by(email_verified=False).count()
+    return render_template("admin/users/list.html", users=users, search=search,
+                           pending=pending, pending_total=pending_total)
 
 
 @admin_bp.route("/users/<int:user_id>")
@@ -379,6 +384,22 @@ def users_change_role(user_id):
         _audit("change_role", user, f"{old_role} → {new_role}")
         db.session.commit()
         flash(f"Role updated to '{new_role}'.", "success")
+    return redirect(url_for("admin.users_detail", user_id=user_id))
+
+
+@admin_bp.route("/users/<int:user_id>/approve", methods=["POST"])
+@login_required
+@admin_required
+def users_approve(user_id):
+    """Manually approve a pending account (email verification codes are off)."""
+    user = db.session.get(User, user_id) or abort(404)
+    if not user.email_verified:
+        user.email_verified = True
+        _audit("approve_user", user, "Manually approved (verification bypassed)")
+        db.session.commit()
+        flash(f"{user.display_name} approved.", "success")
+    else:
+        flash("That user is already approved.", "info")
     return redirect(url_for("admin.users_detail", user_id=user_id))
 
 

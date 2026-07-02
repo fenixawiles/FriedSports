@@ -1,9 +1,10 @@
 import client from './client'
 
 export const getAdminOverview = () => client.get('/admin/overview').then(r => r.data)
-export const getAdminUsers = (q = '') =>
-  client.get('/admin/users', { params: { q } }).then(r => r.data)
+export const getAdminUsers = (q = '', pending = false) =>
+  client.get('/admin/users', { params: { q, pending: pending ? 1 : undefined } }).then(r => r.data)
 export const getAdminUser = (id) => client.get(`/admin/users/${id}`).then(r => r.data)
+export const approveAdminUser = (id) => client.post(`/admin/users/${id}/approve`).then(r => r.data)
 export const updateAdminUser = (id, data) => client.patch(`/admin/users/${id}`, data).then(r => r.data)
 export const deleteAdminUser = (id) => client.delete(`/admin/users/${id}`).then(r => r.data)
 export const inviteAdminUser = (data) => client.post('/admin/users/invite', data).then(r => r.data)

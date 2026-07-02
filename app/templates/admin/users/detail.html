@@ -9,10 +9,18 @@
       <div class="group-header-meta">
         <span style="font-size:0.8rem;color:var(--text-muted)">{{ user.email }}</span>
         <span class="badge-role {% if user.is_admin %}admin{% else %}member{% endif %}">{{ user.role }}</span>
+        {% if not user.email_verified %}
+        <span class="badge-role" style="color:var(--gold);border-color:var(--gold)">Pending approval</span>
+        {% endif %}
         <span style="font-size:0.8rem;color:var(--text-muted);font-family:monospace">{{ user.uid }}</span>
       </div>
     </div>
     <div class="group-actions">
+      {% if not user.email_verified %}
+      <form action="{{ url_for('admin.users_approve', user_id=user.id) }}" method="post" style="display:inline">
+        <button type="submit" class="btn-primary-small">Approve account</button>
+      </form>
+      {% endif %}
       <a href="{{ url_for('admin.users_list') }}" class="btn-secondary-small">← Users</a>
     </div>
   </div>

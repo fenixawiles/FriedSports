@@ -22,7 +22,16 @@
 
   <!-- Search -->
   <section class="group-section">
+    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
+      <a href="{{ url_for('admin.users_list', q=search) }}"
+         class="btn-secondary-small{% if not pending %} btn-primary-small{% endif %}">All</a>
+      <a href="{{ url_for('admin.users_list', q=search, pending=1) }}"
+         class="btn-secondary-small{% if pending %} btn-primary-small{% endif %}">
+        Pending approval{% if pending_total %} ({{ pending_total }}){% endif %}
+      </a>
+    </div>
     <form method="get" style="display:flex;gap:0.5rem;margin-bottom:1rem">
+      {% if pending %}<input type="hidden" name="pending" value="1">{% endif %}
       <input type="text" name="q" value="{{ search }}" placeholder="Search by name or email…"
              style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:0.35rem 0.75rem;border-radius:6px;font-size:0.85rem;flex:1">
       <button type="submit" class="btn-secondary-small">Search</button>
@@ -39,14 +48,23 @@
         <span style="font-family:monospace;font-size:0.75rem;color:var(--text-muted)">{{ user.uid }}</span>
         <span style="color:var(--text-secondary);font-size:0.82rem">{{ user.email }}</span>
         <span>
+          {% if user.email_verified %}
           <span class="badge-role {% if user.is_admin %}admin{% else %}member{% endif %}">
             {{ user.role }}
           </span>
+          {% else %}
+          <span class="badge-role" style="color:var(--gold);border-color:var(--gold)">Pending</span>
+          {% endif %}
         </span>
         <span style="font-size:0.75rem;color:var(--text-muted)">
           {{ user.created_at.strftime('%b %d, %Y') if user.created_at else '—' }}
         </span>
-        <span>
+        <span style="display:flex;gap:0.4rem;align-items:center">
+          {% if not user.email_verified %}
+          <form action="{{ url_for('admin.users_approve', user_id=user.id) }}" method="post" style="display:inline">
+            <button type="submit" class="btn-primary-small">Approve</button>
+          </form>
+          {% endif %}
           <a href="{{ url_for('admin.users_detail', user_id=user.id) }}" class="btn-secondary-small">View</a>
         </span>
       </div>

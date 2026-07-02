@@ -199,19 +199,14 @@ def auth_signup():
     if admin_email and u.email == admin_email.lower():
         u.role = "admin"
 
-    # Send OTP
-    token = LoginToken(
-        user_id=u.id,
-        token=secrets.token_urlsafe(16),
-        purpose="signup_code",
-        code="".join(secrets.choice(string.digits) for _ in range(8)),
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
-    )
-    db.session.add(token)
+    # Email verification codes are disabled for now (delivery is unreliable and was
+    # stranding real signups). The account is created in a "pending" state
+    # (email_verified stays False) and the user is let straight into the app; admins
+    # review the pending queue and approve manually in /admin. No code is sent.
     db.session.commit()
 
-    _send_code_email(u.email, token.code)
-    return ok(next="verify-code"), 201
+    login_user(u, remember=True)
+    return ok(user=_serialize_user(u), next="/onboarding"), 201
 
 
 @bp.route("/auth/login", methods=["POST"])
@@ -569,6 +564,7 @@ def admin_overview():
             "active_threads": GameThread.query.filter_by(status="active").count(),
             "support_open": SupportTicket.query.filter(SupportTicket.status != "resolved").count(),
             "reports_open": MessageReport.query.filter_by(status="open").count(),
+            "pending_verification": User.query.filter_by(email_verified=False).count(),
             "lab_games": LabGame.query.count(),
             "lab_players": LabPlayer.query.count(),
             "derived_games": derived_count,
@@ -644,8 +640,29 @@ def admin_users():
             User.first_name.ilike(like),
             User.last_name.ilike(like),
         ))
+    # ?pending=1 narrows to accounts still awaiting manual approval
+    if request.args.get("pending") in ("1", "true", "yes"):
+        query = query.filter_by(email_verified=False)
     users = query.limit(80).all()
-    return ok(users=[_admin_user_summary(u) for u in users])
+    return ok(
+        users=[_admin_user_summary(u) for u in users],
+        pending_count=User.query.filter_by(email_verified=False).count(),
+    )
+
+
+@bp.route("/admin/users/<int:user_id>/approve", methods=["POST"])
+@login_required
+def admin_approve_user(user_id):
+    """Manually approve a pending account (email verification codes are off)."""
+    denied = _require_admin_json()
+    if denied:
+        return denied
+    user = User.query.get_or_404(user_id)
+    if not user.email_verified:
+        user.email_verified = True
+        _admin_audit("approve_user", user, "Manually approved (verification bypassed)")
+        db.session.commit()
+    return ok(user=_admin_user_summary(user))
 
 
 @bp.route("/admin/users/<int:user_id>")
@@ -1557,21 +1574,34 @@ def group_invite_email(group_id):
     if not g.is_member(current_user.id):
         return err("Not a member", 403)
     d = request.get_json(silent=True) or {}
-    email = d.get("email", "").strip()
-    if not email:
-        return err("Email is required")
-    invite_url = f"{request.host_url.rstrip('/')}/groups/join/{g.invite_code}"
+    email = d.get("email", "").strip().lower()
+    if not email or "@" not in email:
+        return err("Enter a valid email address")
+
+    invite_url = f"{request.host_url}groups/join/{g.invite_code}"
+
+    # Use the shared email service (sets the Resend key + verified MAIL_FROM domain
+    # + branded HTML). Returns False when RESEND_API_KEY isn't configured.
+    sent = False
     try:
-        import resend
-        resend.Emails.send({
-            "from": "FriedSports <noreply@friedsports.app>",
-            "to": [email],
-            "subject": f"{current_user.shown_name} invited you to {g.name}",
-            "text": f"Join {g.name} on FriedSports: {invite_url}",
-        })
-    except Exception:
-        pass
-    return ok()
+        from app.services.email_service import send_invite_email
+        sent = send_invite_email(email, current_user, g, invite_url)
+    except Exception as e:
+        current_app.logger.error(f"Invite email failed: {e}")
+
+    # Fallback: if the invitee already has an account, drop an in-app notification
+    # so the invite lands even when email delivery is down.
+    existing = User.query.filter_by(email=email).first()
+    if existing and existing.id != current_user.id:
+        db.session.add(Notification(
+            user_id=existing.id,
+            type="group_invite",
+            message=f"{current_user.shown_name} invited you to join {g.name}",
+            link_url=f"/groups/join/{g.invite_code}",
+        ))
+        db.session.commit()
+
+    return ok(sent=bool(sent))
 
 
 @bp.route("/groups/<int:group_id>/regenerate-invite", methods=["POST"])

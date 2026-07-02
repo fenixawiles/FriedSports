@@ -122,24 +122,11 @@ def signup():
                     pass
         threading.Thread(target=_welcome_bg, args=(_app, _uid), daemon=True).start()
 
-        # Send 8-digit verification OTP before logging in
-        code = str(random.randint(10000000, 99999999))
-        tok = LoginToken(
-            user_id=user.id,
-            token=secrets.token_urlsafe(16),
-            purpose="signup_code",
-            code=code,
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
-        )
-        db.session.add(tok)
-        db.session.commit()
-
-        _send_otp_background(current_app._get_current_object(), user.id, code, "signup_code")
-
-        flash("Check your email — we sent you an 8-digit verification code.", "info")
+        # Email verification codes are disabled for now — log the user straight in.
+        # The account is left email_verified=False ("pending") for admin review/approval.
+        login_user(user, remember=True)
         next_page = request.form.get("next") or request.args.get("next")
-        return redirect(url_for("auth.verify_code", email=user.email,
-                                next=next_page or url_for("dashboard.onboarding")))
+        return redirect(next_page or url_for("dashboard.onboarding"))
 
     return render_template("auth/signup.html")
 

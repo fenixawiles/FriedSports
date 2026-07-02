@@ -15,16 +15,32 @@
   --text-muted:     #8e8e93;
   --green: #1d8742;
   --font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-  --radius: 8px;
-  --radius-sm: 5px;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.1), 0 8px 32px rgba(0,0,0,0.06);
+  --radius: 13px;
+  --radius-sm: 9px;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.1), 0 8px 32px rgba(0,0,0,0.06), inset 0 1px 0 var(--glass-hairline);
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
   /* Navigation-specific tokens */
-  --nav-bg:             rgba(249,249,249,0.92);
-  --nav-border-color:   rgba(0,0,0,0.1);
+  --nav-bg:             rgba(249,249,249,0.72);
+  --nav-border-color:   rgba(0,0,0,0.08);
   --bottom-nav-bg:      rgba(249,249,249,0.97);
   --bottom-nav-border:  rgba(0,0,0,0.12);
   --bottom-nav-item-color: #636366;
+  /* ── iOS 26 Liquid Glass — material tokens (light) ──
+     Glass is reserved for chrome (bars, sheets, floating menus). Content stays
+     opaque and uses --glass-hairline for the lit top edge without the blur cost. */
+  --glass-blur:      22px;
+  --glass-saturate:  180%;
+  --glass-bg:        rgba(255,255,255,0.55);   /* translucent glass fill */
+  --glass-bg-strong: rgba(255,255,255,0.72);   /* floating tab bar / sheets */
+  --glass-border:    rgba(255,255,255,0.6);    /* refractive rim */
+  --glass-hairline:  rgba(255,255,255,0.75);   /* top specular highlight */
+  --glass-shadow:    0 10px 34px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06);
+  --radius-lg:       22px;   /* cards, sheets */
+  --radius-capsule:  999px;  /* pills, floating bar */
+  /* Organic spring easing — used app-wide so motion feels fluid, not mechanical */
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Center-weighted hairline: a divider that fades to nothing at both ends */
+  --divider-fade: linear-gradient(90deg, transparent, var(--border-mid) 20%, var(--border-mid) 80%, transparent);
 }
 
 /* ── Variables — Dark mode ── */
@@ -43,13 +59,21 @@
   --text-secondary: #9898b4;
   --text-muted:     #72728a;
   --green: #34c77b;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.5), 0 8px 32px rgba(0,0,0,0.3);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.5), 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 var(--glass-hairline);
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
-  --nav-bg:             rgba(7,7,14,0.92);
-  --nav-border-color:   rgba(255,255,255,0.06);
+  --nav-bg:             rgba(18,18,20,0.62);
+  --nav-border-color:   rgba(255,255,255,0.08);
   --bottom-nav-bg:      #1e1e1e;
   --bottom-nav-border:  #2e2e3a;
   --bottom-nav-item-color: #888;
+  /* ── iOS 26 Liquid Glass — material tokens (dark) ── */
+  --glass-blur:      24px;
+  --glass-saturate:  170%;
+  --glass-bg:        rgba(28,28,32,0.5);
+  --glass-bg-strong: rgba(30,30,34,0.68);
+  --glass-border:    rgba(255,255,255,0.14);
+  --glass-hairline:  rgba(255,255,255,0.16);
+  --glass-shadow:    0 10px 34px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4);
 }
 
 /* ── Reset ── */
@@ -138,13 +162,27 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 /* ── Navbar ── */
 .navbar {
   background: var(--nav-bg);
-  border-bottom: 1px solid var(--nav-border-color);
+  /* No hard divider line — glass should melt into the content, not sit in a box.
+     A soft, barely-there depth shadow gives separation without rigidity. */
+  border-bottom: none;
   position: sticky; top: 0; z-index: 100;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* Liquid Glass: heavy blur + saturation refracts content scrolling underneath */
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: 0 8px 22px -16px rgba(0,0,0,0.5);
   /* Safe area: push content below Dynamic Island / notch */
   padding-top: env(safe-area-inset-top);
-  transition: transform 0.3s ease; will-change: transform;
+  /* Springy, organic hide/reveal instead of a mechanical linear slide */
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); will-change: transform;
+}
+/* A soft gradient lip fades the glass into the page below — no crisp edge. */
+.navbar::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -14px; height: 14px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--nav-bg), transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+          mask-image: linear-gradient(to bottom, #000, transparent);
 }
 /* Auto-hide on scroll-down, reveal at the top (toggled from Shell). */
 .navbar.nav-hidden { transform: translateY(-100%); }
@@ -179,11 +217,14 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 /* ── Flash messages ── */
 .flash-container { position: fixed; top: 60px; right: 1.25rem; z-index: 200; display: flex; flex-direction: column; gap: 0.4rem; }
 .flash {
-  padding: 0.7rem 1.1rem; border-radius: var(--radius-sm);
+  padding: 0.7rem 1.1rem; border-radius: var(--radius);
   font-size: 0.875rem; max-width: 340px;
   border-left: 3px solid transparent;
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-card);
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   animation: slideIn 0.18s ease;
 }
 @keyframes slideIn { from { transform: translateX(16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -205,35 +246,40 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 .btn-primary {
   background: var(--accent); color: #fff;
   border: none; padding: 0.6rem 1.4rem;
-  border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 600;
-  cursor: pointer; transition: opacity 0.15s;
+  border-radius: var(--radius-capsule); font-size: 0.9rem; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s, transform 0.1s ease;
   display: inline-block; text-decoration: none;
   letter-spacing: 0.01em;
+  /* Glossy top-edge highlight over the accent fill */
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.22);
 }
+.btn-primary:active { transform: scale(0.97); }
 .btn-primary:hover { opacity: 0.88; text-decoration: none; color: #fff; }
-.btn-primary-small { background: var(--accent); color: #fff; padding: 0.3rem 0.8rem; border-radius: var(--radius-sm); font-size: 0.82rem; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; min-height: 36px; }
+.btn-primary-small { background: var(--accent); color: #fff; padding: 0.3rem 0.9rem; border-radius: var(--radius-capsule); font-size: 0.82rem; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; min-height: 36px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.22); }
 .btn-primary-small:hover { opacity: 0.88; text-decoration: none; color: #fff; }
 .btn-secondary {
-  background: transparent; color: var(--text-secondary);
+  background: var(--glass-bg); color: var(--text-secondary);
   border: 1px solid var(--border-mid); padding: 0.6rem 1.4rem;
-  border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 500;
+  border-radius: var(--radius-capsule); font-size: 0.9rem; font-weight: 500;
   cursor: pointer; transition: border-color 0.15s, color 0.15s;
   display: inline-block; text-decoration: none;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .btn-secondary:hover { border-color: var(--border-mid); color: var(--text-primary); text-decoration: none; }
 .btn-secondary-small {
-  background: transparent; color: var(--text-secondary);
-  border: 1px solid var(--border); padding: 0.28rem 0.7rem;
-  border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 500;
+  background: var(--glass-bg); color: var(--text-secondary);
+  border: 1px solid var(--border); padding: 0.28rem 0.8rem;
+  border-radius: var(--radius-capsule); font-size: 0.8rem; font-weight: 500;
   cursor: pointer; transition: border-color 0.15s, color 0.15s;
   display: inline-block; text-decoration: none;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .btn-secondary-small:hover { border-color: var(--border-mid); color: var(--text-primary); text-decoration: none; }
-.btn-secondary-tiny { background: transparent; color: var(--text-muted); border: 1px solid var(--border); padding: 0.18rem 0.45rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; transition: color 0.15s; }
+.btn-secondary-tiny { background: transparent; color: var(--text-muted); border: 1px solid var(--border); padding: 0.18rem 0.55rem; border-radius: var(--radius-capsule); font-size: 0.75rem; cursor: pointer; transition: color 0.15s; }
 .btn-secondary-tiny:hover { color: var(--text-secondary); }
-.btn-danger-small { background: transparent; color: var(--accent); border: 1px solid rgba(217,51,72,0.3); padding: 0.28rem 0.7rem; border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; transition: background 0.15s; }
+.btn-danger-small { background: transparent; color: var(--accent); border: 1px solid rgba(217,51,72,0.3); padding: 0.28rem 0.8rem; border-radius: var(--radius-capsule); font-size: 0.8rem; cursor: pointer; transition: background 0.15s; }
 .btn-danger-small:hover { background: var(--accent-sub); }
-.btn-danger-tiny { background: transparent; color: var(--accent); border: 1px solid rgba(217,51,72,0.3); padding: 0.18rem 0.45rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
+.btn-danger-tiny { background: transparent; color: var(--accent); border: 1px solid rgba(217,51,72,0.3); padding: 0.18rem 0.55rem; border-radius: var(--radius-capsule); font-size: 0.75rem; cursor: pointer; }
 .btn-icon { background: none; border: none; cursor: pointer; font-size: 0.95rem; padding: 0.2rem; color: var(--text-muted); transition: color 0.15s; }
 .btn-icon:hover { color: var(--text-secondary); }
 .btn-full { width: 100%; display: block; text-align: center; }
@@ -983,11 +1029,14 @@ body.keyboard-open .thread-main .chat-input-area {
   position: fixed;
   z-index: 301;
   display: flex; align-items: center; gap: 2px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-mid);
-  border-radius: 28px;
+  /* Liquid Glass floating popover over the conversation */
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border-radius: var(--radius-capsule);
   padding: 4px 8px;
-  box-shadow: 0 6px 28px rgba(0,0,0,0.22), 0 1px 4px rgba(0,0,0,0.12);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hairline);
   animation: _picker-enter 0.15s cubic-bezier(0.34,1.56,0.64,1) both;
 }
 .reaction-picker-btn {
@@ -1023,12 +1072,15 @@ body.keyboard-open .thread-main .chat-input-area {
   flex: 1;
   display: flex; align-items: flex-end; gap: 6px;
   background: var(--bg-surface);
-  border: none; border-radius: 22px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  border: 1px solid var(--glass-border); border-radius: var(--radius-capsule);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08), inset 0 1px 0 var(--glass-hairline);
   padding: 5px 6px 5px 14px;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, border-color 0.15s;
 }
-.chat-input-pill:focus-within { box-shadow: 0 1px 6px rgba(0,0,0,0.14); }
+.chat-input-pill:focus-within {
+  border-color: var(--border-mid);
+  box-shadow: 0 1px 8px rgba(0,0,0,0.16), inset 0 1px 0 var(--glass-hairline);
+}
 .chat-input-pill textarea {
   flex: 1; min-width: 0; background: none; border: none; resize: none;
   padding: 4px 0; font-size: 16px; font-family: var(--font);
@@ -1450,16 +1502,22 @@ body.receipt-page {
 /* ── Mobile bottom navigation bar ───────────────────────────────────────── */
 /* Layout properties applied whenever nav is visible (display set by JS) */
 .bottom-nav {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-  display: flex; width: 100%;
-  justify-content: space-evenly; align-items: center;
-  background: var(--bottom-nav-bg);
-  border-top: 1px solid var(--bottom-nav-border);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  /* Safe-area aware: bar is 56px tall + the home-indicator inset below it */
-  height: calc(56px + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
-  transition: transform 0.2s ease;
+  /* iOS 26 Liquid Glass: the tab bar floats as a capsule inset from the edges,
+     sitting above the home indicator rather than spanning the screen edge. */
+  position: fixed; z-index: 100;
+  left: 50%; bottom: calc(env(safe-area-inset-bottom) + 10px);
+  transform: translateX(-50%);
+  display: flex; width: auto; max-width: calc(100% - 24px);
+  justify-content: center; align-items: center;
+  gap: 2px; padding: 0 6px; height: 60px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-capsule);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  /* Depth shadow + inset specular highlight along the top of the glass */
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hairline);
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 /* Never rendered on desktop regardless of JS */
 @media (min-width: 641px) {
@@ -1471,24 +1529,28 @@ body.receipt-page {
      hide the hamburger (navigation is via bottom bar + More page) */
   .nav-friends-icon { display: none; }
   .nav-hamburger { display: none !important; }
-  /* Pad content so it clears the bottom nav */
-  .main-content { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
+  /* Pad content so it clears the floating glass tab bar (60px bar + 10px gap + air) */
+  .main-content { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
 
   .bottom-nav-item {
-    flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px;
+    flex: 0 0 auto; width: 60px; height: 48px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px;
     text-decoration: none;
     color: var(--bottom-nav-item-color);
-    font-size: 0.68rem; font-weight: 500; letter-spacing: 0.01em;
-    padding: 9px 0 3px;
-    min-width: 0; /* prevent any item from squeezing others */
+    font-size: 0.62rem; font-weight: 500; letter-spacing: 0.01em;
     background: none; border: none; cursor: pointer; position: relative;
     -webkit-appearance: none; appearance: none;
-    border-radius: 0;
+    border-radius: 16px;
     font-family: inherit;
-    transition: color 0.12s;
+    transition: color 0.12s, background 0.16s ease;
   }
   .bottom-nav-item svg { display: block; transition: color 0.12s; }
+  /* Selected tab gets a tinted glass pill — the iOS 26 active-tab treatment */
+  .bottom-nav-item.active {
+    background: var(--accent-sub);
+    box-shadow: inset 0 0.5px 0 var(--glass-hairline);
+  }
   .bottom-nav-item.active,
   .bottom-nav-item.active svg { color: var(--accent); }
   .bottom-nav-item:active,
@@ -1509,7 +1571,7 @@ body.receipt-page {
     min-width: 14px; text-align: center; line-height: 1.5; pointer-events: none;
   }
   .input-focus-mode .bottom-nav {
-    transform: translateY(110%);
+    transform: translate(-50%, 180%);
     pointer-events: none;
   }
 
@@ -2243,14 +2305,20 @@ body.receipt-page {
 .more-row-appearance { gap: 0.75rem; }
 .theme-seg {
   display: inline-flex; flex-shrink: 0;
-  background: var(--bg-input); border-radius: 9px; padding: 2px;
+  background: var(--bg-input); border-radius: var(--radius-capsule); padding: 3px;
+  border: 1px solid var(--border);
 }
 .theme-seg-btn {
   border: none; background: none; cursor: pointer; font-family: inherit;
   font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
-  padding: 0.32rem 0.6rem; border-radius: 7px; transition: color 0.12s;
+  padding: 0.32rem 0.7rem; border-radius: var(--radius-capsule);
+  transition: color 0.12s, background 0.16s ease;
 }
-.theme-seg-btn.active { background: var(--accent); color: #fff; }
+/* Floating glass thumb marks the selected segment */
+.theme-seg-btn.active {
+  background: var(--bg-surface); color: var(--accent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.16), inset 0 0.5px 0 var(--glass-hairline);
+}
 
 /* ── Friend row options (3-dot) button ── */
 .friend-menu-btn {
@@ -2262,12 +2330,20 @@ body.receipt-page {
 
 /* ── Password-change device sign-out sheet ── */
 .pw-sheet { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: flex-end; justify-content: center; }
-.pw-sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); animation: pwFade 0.18s ease; }
+.pw-sheet-backdrop {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.32);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: pwFade 0.18s ease;
+}
 .pw-sheet-card {
   position: relative; width: 100%; max-width: 460px;
   margin: 0 0.5rem calc(0.5rem + env(safe-area-inset-bottom));
-  background: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: 16px; padding: 0.5rem; box-shadow: 0 8px 30px rgba(0,0,0,0.28);
+  /* Liquid Glass sheet: translucent material with a lit top rim */
+  background: var(--glass-bg-strong); border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border-radius: 26px; padding: 0.5rem;
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hairline);
   animation: pwRise 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 @keyframes pwFade { from { opacity: 0; } }
@@ -2277,8 +2353,8 @@ body.receipt-page {
 .pw-sheet-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; }
 .pw-sheet-opt {
   display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem;
-  width: 100%; text-align: left; background: var(--bg-input); border: none;
-  border-radius: 10px; padding: 0.7rem 0.85rem; margin-top: 0.4rem;
+  width: 100%; text-align: left; background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: 15px; padding: 0.7rem 0.85rem; margin-top: 0.4rem;
   cursor: pointer; font-family: inherit;
 }
 .pw-sheet-opt:active { opacity: 0.7; }
@@ -2474,9 +2550,11 @@ body.receipt-page {
 .threads-filter-btn:hover { border-color: var(--border-mid); color: var(--text-primary); }
 .threads-filter-menu {
   position: absolute; right: 0; top: calc(100% + 6px);
-  background: var(--bg-elevated); border: 1px solid var(--border-mid);
+  background: var(--glass-bg-strong); border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border-radius: var(--radius); min-width: 170px;
-  box-shadow: var(--shadow-card); z-index: 50; overflow: hidden;
+  box-shadow: var(--glass-shadow); z-index: 50; overflow: hidden;
 }
 .threads-filter-item {
   display: flex; align-items: center; gap: 0.5rem;
@@ -2767,4 +2845,237 @@ body.receipt-page {
 @keyframes _msg-sending {
   0%,100% { opacity: 1; }
   50%      { opacity: 0.2; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Notifications — iOS 26 organic/glass treatment
+   (Notifications.jsx referenced these classes but they never existed → unstyled.)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Small count pill used on tabs + section headers */
+.notif-count-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 6px;
+  margin-left: 0.4rem;
+  background: var(--accent); color: #fff;
+  font-size: 0.68rem; font-weight: 800; line-height: 1;
+  border-radius: var(--radius-capsule);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+}
+
+/* Segmented tab switcher — a soft glass capsule (Messages / Invites) */
+.notif-tabs {
+  display: inline-flex; gap: 2px;
+  padding: 3px; margin: 0.25rem 0 1.1rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-capsule);
+}
+.notif-tab {
+  display: inline-flex; align-items: center;
+  padding: 0.4rem 0.95rem;
+  /* Explicit transparent bg so the tab never falls back to the UA button grey */
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  -webkit-appearance: none; appearance: none;
+  font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);
+  border-radius: var(--radius-capsule) !important;
+  transition: color 0.15s, background 0.2s ease;
+}
+.notif-tab.active {
+  color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18), inset 0 0.5px 0 var(--glass-hairline);
+}
+.notif-tab.active .notif-count-chip { background: var(--accent); }
+
+/* Friend-request cards */
+.notif-fr-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.8rem 0.95rem; margin-bottom: 0.6rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-hairline);
+}
+.notif-fr-info { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }
+.notif-fr-name { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
+.notif-fr-uid { font-family: monospace; font-size: 0.72rem; color: var(--text-muted); }
+.notif-fr-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+
+/* Notification list */
+.notif-panel { margin-top: 0.25rem; }
+.notif-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.notif-item {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.85rem 0.95rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-hairline);
+  text-decoration: none; color: var(--text-primary);
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.notif-item:active { transform: scale(0.985); background: var(--bg-elevated); }
+/* Unread: accent-tinted surface + a visible leading dot */
+.notif-item.notif-unread {
+  background: var(--accent-sub);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.notif-dot {
+  width: 9px; height: 9px; flex-shrink: 0;
+  border-radius: 50%; background: transparent;
+}
+.notif-item.notif-unread .notif-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-sub);
+}
+.notif-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.notif-message {
+  font-size: 0.9rem; line-height: 1.4; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.notif-item.notif-unread .notif-message { font-weight: 600; }
+.notif-time { font-size: 0.72rem; color: var(--text-muted); }
+.notif-chevron { color: var(--text-muted); flex-shrink: 0; }
+
+/* Group-invite honest-status note (Group.jsx) */
+.invite-panel-note {
+  margin-top: 0.6rem; font-size: 0.8rem; line-height: 1.4;
+  color: var(--text-secondary);
+  background: var(--accent-sub);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: var(--radius); padding: 0.55rem 0.7rem;
+}
+
+/* ── Admin: pending-approval indicators ── */
+.admin-detail-badges { display: inline-flex; align-items: center; gap: 0.4rem; }
+.admin-pending-tag {
+  display: inline-flex; align-items: center;
+  padding: 0.12rem 0.6rem;
+  font-size: 0.72rem; font-weight: 700; font-style: normal;
+  color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: var(--radius-capsule);
+}
+.admin-approve-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  margin: 0.75rem 0;
+  padding: 0.7rem 0.9rem;
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  border-radius: var(--radius-lg);
+  font-size: 0.85rem; color: var(--text-secondary);
+}
+.admin-approve-banner button { flex-shrink: 0; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   GLOBAL SOFTNESS PASS — iOS 26 organic feel across every surface
+   Goal: kill visual rigidity (crisp full-bleed hairlines, hard boxes, mechanical
+   motion) WITHOUT touching spacing, layout, or scroll. Only borders, radii,
+   surfaces, shadows and easing change. Applied late so it settles the cascade.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Grouped cards: rounder, gently lifted, lit top edge (Settings/More/Admin) ── */
+.more-section,
+.settings-group,
+.admin-panel, .admin-panel-full, .admin-panel-form,
+.admin-tool-list, .admin-recent-list, .admin-note {
+  border-radius: var(--radius-lg);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-hairline);
+}
+/* Small tiles want a tighter radius than the big containers */
+.admin-stat {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-hairline);
+}
+.friend-search-form { border-radius: var(--radius-lg); }
+
+/* ── Fading dividers: replace crisp full-bleed hairlines with center-weighted
+   gradient lines that dissolve at both ends. border-image renders the gradient
+   only on whichever edge has width (these elements are single-edge dividers),
+   and :last-child / style:none rows stay clean automatically. ── */
+.dashboard-header,
+.group-header,
+.more-user-card,
+.group-section,
+.leaderboard-section,
+.invite-panel,
+.member-row,
+.thread-card,
+.thread-row,
+.lb-full-row,
+.receipt-row,
+.settings-row,
+.admin-list-row,
+.admin-tool-link,
+.admin-recent-row {
+  border-image: var(--divider-fade) 1;
+}
+.lb-row + .lb-row,
+.more-row + .more-row {
+  border-image: var(--divider-fade) 1;
+}
+
+/* ── Springy, tactile press feedback on tappable rows ── */
+.more-row,
+.settings-row,
+.admin-list-row,
+.admin-tool-link,
+.admin-recent-row,
+.thread-row-item,
+.thread-card {
+  transition: background 0.18s ease, transform 0.12s var(--ease-spring);
+}
+.more-row:active,
+.admin-list-row:active,
+.admin-tool-link:active,
+.admin-recent-row:active,
+.thread-row-item:active { transform: scale(0.99); }
+
+/* ── Admin tabs: from a hard segmented box to a soft glass pill row ── */
+.admin-tabs {
+  border-radius: var(--radius-capsule);
+  border-color: var(--border);
+}
+.admin-tabs button {
+  border-radius: var(--radius-capsule) !important;
+  transition: color 0.15s, background 0.2s var(--ease-spring);
+}
+.admin-tabs button.active {
+  background: var(--bg-elevated);
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18), inset 0 0.5px 0 var(--glass-hairline);
+}
+
+/* ── Inputs: rounder, with a soft accent focus ring instead of a hard outline ── */
+.form-group input, .form-group select, .form-group textarea,
+.admin-toolbar input, .admin-field input, .admin-field select, .admin-field textarea,
+.invite-url-input, .settings-row input[type="text"], .settings-row input[type="password"] {
+  border-radius: var(--radius);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus,
+.admin-toolbar input:focus, .admin-field input:focus, .admin-field select:focus,
+.admin-field textarea:focus, .invite-url-input:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-mid));
+  box-shadow: 0 0 0 3px var(--accent-sub);
+}
+
+/* ── Secondary buttons: springy press to match primaries ── */
+.btn-secondary, .btn-secondary-small, .btn-danger-small {
+  transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.1s var(--ease-spring);
+}
+.btn-secondary:active, .btn-secondary-small:active,
+.btn-danger-small:active, .btn-primary-small:active { transform: scale(0.97); }
+
+/* ── Small badges/chips: 3px sharp corners → soft capsules (branding stays sharp,
+   the shapes stop feeling boxy). ── */
+.league-badge, .badge-scope, .badge-role,
+.team-chip, .team-chip-lg,
+.status-badge, .receipt-official, .incident-status,
+.badge-status-received, .badge-status-active, .badge-status-closed {
+  border-radius: var(--radius-capsule);
 }
