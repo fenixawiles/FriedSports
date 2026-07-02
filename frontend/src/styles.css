@@ -1474,11 +1474,14 @@ body.receipt-page {
 /* ── Notification bell in navbar ── */
 .nav-bell {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
-  min-height: 44px; min-width: 44px; font-size: 1.05rem;
+  min-height: 40px; min-width: 40px; font-size: 1.05rem;
   color: var(--text-muted); text-decoration: none;
   flex-shrink: 0;
+  border-radius: var(--radius-capsule);
+  transition: background 0.18s var(--ease-spring), color 0.15s;
 }
-.nav-bell:hover { color: var(--text-primary); }
+.nav-bell:hover { color: var(--text-primary); background: var(--glass-bg); }
+.nav-bell:active { background: var(--bg-input); transform: scale(0.92); }
 .notif-badge {
   position: absolute; top: 8px; right: 4px;
   background: var(--accent); color: #fff;
@@ -1507,9 +1510,9 @@ body.receipt-page {
   position: fixed; z-index: 100;
   left: 50%; bottom: calc(env(safe-area-inset-bottom) + 10px);
   transform: translateX(-50%);
-  display: flex; width: auto; max-width: calc(100% - 24px);
+  display: flex; width: auto; max-width: calc(100% - 20px);
   justify-content: center; align-items: center;
-  gap: 2px; padding: 0 6px; height: 60px;
+  gap: 4px; padding: 0 10px; height: 62px;
   background: var(--glass-bg-strong);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-capsule);
@@ -1533,7 +1536,7 @@ body.receipt-page {
   .main-content { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
 
   .bottom-nav-item {
-    flex: 0 0 auto; width: 60px; height: 48px;
+    flex: 0 0 auto; width: 64px; height: 50px;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 2px;
     text-decoration: none;
@@ -1543,14 +1546,21 @@ body.receipt-page {
     -webkit-appearance: none; appearance: none;
     border-radius: 16px;
     font-family: inherit;
-    transition: color 0.12s, background 0.16s ease;
+    transition: color 0.16s var(--ease-spring);
   }
-  .bottom-nav-item svg { display: block; transition: color 0.12s; }
-  /* Selected tab gets a tinted glass pill — the iOS 26 active-tab treatment */
-  .bottom-nav-item.active {
+  /* Icon + label ride above the active pill */
+  .bottom-nav-item svg,
+  .bottom-nav-item .bottom-nav-label { display: block; position: relative; z-index: 1; transition: color 0.16s var(--ease-spring); }
+  /* Selected tab: a soft accent pill that floats INSET inside the item (not a
+     filled square). Springy scale-in so it feels alive, not mechanical. */
+  .bottom-nav-item.active::before {
+    content: ''; position: absolute; inset: 5px 8px;
     background: var(--accent-sub);
+    border-radius: var(--radius-capsule);
     box-shadow: inset 0 0.5px 0 var(--glass-hairline);
+    animation: _tab-pop 0.34s var(--ease-spring);
   }
+  @keyframes _tab-pop { from { transform: scale(0.6); opacity: 0; } }
   .bottom-nav-item.active,
   .bottom-nav-item.active svg { color: var(--accent); }
   .bottom-nav-item:active,
@@ -3035,13 +3045,21 @@ body.receipt-page {
 .admin-recent-row:active,
 .thread-row-item:active { transform: scale(0.99); }
 
-/* ── Admin tabs: from a hard segmented box to a soft glass pill row ── */
+/* ── Admin tabs: soft rounded segmented control.
+   NOT a full capsule — this is a multi-row grid (3 cols × 2 rows on mobile), so a
+   capsule container let the corner thumbs bleed past the rounded edge when active.
+   A rounded-rect container + gap + concentric thumb radius keeps every thumb
+   nested cleanly inside, and overflow:hidden is the belt-and-suspenders guard. ── */
 .admin-tabs {
-  border-radius: var(--radius-capsule);
+  border-radius: var(--radius);
   border-color: var(--border);
+  gap: 5px;
+  padding: 5px;
+  overflow: hidden;
 }
 .admin-tabs button {
-  border-radius: var(--radius-capsule) !important;
+  /* concentric with the container: container radius − padding */
+  border-radius: 9px !important;
   transition: color 0.15s, background 0.2s var(--ease-spring);
 }
 .admin-tabs button.active {

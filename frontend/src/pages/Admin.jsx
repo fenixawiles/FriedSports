@@ -117,6 +117,13 @@ function UsersPanel() {
     setEdit({ email: user.email || '', role: user.role || 'user', password: '' })
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-dismiss the success notice so it doesn't linger on screen
+  useEffect(() => {
+    if (!notice) return
+    const t = setTimeout(() => setNotice(''), 2600)
+    return () => clearTimeout(t)
+  }, [notice])
+
   const refresh = () => {
     qc.invalidateQueries(['admin-users'])
     qc.invalidateQueries(['admin-user', activeId])
@@ -165,7 +172,23 @@ function UsersPanel() {
   })
   const approveMut = useMutation({
     mutationFn: (id) => approveAdminUser(id),
-    onSuccess: () => { setNotice('User approved'); setError(''); refresh() },
+    // Optimistically flip verified so the banner + row badge clear instantly —
+    // no waiting on a network round-trip + four refetches.
+    onSuccess: (data, id) => {
+      setError('')
+      setNotice('User approved')
+      qc.setQueryData(['admin-user', id], (old) =>
+        old ? { ...old, user: { ...old.user, email_verified: true } } : old)
+      qc.setQueriesData({ queryKey: ['admin-users'] }, (old) =>
+        old?.users
+          ? { ...old,
+              users: old.users.map(u => u.id === id ? { ...u, email_verified: true } : u),
+              pending_count: Math.max(0, (old.pending_count ?? 1) - 1) }
+          : old)
+      qc.invalidateQueries(['admin-users'])
+      qc.invalidateQueries(['admin-overview'])
+      qc.invalidateQueries(['admin-audit'])
+    },
     onError: err => setError(err.message || 'Approve failed'),
   })
 

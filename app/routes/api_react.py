@@ -1604,6 +1604,51 @@ def group_invite_email(group_id):
     return ok(sent=bool(sent))
 
 
+@bp.route("/groups/<int:group_id>/invite-user", methods=["POST"])
+@login_required
+def group_invite_user(group_id):
+    """Invite an existing FriedSports user into the group IN-APP (no email needed).
+    Drops a group_invite Notification into their Invites tab, which they can accept."""
+    g = Group.query.get_or_404(group_id)
+    if not g.is_member(current_user.id):
+        return err("Not a member", 403)
+    d = request.get_json(silent=True) or {}
+
+    target = None
+    if d.get("user_id"):
+        target = User.query.get(d["user_id"])
+    else:
+        q = (d.get("query") or "").strip()
+        if q:
+            handle = q.lstrip("@")
+            target = User.query.filter(db.or_(
+                User.uid.ilike(q),
+                User.display_name.ilike(handle),
+                User.email.ilike(q.lower()),
+            )).first()
+
+    if not target:
+        return err("No FriedSports user found by that name or FS ID", 404)
+    if target.id == current_user.id:
+        return err("You're already in this group")
+    if g.is_member(target.id):
+        return err(f"{target.shown_name} is already in this group")
+
+    link = f"/groups/join/{g.invite_code}"
+    already = Notification.query.filter_by(
+        user_id=target.id, type="group_invite", link_url=link
+    ).first()
+    if not already:
+        db.session.add(Notification(
+            user_id=target.id,
+            type="group_invite",
+            message=f"{current_user.shown_name} invited you to join {g.name}",
+            link_url=link,
+        ))
+        db.session.commit()
+    return ok(invited=True, name=target.shown_name)
+
+
 @bp.route("/groups/<int:group_id>/regenerate-invite", methods=["POST"])
 @login_required
 def regenerate_invite(group_id):

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGroup, getMembers, muteGroup, leaveGroup, deleteGroup,
-         removeMember, transferOwner, inviteEmail, regenerateInvite } from '../api/groups'
+         removeMember, transferOwner, inviteEmail, inviteUser, regenerateInvite } from '../api/groups'
+import { searchUsers } from '../api/friends'
 import { useAuth } from '../context/AuthContext'
 import BackButton from '../components/BackButton'
 import { Skeleton } from '../components/Skeleton'
@@ -31,6 +32,10 @@ export default function Group() {
   const [inviteMsg, setInviteMsg]     = useState('')
   const [copied, setCopied]           = useState(false)
   const [actionError, setActionError] = useState('')
+  const [userQuery, setUserQuery]     = useState('')
+  const [userResults, setUserResults] = useState(null)
+  const [invitedIds, setInvitedIds]   = useState([])
+  const searchRef = useRef(null)
 
   const { data, isLoading } = useQuery({ queryKey: ['group', id], queryFn: () => getGroup(id) })
   const { data: membersData, isLoading: membersLoading } = useQuery({ queryKey: ['group-members', id], queryFn: () => getMembers(id) })
@@ -65,8 +70,26 @@ export default function Group() {
     },
     onError: (err) => setInviteMsg(err.message || 'Could not send invite.'),
   })
+  const inviteUserMut = useMutation({
+    mutationFn: (uid) => inviteUser(id, uid),
+    onSuccess: (data, uid) => {
+      setInvitedIds(ids => [...ids, uid])
+      setInviteMsg(`Invite sent to ${data?.name || 'them'} — it's in their Notifications › Invites.`)
+    },
+    onError: (err) => setInviteMsg(err.message || 'Could not send invite.'),
+  })
   const removeMut  = useMutation({ mutationFn: (uid) => removeMember(id, uid), ...mutOpts })
   const transferMut = useMutation({ mutationFn: (uid) => transferOwner(id, uid), ...mutOpts })
+
+  // Debounced people search for in-app invites (username / FS-ID / email)
+  useEffect(() => {
+    clearTimeout(searchRef.current)
+    if (userQuery.trim().length < 2) { setUserResults(null); return }
+    searchRef.current = setTimeout(async () => {
+      try { setUserResults(await searchUsers(userQuery.trim())) } catch { setUserResults([]) }
+    }, 280)
+    return () => clearTimeout(searchRef.current)
+  }, [userQuery])
 
   if (isLoading) return (
     <div className="group-container">
@@ -145,14 +168,45 @@ export default function Group() {
       {member && inviteOpen && (
         <div className="invite-panel invite-panel-open">
           <div className="invite-panel-inner">
-            <div className="invite-panel-label">Invite by email — or copy the link below</div>
+            {/* Primary: invite people already on FriedSports — lands in their Invites tab, no email needed */}
+            <div className="invite-panel-label">Invite people on FriedSports</div>
+            <div className="invite-panel-row">
+              <input type="text" className="invite-url-input" placeholder="Search by username or FS ID"
+                autoComplete="off" value={userQuery} onChange={e => setUserQuery(e.target.value)} />
+            </div>
+            {userResults && (
+              <div className="member-table" style={{ marginTop: '0.6rem' }}>
+                {userResults.length === 0 && (
+                  <div className="empty-state" style={{ padding: '0.75rem' }}><p>No users found.</p></div>
+                )}
+                {userResults.map(u => {
+                  const isMember = members.some(m => m.user_id === u.id)
+                  const invited = invitedIds.includes(u.id)
+                  return (
+                    <div key={u.id} className="member-row" style={{ gridTemplateColumns: '1fr auto' }}>
+                      <span className="member-name">{u.name}
+                        <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.72rem', marginLeft: '0.4rem' }}>{u.uid}</span>
+                      </span>
+                      {isMember
+                        ? <span className="badge-role member">Member</span>
+                        : invited
+                          ? <span style={{ fontSize: '0.78rem', color: 'var(--green)' }}>Invited ✓</span>
+                          : <button className="btn-primary-small" disabled={inviteUserMut.isPending}
+                              onClick={() => inviteUserMut.mutate(u.id)}>Invite</button>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {inviteMsg && <div className="invite-panel-note">{inviteMsg}</div>}
+
+            <div className="invite-panel-label" style={{ marginTop: '0.9rem' }}>Or invite by email</div>
             <div className="invite-panel-row">
               <input type="email" className="invite-url-input" placeholder="friend@example.com"
                 value={inviteEmail_} onChange={e => setInviteEmail_(e.target.value)} />
               <button className="btn-primary-small" disabled={inviteMut.isPending || !inviteEmail_}
                 onClick={() => inviteMut.mutate()}>Send Invite</button>
             </div>
-            {inviteMsg && <div className="invite-panel-note">{inviteMsg}</div>}
             <div className="invite-panel-label" style={{ marginTop: '0.75rem' }}>Or share the link directly</div>
             <div className="invite-panel-row">
               <input type="text" className="invite-url-input" readOnly value={inviteUrl} />

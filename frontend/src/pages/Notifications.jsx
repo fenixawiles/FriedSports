@@ -1,19 +1,36 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getNotifications, markAllRead } from '../api/notifications'
 import { acceptRequest, declineRequest } from '../api/friends'
+import { joinGroup } from '../api/groups'
 import Loading from '../components/Loading'
 
 export default function Notifications() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('messages')
+  const [inviteErr, setInviteErr] = useState('')
 
   const { data, isLoading } = useQuery({ queryKey: ['notifications'], queryFn: getNotifications })
 
   const markRead = useMutation({
     mutationFn: markAllRead,
     onSuccess: () => qc.invalidateQueries(['notifications']),
+  })
+  // Accept a group invite in one tap — join straight from the Invites tab.
+  const acceptInvite = useMutation({
+    mutationFn: (n) => {
+      const code = (n.link_url || '').split('/groups/join/')[1]
+      if (!code) return Promise.reject(new Error('This invite link is no longer valid.'))
+      return joinGroup(code)
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries(['notifications'])
+      qc.invalidateQueries(['dashboard'])
+      navigate(`/groups/${res.group_id}`)
+    },
+    onError: (err) => setInviteErr(err.message || 'Could not join. Try opening the invite link.'),
   })
   const accept = useMutation({
     mutationFn: (id) => acceptRequest(id),
@@ -75,36 +92,59 @@ export default function Notifications() {
         ))}
       </div>
 
-      {/* Panels */}
-      {[['messages', messages], ['invites', invites]].map(([key, items]) => (
-        tab === key && (
-          <section key={key} className="notif-panel group-section" style={{ borderTop: 'none', paddingTop: 0 }}>
-            {items.length === 0 ? (
-              <div className="empty-state">
-                <p>{key === 'messages' ? 'No messages yet.' : 'No invites.'}</p>
-              </div>
-            ) : (
-              <div className="notif-list">
-                {items.map(n => (
-                  <Link key={n.id} to={n.link_url || '/dashboard'}
-                    className={`notif-item${!n.is_read ? ' notif-unread' : ''}`}>
-                    <div className="notif-dot" />
-                    <div className="notif-body">
-                      <div className="notif-message">{n.message}</div>
-                      <div className="notif-time">{n.created_at}</div>
-                    </div>
-                    <svg className="notif-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-                      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                      strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 18 15 12 9 6"/>
-                    </svg>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
-        )
-      ))}
+      {/* Messages panel — tappable links */}
+      {tab === 'messages' && (
+        <section className="notif-panel group-section" style={{ borderTop: 'none', paddingTop: 0 }}>
+          {messages.length === 0 ? (
+            <div className="empty-state"><p>No messages yet.</p></div>
+          ) : (
+            <div className="notif-list">
+              {messages.map(n => (
+                <Link key={n.id} to={n.link_url || '/dashboard'}
+                  className={`notif-item${!n.is_read ? ' notif-unread' : ''}`}>
+                  <div className="notif-dot" />
+                  <div className="notif-body">
+                    <div className="notif-message">{n.message}</div>
+                    <div className="notif-time">{n.created_at}</div>
+                  </div>
+                  <svg className="notif-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Invites panel — accept a group invite in one tap */}
+      {tab === 'invites' && (
+        <section className="notif-panel group-section" style={{ borderTop: 'none', paddingTop: 0 }}>
+          {inviteErr && <div className="flash flash-error" style={{ marginBottom: '0.6rem' }}>{inviteErr}</div>}
+          {invites.length === 0 ? (
+            <div className="empty-state"><p>No invites right now.</p></div>
+          ) : (
+            <div className="notif-list">
+              {invites.map(n => (
+                <div key={n.id} className={`notif-item notif-invite${!n.is_read ? ' notif-unread' : ''}`}>
+                  <div className="notif-dot" />
+                  <div className="notif-body">
+                    <div className="notif-message">{n.message}</div>
+                    <div className="notif-time">{n.created_at}</div>
+                  </div>
+                  <button className="btn-primary-small"
+                    disabled={acceptInvite.isPending}
+                    onClick={() => { setInviteErr(''); acceptInvite.mutate(n) }}>
+                    {acceptInvite.isPending ? 'Joining…' : 'Accept'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   )
 }

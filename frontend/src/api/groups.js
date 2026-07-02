@@ -6,6 +6,7 @@ export const createGroup   = (data)      => client.post('/groups', data).then(r 
 export const joinGroup     = (code)      => client.post(`/groups/join/${code}`).then(r => r.data)
 export const getJoinInfo   = (code)      => client.get(`/groups/join/${code}`).then(r => r.data)
 export const inviteEmail   = (id, email) => client.post(`/groups/${id}/invite-email`, { email }).then(r => r.data)
+export const inviteUser    = (id, user_id) => client.post(`/groups/${id}/invite-user`, { user_id }).then(r => r.data)
 export const regenerateInvite = (id)     => client.post(`/groups/${id}/regenerate-invite`).then(r => r.data)
 export const muteGroup     = (id)        => client.post(`/groups/${id}/mute`).then(r => r.data)
 export const leaveGroup    = (id)        => client.post(`/groups/${id}/leave`).then(r => r.data)
