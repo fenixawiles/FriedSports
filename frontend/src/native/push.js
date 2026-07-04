@@ -32,6 +32,11 @@ export async function initPush() {
     await Push.addListener('registrationError', (err) => {
       console.warn('Push registration error', err)
     })
+    // iOS does not show normal banners while the app is foregrounded. Surface
+    // those as an in-app event so the React shell can show a lightweight toast.
+    await Push.addListener('pushNotificationReceived', (notification) => {
+      window.dispatchEvent(new CustomEvent('fs:push-received', { detail: notification }))
+    })
     // Tapping a notification deep-links to the payload's link_url.
     await Push.addListener('pushNotificationActionPerformed', (action) => {
       const link = action?.notification?.data?.link_url

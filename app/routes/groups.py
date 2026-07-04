@@ -1,5 +1,5 @@
 import secrets
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from app.models import (db, Group, GroupMember, GameThread, GameThreadMessage, Receipt,
@@ -37,6 +37,23 @@ def _require_member(group, user_id):
         if group.privacy != "public_readonly":
             abort(403)
     return member
+
+
+def _push_group_invite_bg(user_id, inviter_name, group_name):
+    import threading
+    app = current_app._get_current_object()
+
+    def _run():
+        with app.app_context():
+            from app.services.push_service import send_push
+            send_push(
+                user_id=user_id,
+                title="Group invite",
+                body=f"{inviter_name} invited you to join {group_name}",
+                data={"link_url": "/notifications"},
+            )
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 @groups_bp.route("/new", methods=["GET", "POST"])
@@ -339,6 +356,11 @@ def invite_email(group_id):
         )
         db.session.add(notif)
         db.session.commit()
+        _push_group_invite_bg(
+            existing_user.id,
+            current_user.shown_name,
+            group.name,
+        )
 
     return redirect(url_for("groups.show", group_id=group_id))
 

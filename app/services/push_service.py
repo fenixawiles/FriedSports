@@ -50,6 +50,19 @@ def _has_es256_support():
         return False
 
 
+def _log_push_result(user_id, result):
+    logger.info(
+        "Push notification result user=%s env=%s accepted=%s failed=%s stale=%s tokens=%s reason=%s",
+        user_id,
+        result.get("environment"),
+        result.get("accepted_count", 0),
+        result.get("failed_count", 0),
+        result.get("stale_count", 0),
+        result.get("token_count", 0),
+        result.get("reason", ""),
+    )
+
+
 def apns_config_status(environment=None):
     key_path = os.environ.get("APNS_KEY_PATH", "")
     has_key_path = bool(key_path and os.path.exists(key_path))
@@ -138,7 +151,9 @@ def send_push(user_id: int, title: str, body: str, data: dict = None, environmen
     need it can ignore the return value.
     """
     try:
-        return _send_push_inner(user_id, title, body, data or {}, environment=environment)
+        result = _send_push_inner(user_id, title, body, data or {}, environment=environment)
+        _log_push_result(user_id, result)
+        return result
     except Exception as e:
         try:
             from app.models import db
@@ -147,7 +162,7 @@ def send_push(user_id: int, title: str, body: str, data: dict = None, environmen
             pass
         logger.warning(f"Push notification failed for user {user_id}: {e}")
         env = normalize_environment(environment)
-        return {
+        result = {
             "ok": False,
             "configured": False,
             "environment": env,
@@ -160,6 +175,8 @@ def send_push(user_id: int, title: str, body: str, data: dict = None, environmen
             "stale_count": 0,
             "results": [],
         }
+        _log_push_result(user_id, result)
+        return result
 
 
 def _send_push_inner(user_id: int, title: str, body: str, data: dict, environment: str = None):

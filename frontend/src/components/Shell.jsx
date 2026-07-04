@@ -1,7 +1,7 @@
 import { Outlet, NavLink, Link, useNavigate, useMatch, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getNotifications } from '../api/notifications'
 import { getDashboard } from '../api/groups'
 import { getThreadsList } from '../api/threads'
@@ -13,6 +13,7 @@ export default function Shell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const [pushToast, setPushToast] = useState(null)
 
   // Thread chat is a focused full-screen view — hide all navigation chrome.
   // useMatch returns a truthy object when the current path matches the pattern.
@@ -89,6 +90,31 @@ export default function Shell() {
 
   const unread = notifData?.unread_count ?? 0
 
+  useEffect(() => {
+    if (!user) return
+    let clearTimer = null
+    function onPushReceived(e) {
+      const notification = e.detail || {}
+      const link = notification.data?.link_url
+      setPushToast({
+        id: Date.now(),
+        title: notification.title || 'FriedSports',
+        body: notification.body || 'New activity',
+        link: typeof link === 'string' && link.startsWith('/') ? link : '/notifications',
+      })
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['threads'] })
+      window.clearTimeout(clearTimer)
+      clearTimer = window.setTimeout(() => setPushToast(null), 5200)
+    }
+    window.addEventListener('fs:push-received', onPushReceived)
+    return () => {
+      window.removeEventListener('fs:push-received', onPushReceived)
+      window.clearTimeout(clearTimer)
+    }
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleLogout() {
     await logout()
     navigate('/login')
@@ -98,6 +124,20 @@ export default function Shell() {
     <>
       {/* ── Top navbar — hidden on thread chat (focused conversation view) ── */}
       {user && <PullToRefresh disabled={isThreadChat} />}
+
+      {user && pushToast && (
+        <button
+          type="button"
+          className="push-foreground-toast"
+          onClick={() => {
+            const link = pushToast.link || '/notifications'
+            setPushToast(null)
+            navigate(link)
+          }}>
+          <strong>{pushToast.title}</strong>
+          <span>{pushToast.body}</span>
+        </button>
+      )}
 
       {!isThreadChat && (
         <nav className="navbar" id="main-nav" ref={navRef}>
