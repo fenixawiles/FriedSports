@@ -23,6 +23,10 @@
         <div style="font-size:1.75rem;font-weight:800;color:{% if open_tickets > 0 %}var(--accent){% else %}var(--text-primary){% endif %};line-height:1">{{ open_tickets }}</div>
         <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-top:0.3rem">Open Tickets</div>
       </a>
+      <a href="{{ url_for('admin.push_tools') }}" class="receipt-item" style="text-decoration:none;padding:1.1rem 1.25rem">
+        <div style="font-size:1.75rem;font-weight:800;color:var(--text-primary);line-height:1">Push</div>
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-top:0.3rem">APNs Diagnostics</div>
+      </a>
     </div>
   </section>
 

@@ -1,0 +1,135 @@
+{% extends "admin/tools_base.html" %}
+{% block title %}Push Diagnostics — Admin{% endblock %}
+{% block tools_content %}
+<div class="group-container">
+
+  <div class="group-header">
+    <div>
+      <h1>Push Diagnostics</h1>
+      <div class="group-header-meta">
+        <span style="font-size:0.8rem;color:var(--text-muted)">APNs config, registered device tokens, and test sends</span>
+      </div>
+    </div>
+  </div>
+
+  <section class="group-section" style="border-top:none;padding-top:0">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:1.25rem">
+      <div class="receipt-item" style="padding:1rem">
+        <div style="font-size:1.35rem;font-weight:800;color:var(--text-primary)">{{ "Yes" if config.configured else "No" }}</div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">Configured</div>
+      </div>
+      <div class="receipt-item" style="padding:1rem">
+        <div style="font-size:1.35rem;font-weight:800;color:var(--text-primary)">{{ config.environment }}</div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">APNs Env</div>
+      </div>
+      <div class="receipt-item" style="padding:1rem">
+        <div style="font-size:1.35rem;font-weight:800;color:var(--text-primary)">{{ totals.production }}</div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">Production Tokens</div>
+      </div>
+      <div class="receipt-item" style="padding:1rem">
+        <div style="font-size:1.35rem;font-weight:800;color:var(--text-primary)">{{ totals.sandbox }}</div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted)">Sandbox Tokens</div>
+      </div>
+    </div>
+
+    <div class="receipt-item" style="padding:1rem;margin-bottom:1.25rem">
+      <div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-bottom:0.35rem">{{ config.bundle_id }}</div>
+      <div style="font-size:0.78rem;color:var(--text-muted);line-height:1.7">
+        Key ID {{ "set" if config.key_id_configured else "missing" }} ·
+        Team ID {{ "set" if config.team_id_configured else "missing" }} ·
+        Key {{ "set" if config.key_content_configured or config.key_path_configured else "missing" }} ·
+        ES256 {{ "ready" if config.es256_available else "missing" }} ·
+        HTTP/2 {{ "ready" if config.httpx_available else "missing" }}
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.35rem">{{ config.host }}</div>
+    </div>
+  </section>
+
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Send Test Push</span>
+    </div>
+    <form method="post" action="{{ url_for('admin.push_tools') }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1rem">
+        <div>
+          <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Target User ID</div>
+          <input type="number" name="user_id" value="{{ form.user_id or '' }}" placeholder="6">
+        </div>
+        <div>
+          <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Or Email</div>
+          <input type="email" name="email" value="{{ form.email or '' }}" placeholder="user@example.com">
+        </div>
+        <div>
+          <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Environment</div>
+          <select name="environment" class="team-select">
+            <option value="production" {% if (form.environment or "production") == "production" %}selected{% endif %}>Production / TestFlight</option>
+            <option value="sandbox" {% if form.environment == "sandbox" %}selected{% endif %}>Sandbox / Xcode</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Link URL</div>
+          <input type="text" name="link_url" value="{{ form.link_url or '/notifications' }}">
+        </div>
+      </div>
+      <div style="margin-bottom:1rem">
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Title</div>
+        <input type="text" name="title" value="{{ form.title or 'FriedSports test push' }}" required>
+      </div>
+      <div style="margin-bottom:1rem">
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:0.5rem">Body</div>
+        <textarea name="body" rows="4" required>{{ form.body or 'If you can read this, APNs is working.' }}</textarea>
+      </div>
+      <button type="submit" class="btn-primary">Send Test Push</button>
+    </form>
+  </section>
+
+  {% if result %}
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Latest Result</span>
+      {% if target_user %}<span style="font-size:0.78rem;color:var(--text-muted)">{{ target_user.email }}</span>{% endif %}
+    </div>
+    <div class="receipt-item" style="padding:1rem">
+      <div style="font-weight:800;color:var(--text-primary);margin-bottom:0.35rem">
+        {{ result.environment }} · {{ result.accepted_count }} accepted · {{ result.failed_count }} failed · {{ result.stale_count }} stale
+      </div>
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem">{{ result.reason or "APNs request completed" }} · {{ result.bundle_id }}</div>
+      {% for item in result.results %}
+      <div style="font-size:0.78rem;color:var(--text-muted);line-height:1.7">
+        <code>{{ item.token }}</code>:
+        {{ "accepted" if item.accepted else "failed" }}
+        {% if item.status_code %}({{ item.status_code }}){% endif %}
+        {% if item.reason %} · {{ item.reason }}{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="group-section">
+    <div class="section-header" style="margin-bottom:0.85rem">
+      <span class="section-title">Registered Device Tokens</span>
+      <span style="font-size:0.78rem;color:var(--text-muted)">Latest 200</span>
+    </div>
+    {% if tokens %}
+    <div class="member-table">
+      <div class="member-row member-header" style="grid-template-columns:1.3fr 1.6fr 0.8fr 1fr 1fr">
+        <span>User</span><span>Email</span><span>Env</span><span>Token</span><span>Updated</span>
+      </div>
+      {% for token in tokens %}
+      <div class="member-row" style="grid-template-columns:1.3fr 1.6fr 0.8fr 1fr 1fr">
+        <span>{{ token.user.shown_name if token.user else "Deleted user" }}</span>
+        <span style="font-size:0.75rem;color:var(--text-muted)">{{ token.user.email if token.user else "" }}</span>
+        <span>{{ token.environment }}</span>
+        <span><code>{{ mask_token(token.token) }}</code></span>
+        <span style="font-size:0.75rem;color:var(--text-muted)">{{ token.updated_at.strftime('%b %d, %H:%M') if token.updated_at else "—" }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><p>No APNs device tokens registered yet.</p></div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock tools_content %}

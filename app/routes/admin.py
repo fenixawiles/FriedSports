@@ -611,14 +611,112 @@ def users_invite():
 @login_required
 @admin_required
 def tools_dashboard():
-    return redirect("/admin-tools")
+    user_count = User.query.count()
+    open_tickets = SupportTicket.query.filter(
+        SupportTicket.status.in_(["received", "in_progress"])
+    ).count()
+    recent_logs = (
+        AdminAuditLog.query
+        .order_by(AdminAuditLog.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    return render_template(
+        "admin/tools_overview.html",
+        user_count=user_count,
+        open_tickets=open_tickets,
+        recent_logs=recent_logs,
+    )
 
 
-@admin_bp.route("/push")
+def _push_tools_context(result=None, form=None, target_user=None):
+    from app.services.push_service import apns_config_status, mask_token
+
+    token_counts = dict(
+        db.session.query(DeviceToken.environment, db.func.count(DeviceToken.id))
+        .group_by(DeviceToken.environment)
+        .all()
+    )
+    tokens = (
+        DeviceToken.query
+        .order_by(DeviceToken.updated_at.desc())
+        .limit(200)
+        .all()
+    )
+    return {
+        "config": apns_config_status(),
+        "totals": {
+            "production": token_counts.get("production", 0),
+            "sandbox": token_counts.get("sandbox", 0),
+            "all": sum(token_counts.values()),
+        },
+        "tokens": tokens,
+        "mask_token": mask_token,
+        "result": result,
+        "form": form or {},
+        "target_user": target_user,
+    }
+
+
+@admin_bp.route("/push", methods=["GET", "POST"])
 @login_required
 @admin_required
 def push_tools():
-    return redirect("/admin-tools?tab=push")
+    if request.method == "POST":
+        from app.services.push_service import normalize_environment, send_push
+
+        form = {
+            "user_id": request.form.get("user_id", "").strip(),
+            "email": request.form.get("email", "").strip().lower(),
+            "environment": request.form.get("environment", "production").strip(),
+            "link_url": request.form.get("link_url", "/notifications").strip(),
+            "title": request.form.get("title", "FriedSports test push").strip(),
+            "body": request.form.get("body", "If you can read this, APNs is working.").strip(),
+        }
+
+        target_user = None
+        if form["user_id"]:
+            try:
+                target_user = db.session.get(User, int(form["user_id"]))
+            except (TypeError, ValueError):
+                target_user = None
+        if not target_user and form["email"]:
+            target_user = User.query.filter_by(email=form["email"]).first()
+        if not target_user:
+            flash("Choose a target user by ID or email.", "error")
+            return render_template("admin/push.html", **_push_tools_context(form=form))
+
+        if not form["title"] or not form["body"]:
+            flash("Title and body are required.", "error")
+            return render_template("admin/push.html", **_push_tools_context(form=form, target_user=target_user))
+        if form["link_url"] and not form["link_url"].startswith("/"):
+            flash("Link URL must be an app path starting with /.", "error")
+            return render_template("admin/push.html", **_push_tools_context(form=form, target_user=target_user))
+
+        environment = normalize_environment(form["environment"])
+        result = send_push(
+            target_user.id,
+            form["title"][:120],
+            form["body"][:220],
+            {"link_url": form["link_url"]} if form["link_url"] else {},
+            environment=environment,
+        )
+        _audit(
+            "push_test",
+            target_user,
+            f"{environment}: accepted {result.get('accepted_count', 0)}/{result.get('token_count', 0)}",
+        )
+        db.session.commit()
+        flash(
+            f"Push test complete: accepted {result.get('accepted_count', 0)}/{result.get('token_count', 0)} {environment} token(s).",
+            "success" if result.get("accepted_count", 0) else "warning",
+        )
+        return render_template(
+            "admin/push.html",
+            **_push_tools_context(result=result, form=form, target_user=target_user),
+        )
+
+    return render_template("admin/push.html", **_push_tools_context())
 
 
 # ── Admin email action routes ─────────────────────────────────────────────────

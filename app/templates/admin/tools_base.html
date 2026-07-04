@@ -36,6 +36,7 @@
     <a href="{{ url_for('admin.reports_list') }}" class="admin-nav-link {% if 'admin.reports' in request.endpoint %}active{% endif %}">Reports</a>
     <a href="{{ url_for('admin.support_list') }}" class="admin-nav-link {% if 'admin.support' in request.endpoint %}active{% endif %}">Support</a>
     <a href="{{ url_for('admin.broadcast') }}" class="admin-nav-link {% if request.endpoint == 'admin.broadcast' %}active{% endif %}">Broadcast</a>
+    <a href="{{ url_for('admin.push_tools') }}" class="admin-nav-link {% if request.endpoint == 'admin.push_tools' %}active{% endif %}">Push</a>
   </div>
 </nav>
 {% block tools_content %}{% endblock %}
