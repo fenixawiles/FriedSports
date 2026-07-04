@@ -140,6 +140,11 @@ def send_push(user_id: int, title: str, body: str, data: dict = None, environmen
     try:
         return _send_push_inner(user_id, title, body, data or {}, environment=environment)
     except Exception as e:
+        try:
+            from app.models import db
+            db.session.rollback()
+        except Exception:
+            pass
         logger.warning(f"Push notification failed for user {user_id}: {e}")
         env = normalize_environment(environment)
         return {
