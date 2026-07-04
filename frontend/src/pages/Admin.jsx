@@ -566,7 +566,7 @@ function PushPanel() {
       if (!pushResult) {
         setResult(null)
         setNotice('')
-        setError(payload?.error || 'Push test returned no APNs result. Railway may still be deploying; refresh and retry.')
+        setError(payload?.error || 'Push test returned no APNs result. This means the API response shape was unexpected, not that APNs variables are missing.')
         return
       }
       setResult(pushResult)

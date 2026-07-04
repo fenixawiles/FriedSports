@@ -268,9 +268,11 @@ def create_app(config=None):
     @app.errorhandler(DatabaseError)
     def handle_db_error(e):
         db.session.rollback()
-        from flask import flash, redirect, request as req, url_for
+        from flask import flash, jsonify, redirect, request as req, url_for
         import logging
         logging.getLogger(__name__).error("Database error: %s", e)
+        if req.path.startswith("/api/"):
+            return jsonify({"error": "Database connection problem. Please retry."}), 503
         flash("Something went wrong. Please try again.", "error")
         # Send back to the page they came from, or home
         referrer = req.referrer

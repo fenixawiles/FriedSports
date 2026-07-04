@@ -20,7 +20,16 @@ export const actionAdminReport = (id, action) =>
   client.post(`/admin/reports/${id}/action`, { action }).then(r => r.data)
 export const sendAdminBroadcast = (data) => client.post('/admin/broadcast', data).then(r => r.data)
 export const getAdminPushDiagnostics = () => client.get('/admin/push-diagnostics').then(r => r.data)
-export const sendAdminTestPush = (data) => client.post('/admin/push-test', data).then(r => r.data)
+export const sendAdminTestPush = (data) => client.post('/admin/push-test', data).then(r => {
+  const payload = r.data
+  if (!payload || typeof payload !== 'object' || !payload.result) {
+    const preview = typeof payload === 'string'
+      ? payload.replace(/\s+/g, ' ').slice(0, 180)
+      : JSON.stringify(payload ?? null).slice(0, 180)
+    throw new Error(`Unexpected push-test response (${r.status}). Received ${preview || 'empty response'}`)
+  }
+  return payload
+})
 export const getAdminAuditLog = () => client.get('/admin/audit-log').then(r => r.data)
 export const getAdminLab = () => client.get('/admin/lab').then(r => r.data)
 export const createAdminSeason = (data) => client.post('/admin/lab/seasons', data).then(r => r.data)
