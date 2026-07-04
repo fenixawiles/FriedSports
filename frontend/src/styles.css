@@ -837,8 +837,9 @@ code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.87
 
 /* ── Dashboard ── */
 .dashboard-container { max-width: 920px; margin: 0 auto; }
-.dashboard-header { margin-bottom: 2.5rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
-.dashboard-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 1rem; letter-spacing: -0.03em; }
+/* Tight header — the name is a greeting, not a billboard. Dead space kills. */
+.dashboard-header { margin-bottom: 1.1rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); border-image: var(--divider-fade) 1; }
+.dashboard-header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 0; letter-spacing: -0.03em; }
 
 /* Stats — ambient numbers, no box */
 .stats-bar { display: flex; gap: 2.5rem; margin-bottom: 1.25rem; }
@@ -3821,3 +3822,85 @@ body.receipt-page {
   box-shadow: inset 0 0.5px 0 var(--glass-hairline);
 }
 .reaction-chip.reacted .reaction-chip-count { font-weight: 900; }
+
+/* ── Admin: phone-first master→detail ─────────────────────────────────────
+   On mobile the user list and the user detail are two screens, not two
+   stacked panels. Desktop keeps the side-by-side grid unchanged. ── */
+.admin-back-chip {
+  display: none;
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  align-items: center; gap: 0.2rem;
+  padding: 0.2rem 0.2rem 0.6rem;
+  font-size: 0.9rem; font-weight: 700; color: var(--accent);
+}
+@media (max-width: 640px) {
+  .admin-work-grid:not(.detail-open) .admin-detail-panel { display: none; }
+  .admin-work-grid.detail-open > .admin-panel:not(.admin-detail-panel) { display: none; }
+  .admin-work-grid.detail-open .admin-back-chip { display: inline-flex; }
+}
+
+/* Collapsible tool sections — heavy actions fold away until needed */
+.admin-fold {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; margin-top: 0.9rem; padding: 0.65rem 0.75rem;
+  background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--radius); cursor: pointer; font-family: inherit;
+  font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);
+  transition: background 0.15s;
+}
+.admin-fold span { color: var(--text-muted); font-size: 0.75rem; }
+.admin-danger-zone {
+  margin-top: 1.1rem; padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  border-image: var(--divider-fade) 1;
+}
+
+/* ── Friend profile sheet — the public-facing card ── */
+.friend-list-sub { font-size: 0.76rem; color: var(--text-muted); }
+.profile-card { padding-bottom: 0.75rem; }
+.profile-head {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 1.1rem 0.5rem 0.9rem; text-align: center;
+}
+.profile-avatar.identity-avatar { --avatar-size: 72px; margin-bottom: 0.6rem; }
+.profile-name { font-size: 1.15rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em; }
+.profile-uid { font-family: monospace; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+.profile-meta { font-size: 0.76rem; color: var(--text-muted); margin-top: 0.35rem; }
+.profile-section-label {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-muted); margin: 0.7rem 0.35rem 0.4rem;
+}
+.profile-teams { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.35rem; }
+.profile-team-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.78rem; color: var(--text-primary);
+  background: color-mix(in srgb, var(--team-color, var(--accent)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--team-color, var(--accent)) 40%, transparent);
+  border-radius: var(--radius-capsule);
+}
+.profile-team-chip strong { color: var(--team-color, var(--accent)); font-weight: 900; font-size: 0.72rem; }
+.profile-group-chip {
+  --team-color: var(--text-muted);
+  background: var(--bg-input); border-color: var(--border);
+}
+
+/* ── Tap flash: the universal "your tap landed" cue.
+   Plays on click (before navigation), immune to the :active scroll-delay —
+   a quick dip + tint that reads as the row acknowledging you. ── */
+@keyframes _tap-flash {
+  0%   { transform: scale(1);     filter: brightness(1); }
+  35%  { transform: scale(0.965); filter: brightness(0.92); }
+  100% { transform: scale(1);     filter: brightness(1); }
+}
+[data-theme="dark"] .tap-flash,
+.tap-flash {
+  animation: _tap-flash 0.26s var(--ease-spring);
+}
+[data-theme="dark"] .tap-flash { --tap-bright: 1.15; }
+@keyframes _tap-flash-dark {
+  0%   { transform: scale(1);     filter: brightness(1); }
+  35%  { transform: scale(0.965); filter: brightness(1.18); }
+  100% { transform: scale(1);     filter: brightness(1); }
+}
+[data-theme="dark"] .tap-flash { animation-name: _tap-flash-dark; }

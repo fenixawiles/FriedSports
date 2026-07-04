@@ -7,6 +7,7 @@ import { joinGroup } from '../api/groups'
 import Loading from '../components/Loading'
 import IdentityAvatar from '../components/IdentityAvatar'
 import { haptic } from '../native/haptics'
+import { flashThen } from '../utils/tapFlash'
 
 export default function Notifications() {
   const qc = useQueryClient()
@@ -125,7 +126,11 @@ export default function Notifications() {
             <div className="notif-list">
               {messages.map(n => (
                 <Link key={n.id} to={n.link_url || '/dashboard'}
-                  onClick={() => { if (!n.is_read) markOne.mutate(n.id) }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    if (!n.is_read) markOne.mutate(n.id) // red clears the moment you tap
+                    flashThen(e.currentTarget, () => navigate(n.link_url || '/dashboard'))
+                  }}
                   className={`notif-item${!n.is_read ? ' notif-unread' : ''}`}>
                   <div className="notif-dot" />
                   <div className="notif-body">

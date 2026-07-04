@@ -907,6 +907,52 @@ def remove_avatar():
     return ok()
 
 
+@bp.route("/users/<int:user_id>/profile")
+@login_required
+def user_profile(user_id):
+    """Public-facing profile card: identity, teams, shared groups, tenure.
+    Blocked users are mutually invisible."""
+    u = db.session.get(User, user_id)
+    if not u or user_id in current_user.hidden_user_ids():
+        return err("User not found", 404)
+
+    favs = (
+        UserFavoriteTeam.query.filter_by(user_id=user_id)
+        .options(joinedload(UserFavoriteTeam.team))
+        .all()
+    )
+    teams = [
+        {"league": f.league, **(_team_payload(f.team) or {})}
+        for f in favs if f.team
+    ]
+
+    my_gids = {gid for (gid,) in db.session.query(GroupMember.group_id)
+               .filter_by(user_id=current_user.id).all()}
+    shared = []
+    if my_gids:
+        rows = (
+            db.session.query(Group.id, Group.name)
+            .join(GroupMember, GroupMember.group_id == Group.id)
+            .filter(GroupMember.user_id == user_id, Group.id.in_(my_gids))
+            .all()
+        )
+        shared = [{"id": gid, "name": name} for gid, name in rows]
+
+    fav_map = _favorite_team_map([user_id])
+    return ok(profile={
+        "id": u.id,
+        "name": u.shown_name,
+        "uid": u.uid,
+        "identity": _identity("user", u.initials,
+                              avatar_url=u.avatar_url or "",
+                              team=fav_map.get(user_id)),
+        "teams": teams,
+        "shared_groups": shared,
+        "joined": _iso(_aware_dt(u.created_at)),
+        "last_active_at": _iso(_aware_dt(u.last_active_at)),
+    })
+
+
 @bp.route("/users/<int:user_id>/avatar")
 def user_avatar(user_id):
     """Serve the stored profile photo. Public like any social avatar CDN URL;

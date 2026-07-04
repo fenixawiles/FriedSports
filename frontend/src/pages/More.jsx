@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import TapLink from '../components/TapLink'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 
@@ -23,10 +24,10 @@ export default function More() {
 
       {/* Account */}
       <div className="more-section">
-        <Link to="/settings" className="more-row">
+        <TapLink to="/settings" className="more-row">
           <span>Settings</span>
           <span className="more-chevron">›</span>
-        </Link>
+        </TapLink>
         <div className="more-row more-row-appearance">
           <span>Appearance</span>
           <div className="theme-seg" role="group" aria-label="Appearance">
@@ -47,36 +48,36 @@ export default function More() {
 
       {/* Groups */}
       <div className="more-section">
-        <Link to="/dashboard" className="more-row">
+        <TapLink to="/dashboard" className="more-row">
           <span>My Groups</span><span className="more-chevron">›</span>
-        </Link>
-        <Link to="/groups/new" className="more-row">
+        </TapLink>
+        <TapLink to="/groups/new" className="more-row">
           <span>New Group</span><span className="more-chevron">›</span>
-        </Link>
-        <Link to="/groups/join" className="more-row">
+        </TapLink>
+        <TapLink to="/groups/join" className="more-row">
           <span>Join Group</span><span className="more-chevron">›</span>
-        </Link>
+        </TapLink>
       </div>
 
       {/* App */}
       <div className="more-section">
-        <Link to="/support" className="more-row">
+        <TapLink to="/support" className="more-row">
           <span>Support</span><span className="more-chevron">›</span>
-        </Link>
-        <Link to="/legal/privacy" className="more-row">
+        </TapLink>
+        <TapLink to="/legal/privacy" className="more-row">
           <span>Privacy Policy</span><span className="more-chevron">›</span>
-        </Link>
-        <Link to="/legal/terms" className="more-row">
+        </TapLink>
+        <TapLink to="/legal/terms" className="more-row">
           <span>Terms of Service</span><span className="more-chevron">›</span>
-        </Link>
+        </TapLink>
       </div>
 
       {/* Admin */}
       {user?.is_admin && (
         <div className="more-section">
-          <Link to="/admin-tools" className="more-row">
+          <TapLink to="/admin-tools" className="more-row">
             <span>Admin</span><span className="more-chevron">›</span>
-          </Link>
+          </TapLink>
         </div>
       )}
 

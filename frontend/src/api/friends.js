@@ -8,5 +8,6 @@ export const declineRequest = (id)  => client.post(`/friends/decline/${id}`).the
 export const removeFriend   = (uid) => client.delete(`/friends/${uid}`).then(r => r.data)
 export const blockUser      = (uid) => client.post(`/friends/${uid}/block`).then(r => r.data)
 export const reportUser     = (uid, reason) => client.post(`/users/${uid}/report`, { reason }).then(r => r.data)
+export const getProfile      = (uid) => client.get(`/users/${uid}/profile`).then(r => r.data)
 export const getBlockedUsers = ()   => client.get('/blocked-users').then(r => r.data)
 export const unblockUser    = (uid) => client.delete(`/blocked-users/${uid}`).then(r => r.data)

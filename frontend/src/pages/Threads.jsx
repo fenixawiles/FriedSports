@@ -7,6 +7,7 @@ import { Skeleton } from '../components/Skeleton'
 import IdentityAvatar from '../components/IdentityAvatar'
 import useLongPress from '../hooks/useLongPress'
 import { haptic } from '../native/haptics'
+import { flashThen } from '../utils/tapFlash'
 
 const STATUS_FILTERS = [
   ['active', 'Threads'],
@@ -70,7 +71,8 @@ function threadMeta(thread) {
   return { isIncident, isDirect, typeLabel, rowTitle }
 }
 
-function ThreadRow({ thread, last, pending, onAction, onMenu }) {
+function ThreadRow({ thread, last, pending, onAction, onMenu, onOpen }) {
+  const navigate = useNavigate()
   const [offset, setOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
   const startRef = useMemo(() => ({ x: 0, y: 0, base: 0, current: 0, active: false, swiped: false }), [])
@@ -128,7 +130,13 @@ function ThreadRow({ thread, last, pending, onAction, onMenu }) {
     if (offset !== 0 || startRef.swiped) {
       e.preventDefault()
       close()
+      return
     }
+    // Tactile open: flash + haptic, clear the unread badge (opening marks it
+    // read server-side, so this is truthful), THEN navigate.
+    e.preventDefault()
+    onOpen?.(thread.id)
+    flashThen(e.currentTarget, () => navigate(`/threads/${thread.id}`))
   }
 
   const actions = isDeleted
@@ -309,6 +317,11 @@ export default function Threads() {
               pending={actionMut.isPending && actionMut.variables?.id === thread.id}
               onAction={(id, action) => actionMut.mutate({ id, action })}
               onMenu={(t) => setMenuThread(t)}
+              onOpen={(id) => {
+                qc.setQueryData(['threads'], (old) => old?.threads
+                  ? { ...old, threads: old.threads.map(t => t.id === id ? { ...t, unread_count: 0 } : t) }
+                  : old)
+              }}
             />
           ))}
         </div>

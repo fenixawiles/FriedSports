@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { archiveGroup, deleteGroup, getDashboard, getGroup, leaveGroup, unarchiveGroup } from '../api/groups'
 import { getFeed } from '../api/feed'
@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { Skeleton } from '../components/Skeleton'
 import IdentityAvatar from '../components/IdentityAvatar'
 import useLongPress from '../hooks/useLongPress'
+import { flashThen } from '../utils/tapFlash'
 
 function fmtRelative(iso) {
   if (!iso) return ''
@@ -46,6 +47,7 @@ function DashboardSkeleton() {
 }
 
 function GroupSwipeRow({ group, member, pending, onDelete, onLeave, onMenu }) {
+  const navigate = useNavigate()
   const [offset, setOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
   const startRef = useMemo(() => ({ x: 0, y: 0, base: 0, current: 0, active: false, swiped: false }), [])
@@ -97,7 +99,11 @@ function GroupSwipeRow({ group, member, pending, onDelete, onLeave, onMenu }) {
     if (offset !== 0 || startRef.swiped) {
       e.preventDefault()
       close()
+      return
     }
+    // Tactile open: acknowledge the tap before the screen changes.
+    e.preventDefault()
+    flashThen(e.currentTarget, () => navigate(`/groups/${group.id}`))
   }
   function runAction() {
     close()
@@ -154,6 +160,7 @@ function GroupSwipeRow({ group, member, pending, onDelete, onLeave, onMenu }) {
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const [groupActionError, setGroupActionError] = useState('')
   const [menuFor, setMenuFor] = useState(null)          // { group, member } — long-press sheet
@@ -266,6 +273,7 @@ export default function Dashboard() {
               <div className="wire-list">
                 {feedItems.slice(0, 8).map(item => (
                   <Link key={item.id} to={item.link || '/dashboard'}
+                    onClick={(e) => { e.preventDefault(); flashThen(e.currentTarget, () => navigate(item.link || '/dashboard')) }}
                     className={`wire-item${item.is_you ? ' wire-you' : ''}`}>
                     <IdentityAvatar identity={item.actor} className="wire-avatar" />
                     <div className="wire-body">

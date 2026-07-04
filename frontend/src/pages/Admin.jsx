@@ -27,6 +27,7 @@ import {
 } from '../api/admin'
 import BackButton from '../components/BackButton'
 import Loading from '../components/Loading'
+import { flashThen } from '../utils/tapFlash'
 
 const TABS = [
   ['users', 'Users'],
@@ -94,6 +95,11 @@ function UsersPanel() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [emailForm, setEmailForm] = useState({ subject: '', body: '' })
   const [pendingOnly, setPendingOnly] = useState(false)
+  // Phone-first master→detail: the list and the detail are separate screens
+  // on mobile instead of stacked panels.
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [showEmail, setShowEmail] = useState(false)
+  const [showPrompts, setShowPrompts] = useState(false)
 
   const usersQuery = useQuery({
     queryKey: ['admin-users', query, pendingOnly],
@@ -138,7 +144,7 @@ function UsersPanel() {
   })
   const deleteMut = useMutation({
     mutationFn: () => deleteAdminUser(activeId),
-    onSuccess: () => { setNotice('User deleted'); setError(''); setSelectedId(null); refresh() },
+    onSuccess: () => { setNotice('User deleted'); setError(''); setSelectedId(null); setMobileOpen(false); refresh() },
     onError: err => setError(err.message || 'User delete failed'),
   })
   const inviteMut = useMutation({
@@ -193,12 +199,12 @@ function UsersPanel() {
   })
 
   return (
-    <div className="admin-work-grid">
+    <div className={`admin-work-grid${mobileOpen ? ' detail-open' : ''}`}>
       <section className="admin-panel">
         <div className="admin-panel-head">
           <div>
             <span className="admin-panel-title">Users</span>
-            <span className="admin-panel-sub">Search, roles, account actions, and direct emails.</span>
+            <span className="admin-panel-sub">Tap a user to manage their account.</span>
           </div>
         </div>
         <div className="admin-toolbar">
@@ -225,7 +231,10 @@ function UsersPanel() {
               type="button"
               key={row.id}
               className={`admin-list-row${activeId === row.id ? ' active' : ''}`}
-              onClick={() => setSelectedId(row.id)}>
+              onClick={(e) => {
+                e.preventDefault()
+                flashThen(e.currentTarget, () => { setSelectedId(row.id); setMobileOpen(true) })
+              }}>
               <span>
                 <strong>{row.name}</strong>
                 <small>{row.email}</small>
@@ -241,7 +250,10 @@ function UsersPanel() {
         </div>
       </section>
 
-      <section className="admin-panel">
+      <section className="admin-panel admin-detail-panel">
+        <button type="button" className="admin-back-chip" onClick={() => setMobileOpen(false)}>
+          ‹ All users
+        </button>
         <Notice message={notice} />
         <Notice message={error} tone="error" />
         {!user ? (
@@ -277,29 +289,7 @@ function UsersPanel() {
             </div>
             <div className="admin-actions">
               <button type="button" className="btn-primary-small" disabled={updateMut.isPending} onClick={() => updateMut.mutate()}>
-                Save User
-              </button>
-              <button type="button" className="btn-secondary-small" onClick={() => promptMut.mutate('password')}>Password Reset</button>
-              <button type="button" className="btn-secondary-small" onClick={() => promptMut.mutate('username')}>Username Prompt</button>
-              <button type="button" className="btn-secondary-small" onClick={() => promptMut.mutate('email')}>Email Prompt</button>
-            </div>
-
-            <div className="admin-divider" />
-            <div className="admin-form-grid">
-              <TextInput label="Subject" value={emailForm.subject} onChange={v => setEmailForm(f => ({ ...f, subject: v }))} />
-              <label className="admin-field admin-field-wide">
-                <span>Email body</span>
-                <textarea value={emailForm.body} onChange={e => setEmailForm(f => ({ ...f, body: e.target.value }))} />
-              </label>
-            </div>
-            <div className="admin-actions">
-              <button type="button" className="btn-secondary-small" disabled={emailMut.isPending} onClick={() => emailMut.mutate()}>
-                Send Email
-              </button>
-              <button type="button" className="btn-danger-small"
-                disabled={deleteMut.isPending}
-                onClick={() => { if (window.confirm(`Delete ${user.email}? This cannot be undone.`)) deleteMut.mutate() }}>
-                Delete User
+                {updateMut.isPending ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
 
@@ -312,6 +302,48 @@ function UsersPanel() {
               <span className="admin-panel-sub">Groups</span>
               {(detail.groups || []).map(g => <span key={`${g.id}-${g.role}`}>{g.name} · {g.role}</span>)}
               {(detail.groups || []).length === 0 && <span>No groups</span>}
+            </div>
+
+            {/* Heavy tools fold away — less is more on a phone */}
+            <button type="button" className="admin-fold" aria-expanded={showEmail}
+              onClick={() => setShowEmail(s => !s)}>
+              Send them an email <span>{showEmail ? '▾' : '▸'}</span>
+            </button>
+            {showEmail && (
+              <>
+                <div className="admin-form-grid">
+                  <TextInput label="Subject" value={emailForm.subject} onChange={v => setEmailForm(f => ({ ...f, subject: v }))} />
+                  <label className="admin-field admin-field-wide">
+                    <span>Email body</span>
+                    <textarea value={emailForm.body} onChange={e => setEmailForm(f => ({ ...f, body: e.target.value }))} />
+                  </label>
+                </div>
+                <div className="admin-actions">
+                  <button type="button" className="btn-secondary-small" disabled={emailMut.isPending} onClick={() => emailMut.mutate()}>
+                    {emailMut.isPending ? 'Sending…' : 'Send Email'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            <button type="button" className="admin-fold" aria-expanded={showPrompts}
+              onClick={() => setShowPrompts(s => !s)}>
+              Account prompts <span>{showPrompts ? '▾' : '▸'}</span>
+            </button>
+            {showPrompts && (
+              <div className="admin-actions">
+                <button type="button" className="btn-secondary-small" onClick={() => promptMut.mutate('password')}>Password reset</button>
+                <button type="button" className="btn-secondary-small" onClick={() => promptMut.mutate('username')}>Username change</button>
+                <button type="button" className="btn-secondary-small" onClick={() => promptMut.mutate('email')}>Email change</button>
+              </div>
+            )}
+
+            <div className="admin-danger-zone">
+              <button type="button" className="btn-danger-small"
+                disabled={deleteMut.isPending}
+                onClick={() => { if (window.confirm(`Delete ${user.email}? This cannot be undone.`)) deleteMut.mutate() }}>
+                Delete User
+              </button>
             </div>
           </>
         )}

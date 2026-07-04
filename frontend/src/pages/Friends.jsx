@@ -1,14 +1,31 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getFriends, searchUsers, sendRequest, removeFriend, blockUser, reportUser } from '../api/friends'
+import { getFriends, searchUsers, sendRequest, removeFriend, blockUser, reportUser, getProfile } from '../api/friends'
 import { Skeleton } from '../components/Skeleton'
 import IdentityAvatar from '../components/IdentityAvatar'
+import Loading from '../components/Loading'
+
+function fmtJoined(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+function fmtActive(iso) {
+  if (!iso) return 'A while ago'
+  const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 5 * 60_000) return 'Active now'
+  if (diff < 3_600_000) return `Active ${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000) return `Active ${Math.floor(diff / 3_600_000)}h ago`
+  const days = Math.floor(diff / 86_400_000)
+  return days === 1 ? 'Active yesterday' : `Active ${days}d ago`
+}
 
 export default function Friends() {
   const qc = useQueryClient()
   const [query, setQuery]     = useState('')
   const [results, setResults] = useState(null)
   const [menuFriend, setMenuFriend] = useState(null) // friend whose options sheet is open
+  const [profile, setProfile] = useState(null)       // profile sheet data
+  const [profileLoading, setProfileLoading] = useState(false)
   const debounceRef = useRef(null)
 
   const { data, isLoading } = useQuery({ queryKey: ['friends'], queryFn: getFriends })
@@ -30,6 +47,19 @@ export default function Friends() {
     onSuccess: () => window.alert('Report submitted. Our moderators will take a look.'),
   })
 
+  async function doViewProfile(f) {
+    setMenuFriend(null)
+    setProfileLoading(true)
+    setProfile({ name: f.name, identity: f.identity }) // sheet opens instantly
+    try {
+      const d = await getProfile(f.id)
+      setProfile(d.profile)
+    } catch {
+      setProfile(null)
+    } finally {
+      setProfileLoading(false)
+    }
+  }
   function doRemove(f) {
     setMenuFriend(null)
     if (window.confirm(`Remove ${f.name}?`)) removeMut.mutate(f.id)
@@ -134,14 +164,19 @@ export default function Friends() {
         ) : (
           <div className="friend-list">
             {friends.map(f => (
-              <div key={f.id} className="friend-list-row">
+              <div key={f.id} className="friend-list-row" role="button" tabIndex={0}
+                onClick={() => doViewProfile(f)}>
                 <IdentityAvatar identity={f.identity} fallbackLabel={f.name} className="friend-list-avatar" />
                 <div className="friend-list-info">
                   <span className="member-name">{f.name}</span>
-                  <span className="friend-list-uid">{f.uid}</span>
+                  <span className="friend-list-sub">
+                    {f.shared_group_count
+                      ? `${f.shared_group_count} shared group${f.shared_group_count !== 1 ? 's' : ''}`
+                      : fmtActive(f.last_active_at)}
+                  </span>
                 </div>
                 <button className="friend-menu-btn" aria-label="Friend options"
-                  onClick={() => setMenuFriend(f)}>
+                  onClick={(e) => { e.stopPropagation(); setMenuFriend(f) }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
                     fill="currentColor" aria-hidden="true">
                     <circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>
@@ -161,6 +196,10 @@ export default function Friends() {
             <div className="pw-sheet-head">
               <div className="pw-sheet-title">{menuFriend.name}</div>
             </div>
+            <button type="button" className="pw-sheet-opt" onClick={() => doViewProfile(menuFriend)}>
+              <span className="pw-opt-main">View profile</span>
+              <span className="pw-opt-sub">Teams, shared groups, FS ID</span>
+            </button>
             <button type="button" className="pw-sheet-opt" onClick={() => doReport(menuFriend)}>
               <span className="pw-opt-main">Report</span>
               <span className="pw-opt-sub">Flag this user for the moderators</span>
@@ -173,6 +212,57 @@ export default function Friends() {
               <span className="pw-opt-main">Remove friend</span>
             </button>
             <button type="button" className="pw-sheet-cancel" onClick={() => setMenuFriend(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Profile sheet — the public-facing card */}
+      {profile && (
+        <div className="pw-sheet" onClick={(e) => { if (e.target === e.currentTarget) setProfile(null) }}>
+          <div className="pw-sheet-backdrop" onClick={() => setProfile(null)} />
+          <div className="pw-sheet-card profile-card" role="dialog" aria-modal="true">
+            {profileLoading ? (
+              <div style={{ padding: '2rem 0' }}><Loading /></div>
+            ) : (
+              <>
+                <div className="profile-head">
+                  <IdentityAvatar identity={profile.identity} fallbackLabel={profile.name}
+                    className="profile-avatar" />
+                  <div className="profile-name">{profile.name}</div>
+                  {profile.uid && <div className="profile-uid">{profile.uid}</div>}
+                  <div className="profile-meta">
+                    {fmtActive(profile.last_active_at)}
+                    {profile.joined && <> · Joined {fmtJoined(profile.joined)}</>}
+                  </div>
+                </div>
+
+                {profile.teams?.length > 0 && (
+                  <>
+                    <div className="profile-section-label">Their teams</div>
+                    <div className="profile-teams">
+                      {profile.teams.map(t => (
+                        <span key={`${t.league}-${t.id}`} className="profile-team-chip"
+                          style={{ '--team-color': t.primary_color || 'var(--accent)' }}>
+                          <strong>{t.abbreviation}</strong> {t.name}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {profile.shared_groups?.length > 0 && (
+                  <>
+                    <div className="profile-section-label">Shared groups</div>
+                    <div className="profile-teams">
+                      {profile.shared_groups.map(g => (
+                        <span key={g.id} className="profile-team-chip profile-group-chip">{g.name}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+            <button type="button" className="pw-sheet-cancel" onClick={() => setProfile(null)}>Close</button>
           </div>
         </div>
       )}
