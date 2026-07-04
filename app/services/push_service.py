@@ -261,8 +261,10 @@ def _send_push_inner(user_id: int, title: str, body: str, data: dict, environmen
                     item["reason"] = response_json.get("reason", "") or resp.text[:240]
                 except Exception:
                     item["reason"] = resp.text[:240]
-                if resp.status_code == 410:
-                    # Token is no longer valid
+                if resp.status_code == 410 or (
+                    resp.status_code == 400 and item["reason"] == "BadDeviceToken"
+                ):
+                    # Token is no longer valid for this APNs environment.
                     item["stale"] = True
                     stale_tokens.append(dt.token)
                 elif resp.status_code in (200, 201):

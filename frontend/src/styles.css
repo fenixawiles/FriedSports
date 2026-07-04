@@ -1613,6 +1613,12 @@ body.keyboard-open .thread-main .chat-input-area {
 .chat-input-area {
   background: var(--bg-primary);
 }
+.chat-send-error {
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 700;
+  margin: 0 0 0.35rem 0.2rem;
+}
 .chat-form {
   display: flex; align-items: flex-end;
   background: transparent; border: none; padding: 0;

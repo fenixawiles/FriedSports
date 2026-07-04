@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getThread, sendMessage, reactToMessage, deleteMessage,
          confirmReport, dismissReport, redeemReport } from '../api/threads'
 import { useAuth } from '../context/AuthContext'
+import { haptic } from '../native/haptics'
 import Loading from '../components/Loading'
 
 // The FS reaction language — four branded verdicts, not random emoji.
@@ -53,6 +54,7 @@ export default function ThreadChat() {
 
   const [body, setBody]       = useState('')
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
   // Optimistic outbox: messages appear instantly with a "sending" state and
   // resolve to "sent" — they never vanish while the server round-trip runs.
   // [{ tempId, body, status: 'sending' | 'sent', serverId? }]
@@ -118,15 +120,17 @@ export default function ThreadChat() {
     haptic('light') // the message left your hands
     setOutbox(o => [...o, { tempId, body: trimmed, status: 'sending' }])
     setSending(true)
+    setSendError('')
     try {
       const res = await sendMessage(id, trimmed)
       setOutbox(o => o.map(m => m.tempId === tempId
         ? { ...m, status: 'sent', serverId: res.id }
         : m))
       qc.invalidateQueries(['thread', id])
-    } catch {
+    } catch (err) {
       setOutbox(o => o.filter(m => m.tempId !== tempId))
       setBody(trimmed) // restore on failure
+      setSendError(err?.message || 'Message failed to send.')
     } finally {
       setSending(false)
     }
@@ -455,6 +459,7 @@ export default function ThreadChat() {
       {/* Input */}
       {thread?.status === 'active' ? (
         <div className="chat-input-area">
+          {sendError && <div className="chat-send-error">{sendError}</div>}
           <form className="chat-form" id="chat-form" onSubmit={handleSend}>
             <div className="chat-input-pill">
               <textarea ref={inputRef} id="chat-input" name="body"
