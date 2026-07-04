@@ -611,22 +611,14 @@ def users_invite():
 @login_required
 @admin_required
 def tools_dashboard():
-    user_count = User.query.count()
-    open_tickets = SupportTicket.query.filter(
-        SupportTicket.status.in_(["received", "in_progress"])
-    ).count()
-    recent_logs = (
-        AdminAuditLog.query
-        .order_by(AdminAuditLog.created_at.desc())
-        .limit(5)
-        .all()
-    )
-    return render_template(
-        "admin/tools_overview.html",
-        user_count=user_count,
-        open_tickets=open_tickets,
-        recent_logs=recent_logs,
-    )
+    return redirect("/admin-tools")
+
+
+@admin_bp.route("/push")
+@login_required
+@admin_required
+def push_tools():
+    return redirect("/admin-tools?tab=push")
 
 
 # ── Admin email action routes ─────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   actionAdminReport,
@@ -40,6 +40,12 @@ const TABS = [
   ['audit', 'Audit'],
   ['lab', 'Sports Lab'],
 ]
+const TAB_VALUES = new Set(TABS.map(([value]) => value))
+
+function tabFromSearch(searchParams) {
+  const requested = searchParams.get('tab')
+  return TAB_VALUES.has(requested) ? requested : 'users'
+}
 
 const STAT_FIELDS = [
   'points', 'fgm', 'fga', 'three_pm', 'three_pa', 'ftm', 'fta',
@@ -901,11 +907,17 @@ function SportsLabPanel() {
 }
 
 export default function Admin() {
-  const [tab, setTab] = useState('users')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [tab, setTab] = useState(() => tabFromSearch(searchParams))
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-overview'],
     queryFn: getAdminOverview,
   })
+
+  useEffect(() => {
+    const requested = searchParams.get('tab')
+    if (TAB_VALUES.has(requested) && requested !== tab) setTab(requested)
+  }, [searchParams, tab])
 
   if (isLoading) return <Loading full />
   if (error) return <div className="empty-state"><p>Admin access unavailable.</p></div>
@@ -940,7 +952,10 @@ export default function Admin() {
             role="tab"
             aria-selected={tab === value}
             className={tab === value ? 'active' : ''}
-            onClick={() => setTab(value)}>
+            onClick={() => {
+              setTab(value)
+              setSearchParams(value === 'users' ? {} : { tab: value }, { replace: true })
+            }}>
             {label}
           </button>
         ))}
