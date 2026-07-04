@@ -562,8 +562,15 @@ function PushPanel() {
       email: form.email.trim() || undefined,
     }),
     onSuccess: payload => {
-      setResult(payload.result)
-      setNotice(`Accepted ${payload.result.accepted_count}/${payload.result.token_count} ${payload.result.environment} token(s)`)
+      const pushResult = payload?.result
+      if (!pushResult) {
+        setResult(null)
+        setNotice('')
+        setError(payload?.error || 'Push test returned no APNs result. Railway may still be deploying; refresh and retry.')
+        return
+      }
+      setResult(pushResult)
+      setNotice(`Accepted ${pushResult.accepted_count ?? 0}/${pushResult.token_count ?? 0} ${pushResult.environment || form.environment} token(s)`)
       setError('')
       qc.invalidateQueries(['admin-push-diagnostics'])
       qc.invalidateQueries(['admin-audit'])
@@ -636,10 +643,10 @@ function PushPanel() {
         <div className="admin-card-list">
           <article className="admin-report-card">
             <div>
-              <strong>{result.environment} APNs result</strong>
-              <span>{result.reason || 'APNs request completed'} · {result.bundle_id}</span>
+              <strong>{result.environment || form.environment} APNs result</strong>
+              <span>{result.reason || 'APNs request completed'} · {result.bundle_id || 'bundle unknown'}</span>
             </div>
-            <p>{result.accepted_count} accepted · {result.failed_count} failed · {result.stale_count} stale</p>
+            <p>{result.accepted_count ?? 0} accepted · {result.failed_count ?? 0} failed · {result.stale_count ?? 0} stale</p>
             {(result.results || []).map(item => (
               <small key={item.token_id}>
                 {item.token}: {item.accepted ? 'accepted' : 'failed'}{item.status_code ? ` (${item.status_code})` : ''}{item.reason ? ` · ${item.reason}` : ''}

@@ -1702,6 +1702,20 @@ def admin_push_test():
         {"link_url": link_url} if link_url else {},
         environment=environment,
     )
+    if not isinstance(result, dict):
+        result = {
+            "ok": False,
+            "configured": False,
+            "environment": environment,
+            "host": "",
+            "bundle_id": "",
+            "reason": "push_sender_returned_no_result",
+            "token_count": 0,
+            "accepted_count": 0,
+            "failed_count": 1,
+            "stale_count": 0,
+            "results": [],
+        }
     _admin_audit(
         "push_test",
         user,
