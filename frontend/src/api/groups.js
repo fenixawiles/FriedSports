@@ -9,6 +9,8 @@ export const inviteEmail   = (id, email) => client.post(`/groups/${id}/invite-em
 export const inviteUser    = (id, user_id) => client.post(`/groups/${id}/invite-user`, { user_id }).then(r => r.data)
 export const regenerateInvite = (id)     => client.post(`/groups/${id}/regenerate-invite`).then(r => r.data)
 export const muteGroup     = (id)        => client.post(`/groups/${id}/mute`).then(r => r.data)
+export const archiveGroup   = (id)       => client.post(`/groups/${id}/archive`).then(r => r.data)
+export const unarchiveGroup = (id)       => client.post(`/groups/${id}/unarchive`).then(r => r.data)
 export const leaveGroup    = (id)        => client.post(`/groups/${id}/leave`).then(r => r.data)
 export const deleteGroup   = (id)        => client.delete(`/groups/${id}`).then(r => r.data)
 export const removeMember  = (gid, uid)  => client.post(`/groups/${gid}/remove/${uid}`).then(r => r.data)

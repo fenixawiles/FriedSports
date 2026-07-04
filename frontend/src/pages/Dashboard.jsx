@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { deleteGroup, getDashboard, getGroup, leaveGroup } from '../api/groups'
+import { archiveGroup, deleteGroup, getDashboard, getGroup, leaveGroup, unarchiveGroup } from '../api/groups'
 import { getThread } from '../api/threads'
 import { useAuth } from '../context/AuthContext'
 import { Skeleton } from '../components/Skeleton'
+import useLongPress from '../hooks/useLongPress'
 
 function DashboardSkeleton() {
   return (
@@ -31,13 +32,14 @@ function DashboardSkeleton() {
   )
 }
 
-function GroupSwipeRow({ group, member, pending, onDelete, onLeave }) {
+function GroupSwipeRow({ group, member, pending, onDelete, onLeave, onMenu }) {
   const [offset, setOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
   const startRef = useMemo(() => ({ x: 0, y: 0, base: 0, current: 0, active: false, swiped: false }), [])
   const isOwner = member.role === 'owner'
   const actionLabel = isOwner ? 'Delete' : 'Leave'
   const maxOffset = 88
+  const press = useLongPress(() => onMenu(group, member))
 
   function close() {
     setDragging(false)
@@ -51,9 +53,11 @@ function GroupSwipeRow({ group, member, pending, onDelete, onLeave }) {
     startRef.base = offset
     startRef.active = false
     startRef.swiped = false
+    press.begin(e)
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }
   function onPointerMove(e) {
+    press.move(e)
     const dx = e.clientX - startRef.x
     const dy = e.clientY - startRef.y
     if (!startRef.active) {
@@ -66,6 +70,7 @@ function GroupSwipeRow({ group, member, pending, onDelete, onLeave }) {
     setOffset(next)
   }
   function onPointerUp() {
+    press.end()
     if (!startRef.active) return
     const next = startRef.current < -(maxOffset / 2) ? -maxOffset : 0
     setDragging(false)
@@ -75,6 +80,7 @@ function GroupSwipeRow({ group, member, pending, onDelete, onLeave }) {
     setTimeout(() => { startRef.swiped = false }, 80)
   }
   function onClick(e) {
+    if (press.clickGuard(e)) return
     if (offset !== 0 || startRef.swiped) {
       e.preventDefault()
       close()
@@ -95,11 +101,12 @@ function GroupSwipeRow({ group, member, pending, onDelete, onLeave }) {
       </div>
       <Link
         to={`/groups/${group.id}`}
-        className={`group-card${dragging ? ' dragging' : ''}`}
+        className={`group-card longpressable${dragging ? ' dragging' : ''}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onContextMenu={(e) => e.preventDefault()}
         onClick={onClick}
         style={{ transform: `translateX(${offset}px)` }}>
         <div className="group-card-left">
@@ -119,6 +126,8 @@ export default function Dashboard() {
   const { user } = useAuth()
   const qc = useQueryClient()
   const [groupActionError, setGroupActionError] = useState('')
+  const [menuFor, setMenuFor] = useState(null)          // { group, member } — long-press sheet
+  const [showArchived, setShowArchived] = useState(false)
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
@@ -126,6 +135,8 @@ export default function Dashboard() {
   const groupActionMut = useMutation({
     mutationFn: ({ group, action }) => {
       if (action === 'delete') return deleteGroup(group.id)
+      if (action === 'archive') return archiveGroup(group.id)
+      if (action === 'unarchive') return unarchiveGroup(group.id)
       return leaveGroup(group.id)
     },
     onSuccess: () => {
@@ -135,6 +146,22 @@ export default function Dashboard() {
     },
     onError: (err) => setGroupActionError(err.message || 'Could not update group'),
   })
+
+  function sheetAction(action) {
+    const { group, member } = menuFor
+    setMenuFor(null)
+    if (action === 'delete') {
+      if (window.confirm(`Delete ${group.name}? This permanently removes the group and its threads.`)) {
+        groupActionMut.mutate({ group, action: 'delete' })
+      }
+    } else if (action === 'leave') {
+      if (window.confirm(`Leave ${group.name}?`)) {
+        groupActionMut.mutate({ group, action: 'leave' })
+      }
+    } else {
+      groupActionMut.mutate({ group, action })
+    }
+  }
 
   // Eagerly prefetch every group and active thread visible on this page.
   // By the time the user taps a card the data is already in cache — no spinner.
@@ -155,6 +182,8 @@ export default function Dashboard() {
   if (error) return <div className="empty-state"><p>Could not load dashboard.</p></div>
 
   const { groups = [], active_threads = [], msg_counts = {} } = data
+  const activeGroups   = groups.filter(g => !g.member?.archived)
+  const archivedGroups = groups.filter(g => g.member?.archived)
 
   return (
     <div className="dashboard-container">
@@ -185,12 +214,13 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="group-list">
-              {groups.map(({ group, member }) => (
+              {activeGroups.map(({ group, member }) => (
                 <GroupSwipeRow
                   key={group.id}
                   group={group}
                   member={member}
                   pending={groupActionMut.isPending && groupActionMut.variables?.group?.id === group.id}
+                  onMenu={(g, m) => setMenuFor({ group: g, member: m })}
                   onDelete={(g) => {
                     if (window.confirm(`Delete ${g.name}? This permanently removes the group and its threads.`)) {
                       groupActionMut.mutate({ group: g, action: 'delete' })
@@ -203,8 +233,76 @@ export default function Dashboard() {
                   }}
                 />
               ))}
+              {activeGroups.length === 0 && archivedGroups.length > 0 && (
+                <div className="empty-state"><p>All your groups are archived.</p></div>
+              )}
             </div>
           </section>
+
+          {archivedGroups.length > 0 && (
+            <section className="dashboard-section">
+              <button type="button" className="archived-toggle"
+                onClick={() => setShowArchived(s => !s)} aria-expanded={showArchived}>
+                Archived ({archivedGroups.length}) {showArchived ? '▾' : '▸'}
+              </button>
+              {showArchived && (
+                <div className="group-list">
+                  {archivedGroups.map(({ group, member }) => (
+                    <GroupSwipeRow
+                      key={group.id}
+                      group={group}
+                      member={member}
+                      pending={groupActionMut.isPending && groupActionMut.variables?.group?.id === group.id}
+                      onMenu={(g, m) => setMenuFor({ group: g, member: m })}
+                      onDelete={(g) => {
+                        if (window.confirm(`Delete ${g.name}? This permanently removes the group and its threads.`)) {
+                          groupActionMut.mutate({ group: g, action: 'delete' })
+                        }
+                      }}
+                      onLeave={(g) => {
+                        if (window.confirm(`Leave ${g.name}?`)) {
+                          groupActionMut.mutate({ group: g, action: 'leave' })
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Long-press group action sheet */}
+          {menuFor && (
+            <div className="pw-sheet" onClick={(e) => { if (e.target === e.currentTarget) setMenuFor(null) }}>
+              <div className="pw-sheet-backdrop" onClick={() => setMenuFor(null)} />
+              <div className="pw-sheet-card" role="dialog" aria-modal="true">
+                <div className="pw-sheet-head">
+                  <div className="pw-sheet-title">{menuFor.group.name}</div>
+                  <div className="pw-sheet-sub">{menuFor.member.role}</div>
+                </div>
+                <button type="button" className="pw-sheet-opt"
+                  onClick={() => sheetAction(menuFor.member.archived ? 'unarchive' : 'archive')}>
+                  <span className="pw-opt-main">{menuFor.member.archived ? 'Unarchive' : 'Archive'}</span>
+                  <span className="pw-opt-sub">
+                    {menuFor.member.archived
+                      ? 'Move back to your groups'
+                      : 'Hide from your dashboard — you stay a member'}
+                  </span>
+                </button>
+                {menuFor.member.role === 'owner' ? (
+                  <button type="button" className="pw-sheet-opt pw-opt-danger" onClick={() => sheetAction('delete')}>
+                    <span className="pw-opt-main">Delete group</span>
+                    <span className="pw-opt-sub">Permanently removes the group and its threads for everyone</span>
+                  </button>
+                ) : (
+                  <button type="button" className="pw-sheet-opt pw-opt-danger" onClick={() => sheetAction('leave')}>
+                    <span className="pw-opt-main">Leave group</span>
+                  </button>
+                )}
+                <button type="button" className="pw-sheet-cancel" onClick={() => setMenuFor(null)}>Cancel</button>
+              </div>
+            </div>
+          )}
 
           {active_threads.length > 0 && (
             <section className="dashboard-section">

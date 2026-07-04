@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { archiveThread, deleteThreadLocal, getThreadsList, getThread,
          restoreThread, unarchiveThread } from '../api/threads'
 import { Skeleton } from '../components/Skeleton'
+import useLongPress from '../hooks/useLongPress'
 
 const STATUS_FILTERS = [
   ['active', 'Threads'],
@@ -67,7 +68,7 @@ function threadMeta(thread) {
   return { isIncident, isDirect, typeLabel, rowTitle }
 }
 
-function ThreadRow({ thread, last, pending, onAction }) {
+function ThreadRow({ thread, last, pending, onAction, onMenu }) {
   const [offset, setOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
   const startRef = useMemo(() => ({ x: 0, y: 0, base: 0, current: 0, active: false, swiped: false }), [])
@@ -75,6 +76,7 @@ function ThreadRow({ thread, last, pending, onAction }) {
   const isDeleted = category === 'deleted'
   const maxOffset = isDeleted ? 88 : 176
   const { isIncident, rowTitle } = threadMeta(thread)
+  const press = useLongPress(() => onMenu(thread))
 
   function close() {
     setDragging(false)
@@ -89,10 +91,12 @@ function ThreadRow({ thread, last, pending, onAction }) {
     startRef.base = offset
     startRef.active = false
     startRef.swiped = false
+    press.begin(e)
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }
 
   function onPointerMove(e) {
+    press.move(e)
     const dx = e.clientX - startRef.x
     const dy = e.clientY - startRef.y
     if (!startRef.active) {
@@ -106,6 +110,7 @@ function ThreadRow({ thread, last, pending, onAction }) {
   }
 
   function onPointerUp() {
+    press.end()
     if (!startRef.active) return
     const shouldOpen = startRef.current < -(maxOffset / 2)
     const next = shouldOpen ? -maxOffset : 0
@@ -117,6 +122,7 @@ function ThreadRow({ thread, last, pending, onAction }) {
   }
 
   function onRowClick(e) {
+    if (press.clickGuard(e)) return
     if (offset !== 0 || startRef.swiped) {
       e.preventDefault()
       close()
@@ -146,12 +152,13 @@ function ThreadRow({ thread, last, pending, onAction }) {
       </div>
       <Link
         to={`/threads/${thread.id}`}
-        className={`thread-row-item${dragging ? ' dragging' : ''}`}
+        className={`thread-row-item longpressable${dragging ? ' dragging' : ''}`}
         data-group-id={thread.group_id || ''}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onContextMenu={(e) => e.preventDefault()}
         onClick={onRowClick}
         style={{ transform: `translateX(${offset}px)` }}>
         <div className="thread-avatar-circle"
@@ -202,6 +209,7 @@ export default function Threads() {
   const [statusFilter, setStatusFilter]     = useState('active')
   const [typeFilter, setTypeFilter]         = useState('all')
   const [actionError, setActionError]       = useState('')
+  const [menuThread, setMenuThread]         = useState(null)  // long-press sheet
 
   const threads   = data?.threads    ?? []
   const lastMsgs  = data?.last_msgs  ?? {}
@@ -290,10 +298,49 @@ export default function Threads() {
               last={lastMsgs[thread.id]}
               pending={actionMut.isPending && actionMut.variables?.id === thread.id}
               onAction={(id, action) => actionMut.mutate({ id, action })}
+              onMenu={(t) => setMenuThread(t)}
             />
           ))}
         </div>
       )}
+
+      {/* Long-press thread action sheet — same actions as swipe */}
+      {menuThread && (() => {
+        const category = menuThread.category || 'active'
+        const isDeleted = category === 'deleted'
+        const run = (action) => { setMenuThread(null); actionMut.mutate({ id: menuThread.id, action }) }
+        return (
+          <div className="pw-sheet" onClick={(e) => { if (e.target === e.currentTarget) setMenuThread(null) }}>
+            <div className="pw-sheet-backdrop" onClick={() => setMenuThread(null)} />
+            <div className="pw-sheet-card" role="dialog" aria-modal="true">
+              <div className="pw-sheet-head">
+                <div className="pw-sheet-title">{threadMeta(menuThread).rowTitle}</div>
+              </div>
+              {isDeleted ? (
+                <button type="button" className="pw-sheet-opt" onClick={() => run('restore')}>
+                  <span className="pw-opt-main">Restore</span>
+                  <span className="pw-opt-sub">Move back to your chats</span>
+                </button>
+              ) : (
+                <>
+                  <button type="button" className="pw-sheet-opt"
+                    onClick={() => run(category === 'archived' ? 'unarchive' : 'archive')}>
+                    <span className="pw-opt-main">{category === 'archived' ? 'Unarchive' : 'Archive'}</span>
+                    <span className="pw-opt-sub">
+                      {category === 'archived' ? 'Move back to your chats' : 'Tuck away without deleting'}
+                    </span>
+                  </button>
+                  <button type="button" className="pw-sheet-opt pw-opt-danger" onClick={() => run('delete')}>
+                    <span className="pw-opt-main">Delete</span>
+                    <span className="pw-opt-sub">Clears your copy — others keep theirs</span>
+                  </button>
+                </>
+              )}
+              <button type="button" className="pw-sheet-cancel" onClick={() => setMenuThread(null)}>Cancel</button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* FAB */}
       <button className="threads-fab" onClick={() => navigate('/threads/new')} aria-label="New chat">+</button>

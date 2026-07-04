@@ -28,6 +28,19 @@ def ok(**kwargs):
 def err(msg, status=400):
     return jsonify({"error": msg}), status
 
+
+def _notify_once(user_id, type, message, link_url):
+    """Add a Notification unless an identical unread one already exists.
+    Guards every double-fire path (double-taps, retried requests) at the source
+    so duplicates can't reach the bell no matter which UI triggered them."""
+    exists = Notification.query.filter_by(
+        user_id=user_id, type=type, message=message, is_read=False
+    ).first()
+    if not exists:
+        db.session.add(Notification(
+            user_id=user_id, type=type, message=message, link_url=link_url,
+        ))
+
 def _serialize_user(u):
     return {
         "id":                  u.id,
@@ -327,7 +340,7 @@ def dashboard():
     group_ids = [m.group_id for m in memberships]
     groups = [
         {"group": {"id": m.group.id, "name": m.group.name, "league_scope": m.group.league_scope},
-         "member": {"role": m.role}}
+         "member": {"role": m.role, "archived": bool(m.archived)}}
         for m in memberships if m.group
     ]
 
@@ -1422,27 +1435,56 @@ def admin_create_metric():
 @bp.route("/notifications")
 @login_required
 def notifications():
-    all_notifs = (
-        Notification.query
-        .filter_by(user_id=current_user.id)
-        .order_by(Notification.created_at.desc())
-        .limit(100)
-        .all()
-    )
-    messages = []
-    invites  = []
-    for n in all_notifs:
-        item = {
+    def _item(n):
+        return {
             "id": n.id,
             "message": n.message,
             "link_url": n.link_url or "/dashboard",
             "is_read":  n.is_read,
             "created_at": n.created_at.strftime("%-d %b at %-I:%M %p") if n.created_at else "",
         }
-        if n.type in ("group_invite",):
-            invites.append(item)
-        else:
-            messages.append(item)
+
+    all_notifs = (
+        Notification.query
+        .filter_by(user_id=current_user.id)
+        .filter(Notification.type != "group_invite")
+        .order_by(Notification.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    messages = [_item(n) for n in all_notifs]
+
+    # Invites live OUTSIDE the 100-item window: every group_invite the user has
+    # ever received stays in the tab until it's accepted or the link goes stale.
+    # (Retroactive by design — old invites people missed resurface here.)
+    invite_notifs = (
+        Notification.query
+        .filter_by(user_id=current_user.id, type="group_invite")
+        .order_by(Notification.created_at.desc())
+        .all()
+    )
+    invites, seen_groups, dirty = [], set(), False
+    for n in invite_notifs:
+        code = (n.link_url or "").rsplit("/", 1)[-1]
+        g = _find_group_by_code(code) if code else None
+        if not g:
+            # Stale: group deleted or invite code regenerated — retire quietly.
+            if not n.is_read:
+                n.is_read = True
+                dirty = True
+            continue
+        if g.is_member(current_user.id):
+            # Already accepted — clear any lingering unread badge.
+            if not n.is_read:
+                n.is_read = True
+                dirty = True
+            continue
+        if g.id in seen_groups:
+            continue  # multiple invites to the same group collapse into one
+        seen_groups.add(g.id)
+        invites.append(_item(n))
+    if dirty:
+        db.session.commit()
 
     pending_fr = (
         FriendRequest.query
@@ -1455,8 +1497,22 @@ def notifications():
         for fr in pending_fr
     ]
 
-    unread = sum(1 for n in all_notifs if not n.is_read)
+    unread = sum(1 for n in all_notifs if not n.is_read) \
+           + sum(1 for i in invites if not i["is_read"])
     return ok(messages=messages, invites=invites, pending_fr=fr_list, unread_count=unread)
+
+
+@bp.route("/notifications/<int:notif_id>/read", methods=["POST"])
+@login_required
+def notification_mark_one_read(notif_id):
+    """Mark a single notification read — fired when the user taps it."""
+    n = Notification.query.get_or_404(notif_id)
+    if n.user_id != current_user.id:
+        return err("Not authorized", 403)
+    if not n.is_read:
+        n.is_read = True
+        db.session.commit()
+    return ok()
 
 
 @bp.route("/notifications/mark-read", methods=["POST"])
@@ -1531,6 +1587,11 @@ def join_group(code):
     db.session.add(GroupMember(group_id=g.id, user_id=current_user.id, role="member"))
     from app.services.activity import record_event
     record_event(g.id, current_user.id, "member_joined")
+    # Retire any invite notifications for this group — accepted now.
+    Notification.query.filter_by(
+        user_id=current_user.id, type="group_invite",
+        link_url=f"/groups/join/{g.invite_code}",
+    ).update({"is_read": True})
     db.session.commit()
     return ok(group_id=g.id)
 
@@ -1647,6 +1708,30 @@ def group_invite_user(group_id):
         ))
         db.session.commit()
     return ok(invited=True, name=target.shown_name)
+
+
+@bp.route("/groups/<int:group_id>/archive", methods=["POST"])
+@login_required
+def group_archive(group_id):
+    """Per-user archive: hide the group from this user's dashboard without
+    leaving it. Membership, scores, and ownership are untouched."""
+    m = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id).first()
+    if not m:
+        return err("Not a member", 403)
+    m.archived = True
+    db.session.commit()
+    return ok(state="archived")
+
+
+@bp.route("/groups/<int:group_id>/unarchive", methods=["POST"])
+@login_required
+def group_unarchive(group_id):
+    m = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id).first()
+    if not m:
+        return err("Not a member", 403)
+    m.archived = False
+    db.session.commit()
+    return ok(state="active")
 
 
 @bp.route("/groups/<int:group_id>/regenerate-invite", methods=["POST"])
@@ -2358,12 +2443,12 @@ def send_friend_request(user_id):
     fr = FriendRequest(from_user_id=current_user.id, to_user_id=user_id)
     db.session.add(fr)
     db.session.flush()
-    db.session.add(Notification(
+    _notify_once(
         user_id=user_id,
         type="friend_request",
         message=f"{current_user.shown_name} sent you a friend request",
         link_url="/notifications",
-    ))
+    )
     db.session.commit()
     try:
         from ..services.email_service import send_friend_request_email
@@ -2379,13 +2464,17 @@ def accept_friend_request(request_id):
     fr = FriendRequest.query.get_or_404(request_id)
     if fr.to_user_id != current_user.id:
         return err("Not authorized", 403)
+    # Idempotent: a double-tap or repeat click must not mint a second
+    # "accepted your friend request" notification.
+    if fr.status == "accepted":
+        return ok(name=fr.from_user.shown_name if fr.from_user else "")
     fr.status = "accepted"
-    db.session.add(Notification(
+    _notify_once(
         user_id=fr.from_user_id,
         type="friend_accepted",
         message=f"{current_user.shown_name} accepted your friend request",
         link_url="/friends",
-    ))
+    )
     db.session.commit()
     return ok(name=fr.from_user.shown_name if fr.from_user else "")
 

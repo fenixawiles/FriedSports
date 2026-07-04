@@ -197,6 +197,9 @@ class GroupMember(db.Model):
     role = db.Column(db.String(16), nullable=False, default="member")  # owner, admin, member
     joined_at = db.Column(db.DateTime(timezone=True), default=now_utc)
     mute_notifications = db.Column(db.Boolean, default=False)
+    # Per-user archive (long-press → Archive): hides the group from the user's
+    # dashboard without leaving it. server_default keeps existing rows valid.
+    archived = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     trash_talk_score = db.Column(db.Integer, default=0)
     shame_score = db.Column(db.Integer, default=0)
     bragging_rights_score = db.Column(db.Integer, default=0)

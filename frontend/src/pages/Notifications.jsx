@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getNotifications, markAllRead } from '../api/notifications'
+import { getNotifications, markAllRead, markOneRead } from '../api/notifications'
 import { acceptRequest, declineRequest } from '../api/friends'
 import { joinGroup } from '../api/groups'
 import Loading from '../components/Loading'
@@ -17,6 +17,25 @@ export default function Notifications() {
   const markRead = useMutation({
     mutationFn: markAllRead,
     onSuccess: () => qc.invalidateQueries(['notifications']),
+  })
+  // Tapping a notification marks it read — optimistic so the tint clears
+  // immediately while we navigate away.
+  const markOne = useMutation({
+    mutationFn: (id) => markOneRead(id),
+    onMutate: (id) => {
+      qc.setQueryData(['notifications'], (old) => {
+        if (!old) return old
+        const flip = (list) => (list || []).map(n => n.id === id ? { ...n, is_read: true } : n)
+        const wasUnread = [...(old.messages || []), ...(old.invites || [])]
+          .some(n => n.id === id && !n.is_read)
+        return {
+          ...old,
+          messages: flip(old.messages),
+          invites: flip(old.invites),
+          unread_count: Math.max(0, (old.unread_count ?? 0) - (wasUnread ? 1 : 0)),
+        }
+      })
+    },
   })
   // Accept a group invite in one tap — join straight from the Invites tab.
   const acceptInvite = useMutation({
@@ -101,6 +120,7 @@ export default function Notifications() {
             <div className="notif-list">
               {messages.map(n => (
                 <Link key={n.id} to={n.link_url || '/dashboard'}
+                  onClick={() => { if (!n.is_read) markOne.mutate(n.id) }}
                   className={`notif-item${!n.is_read ? ' notif-unread' : ''}`}>
                   <div className="notif-dot" />
                   <div className="notif-body">

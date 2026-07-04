@@ -3089,6 +3089,25 @@ body.receipt-page {
 .btn-secondary:active, .btn-secondary-small:active,
 .btn-danger-small:active, .btn-primary-small:active { transform: scale(0.97); }
 
+/* ── Long-press rows: no iOS text-selection callout or selection flash while
+   holding — the action sheet is the long-press behavior. ── */
+.longpressable {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── Dashboard: collapsible Archived groups section ── */
+.archived-toggle {
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.3rem 0.2rem;
+  font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-muted);
+  transition: color 0.15s;
+}
+.archived-toggle:hover { color: var(--text-secondary); }
+
 /* ── Small badges/chips: 3px sharp corners → soft capsules (branding stays sharp,
    the shapes stop feeling boxy). ── */
 .league-badge, .badge-scope, .badge-role,
