@@ -114,6 +114,11 @@ export default function Settings() {
               ))}
             </div>
           </div>
+          <div className="settings-row">
+            <label htmlFor="avatar_url">Profile photo URL</label>
+            <input id="avatar_url" type="url" maxLength={256}
+              value={form.avatar_url} onChange={set('avatar_url')} placeholder="https://..." />
+          </div>
         </div>
         {data?.user?.uid && (
           <div className="settings-hint">Your FS ID is <code>{data.user.uid}</code> — share it to get added.</div>

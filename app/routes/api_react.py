@@ -133,6 +133,79 @@ def _serialize_user(u):
         "is_admin":            u.is_admin,
     }
 
+LEAGUE_ACCENTS = {
+    "NBA": "#1d428a",
+    "NFL": "#013369",
+    "MLB": "#0c2340",
+    "NHL": "#111111",
+    "EPL": "#38003c",
+    "FIFA": "#0a8f5a",
+    "F1": "#e10600",
+    "PGA": "#0b6b3a",
+    "MULTI": "#d93348",
+}
+LEAGUE_PRIORITY = ["NBA", "NFL", "MLB", "NHL", "EPL", "FIFA", "F1", "PGA"]
+
+
+def _initials(name, fallback="?"):
+    parts = [p for p in (name or "").replace("_", " ").split() if p]
+    if len(parts) >= 2:
+        return (parts[0][0] + parts[-1][0]).upper()
+    if parts:
+        return parts[0][:3].upper()
+    return fallback
+
+
+def _aware_dt(dt):
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _team_payload(team):
+    if not team:
+        return None
+    return {
+        "id": team.id,
+        "name": team.name,
+        "city": team.city or "",
+        "abbreviation": team.abbreviation or "",
+        "logo_url": team.logo_url or "",
+        "primary_color": team.primary_color or "#333333",
+        "secondary_color": team.secondary_color or "#ffffff",
+    }
+
+
+def _favorite_team_map(user_ids):
+    ids = [uid for uid in set(user_ids) if uid]
+    if not ids:
+        return {}
+    priority = {league: i for i, league in enumerate(LEAGUE_PRIORITY)}
+    favs = (
+        UserFavoriteTeam.query
+        .filter(UserFavoriteTeam.user_id.in_(ids))
+        .options(joinedload(UserFavoriteTeam.team))
+        .all()
+    )
+    out = {}
+    for fav in sorted(favs, key=lambda f: (f.user_id, priority.get(f.league, 99))):
+        if fav.user_id not in out and fav.team:
+            out[fav.user_id] = _team_payload(fav.team)
+    return out
+
+
+def _identity(kind, label, color=None, avatar_url="", team=None, badge_label=""):
+    team_color = (team or {}).get("primary_color") if team else None
+    return {
+        "kind": kind,
+        "label": label or "?",
+        "color": color or team_color or "#d93348",
+        "avatar_url": avatar_url or "",
+        "team": team,
+        "badge_label": badge_label or ((team or {}).get("abbreviation") if team else ""),
+    }
+
+
 def _serialize_thread(t, last_msg=None):
     ir = None
     if t.group_trigger and t.group_trigger.game_event:
@@ -415,33 +488,170 @@ def dashboard():
         return ok(groups=[], active_threads=[], msg_counts={})
 
     group_ids = [m.group_id for m in memberships]
-    groups = [
-        {"group": {"id": m.group.id, "name": m.group.name, "league_scope": m.group.league_scope},
-         "member": {"role": m.role, "archived": bool(m.archived)}}
-        for m in memberships if m.group
-    ]
+    member_rows = db.session.execute(text("""
+        SELECT group_id, COUNT(*) AS member_count
+        FROM group_members
+        WHERE group_id = ANY(:gids)
+        GROUP BY group_id
+    """), {"gids": group_ids}).fetchall()
+    member_counts = {r.group_id: r.member_count for r in member_rows}
 
-    # Query 2 — active threads + message counts in one shot (was 2 separate queries)
+    groups = {}
+    for m in memberships:
+        if not m.group:
+            continue
+        accent = LEAGUE_ACCENTS.get(m.group.league_scope, LEAGUE_ACCENTS["MULTI"])
+        groups[m.group_id] = {
+            "group": {
+                "id": m.group.id,
+                "name": m.group.name,
+                "league_scope": m.group.league_scope,
+                "member_count": member_counts.get(m.group_id, 1),
+                "unread_count": 0,
+                "last_preview": "No activity yet.",
+                "last_actor": "",
+                "last_activity_at": m.group.updated_at.isoformat() if m.group.updated_at else None,
+                "latest_thread_id": None,
+                "latest_thread_title": "",
+                "avatar_label": _initials(m.group.name, "FS"),
+                "avatar_color": accent,
+                "activity_color": accent,
+                "_activity_dt": _aware_dt(m.group.updated_at),
+            },
+            "member": {"role": m.role, "archived": bool(m.archived)}
+        }
+
+    # Query 2 — active threads + message counts/latest previews in one shot.
     rows = db.session.execute(text("""
+        WITH candidate_threads AS (
+            SELECT id
+            FROM game_threads
+            WHERE group_id = ANY(:gids) AND status = 'active'
+        ),
+        last_msgs AS (
+            SELECT DISTINCT ON (thread_id)
+                thread_id, body, created_at, user_id
+            FROM game_thread_messages
+            WHERE thread_id IN (SELECT id FROM candidate_threads)
+              AND is_deleted = false
+            ORDER BY thread_id, id DESC
+        )
         SELECT
             gt.id,
             gt.title,
-            g.name  AS group_name,
+            gt.group_id,
+            gt.thread_type,
+            gt.created_at,
+            gt.updated_at,
+            g.name AS group_name,
+            g.league_scope AS group_league_scope,
+            te.abbreviation AS team_abbr,
+            te.name AS team_name,
+            te.primary_color AS team_color,
+            te.secondary_color AS team_secondary_color,
+            te.logo_url AS team_logo_url,
+            lm.body AS last_msg_body,
+            lm.created_at AS last_msg_at,
+            CASE
+                WHEN lmu.display_preference = 'real_name'
+                     AND lmu.first_name IS NOT NULL
+                     AND lmu.last_name  IS NOT NULL
+                THEN lmu.first_name || ' ' || lmu.last_name
+                ELSE lmu.display_name
+            END AS last_msg_author,
             COUNT(msg.id) FILTER (
                 WHERE msg.message_type = 'user' AND msg.is_deleted = false
             ) AS msg_count
         FROM game_threads gt
-        LEFT JOIN groups g              ON g.id = gt.group_id
+        LEFT JOIN groups g ON g.id = gt.group_id
+        LEFT JOIN teams te ON te.id = gt.target_team_id
+        LEFT JOIN last_msgs lm ON lm.thread_id = gt.id
+        LEFT JOIN users lmu ON lmu.id = lm.user_id
         LEFT JOIN game_thread_messages msg ON msg.thread_id = gt.id
-        WHERE gt.group_id = ANY(:gids) AND gt.status = 'active'
-        GROUP BY gt.id, gt.title, g.name
-        ORDER BY gt.updated_at DESC
+        WHERE gt.id IN (SELECT id FROM candidate_threads)
+        GROUP BY gt.id, gt.title, gt.group_id, gt.thread_type, gt.created_at, gt.updated_at,
+                 g.name, g.league_scope, te.abbreviation, te.name, te.primary_color,
+                 te.secondary_color, te.logo_url, lm.body, lm.created_at, lmu.id
+        ORDER BY COALESCE(lm.created_at, gt.updated_at, gt.created_at) DESC
     """), {"gids": group_ids}).fetchall()
+    thread_ids = [r.id for r in rows]
+    from app.services.activity import unread_map
+    unread = unread_map(uid, thread_ids)
+
+    active_threads = []
+    msg_counts = {}
+    for r in rows:
+        activity_at = _aware_dt(r.last_msg_at or r.updated_at or r.created_at)
+        preview = r.last_msg_body or r.title or "No messages yet."
+        actor = r.last_msg_author or ""
+        title = r.title or r.group_name or "Thread"
+        count = msg_counts[r.id] = r.msg_count or 0
+        unread_count = unread.get(r.id, 0)
+        team_identity = {
+            "name": r.team_name or "",
+            "abbreviation": r.team_abbr or "",
+            "logo_url": r.team_logo_url or "",
+            "primary_color": r.team_color or "#333333",
+            "secondary_color": r.team_secondary_color or "#ffffff",
+        } if r.team_abbr else None
+        avatar_label = (r.team_abbr or "?")[:3]
+        avatar_color = r.team_color or "#333"
+        identity = _identity("team", avatar_label, avatar_color, team=team_identity)
+        if (r.thread_type or "incident") == "group_chat":
+            avatar_label = _initials(r.group_name or title, "GC")
+            avatar_color = LEAGUE_ACCENTS.get(r.group_league_scope, LEAGUE_ACCENTS["MULTI"])
+            identity = _identity(
+                "group",
+                avatar_label,
+                avatar_color,
+                badge_label="FS" if r.group_league_scope == "MULTI" else r.group_league_scope,
+            )
+        active_threads.append({
+            "id": r.id,
+            "title": title,
+            "group_id": r.group_id,
+            "group_name": r.group_name or "",
+            "message_count": count,
+            "unread_count": unread_count,
+            "last_preview": preview,
+            "last_actor": actor,
+            "last_activity_at": activity_at.isoformat() if activity_at else None,
+            "team_abbr": r.team_abbr or "",
+            "team_color": r.team_color or "",
+            "avatar_label": avatar_label,
+            "avatar_color": avatar_color,
+            "identity": identity,
+        })
+
+        summary = groups.get(r.group_id)
+        if not summary:
+            continue
+        group = summary["group"]
+        group["unread_count"] += unread_count
+        existing = group.get("_activity_dt")
+        if existing is None or (activity_at and activity_at > existing):
+            group["_activity_dt"] = activity_at
+            group["last_preview"] = preview
+            group["last_actor"] = actor
+            group["last_activity_at"] = activity_at.isoformat() if activity_at else group["last_activity_at"]
+            group["latest_thread_id"] = r.id
+            group["latest_thread_title"] = title
+            if r.team_color:
+                group["activity_color"] = r.team_color
+                group["avatar_color"] = r.team_color
+
+    group_list = sorted(
+        groups.values(),
+        key=lambda item: item["group"].get("_activity_dt") or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    for item in group_list:
+        item["group"].pop("_activity_dt", None)
 
     return ok(
-        groups=groups,
-        active_threads=[{"id": r.id, "title": r.title, "group_name": r.group_name or ""} for r in rows],
-        msg_counts={r.id: r.msg_count for r in rows},
+        groups=group_list,
+        active_threads=active_threads,
+        msg_counts=msg_counts,
     )
 
 
@@ -2037,6 +2247,7 @@ def threads_list():
             gt.thread_type,
             gt.status,
             gt.group_id,
+            g.league_scope AS group_league_scope,
             gt.created_by_user_id,
             gt.target_user_id,
             gt.created_at,
@@ -2045,6 +2256,9 @@ def threads_list():
             te.abbreviation AS team_abbr,
             te.name         AS team_name,
             te.primary_color AS team_color,
+            te.secondary_color AS team_secondary_color,
+            te.logo_url      AS team_logo_url,
+            u.avatar_url     AS target_avatar_url,
             CASE
                 WHEN u.display_preference = 'real_name'
                      AND u.first_name IS NOT NULL
@@ -2052,6 +2266,7 @@ def threads_list():
                 THEN u.first_name || ' ' || u.last_name
                 ELSE u.display_name
             END             AS target_user_name,
+            cu.avatar_url    AS creator_avatar_url,
             CASE
                 WHEN cu.display_preference = 'real_name'
                      AND cu.first_name IS NOT NULL
@@ -2106,25 +2321,61 @@ def threads_list():
     unread = unread_map(uid, thread_ids)
     counts = message_counts(thread_ids)
     votes  = vote_count_map(thread_ids)
+    identity_user_ids = []
+    for r in rows:
+        if r.created_by_user_id:
+            identity_user_ids.append(r.created_by_user_id)
+        if r.target_user_id:
+            identity_user_ids.append(r.target_user_id)
+    favorite_teams = _favorite_team_map(identity_user_ids)
 
     threads   = []
     last_msgs = {}
     for r in rows:
         thread_type = r.thread_type or "incident"
+        team_identity = {
+            "name": r.team_name or "",
+            "abbreviation": r.team_abbr or "",
+            "logo_url": r.team_logo_url or "",
+            "primary_color": r.team_color or "#333333",
+            "secondary_color": r.team_secondary_color or "#ffffff",
+        } if r.team_abbr else None
         direct_other_name = (
             r.target_user_name if r.created_by_user_id == uid else r.creator_user_name
         )
+        direct_other_id = (
+            r.target_user_id if r.created_by_user_id == uid else r.created_by_user_id
+        )
+        direct_other_avatar = (
+            r.target_avatar_url if r.created_by_user_id == uid else r.creator_avatar_url
+        ) or ""
         display_title = r.title or r.group_name or ""
         avatar_label = (r.team_abbr or "?")[:3]
         avatar_color = r.team_color or "#333"
+        identity = _identity("team", avatar_label, avatar_color, team=team_identity)
         if thread_type == "group_chat":
             display_title = r.group_name or r.title or "Group Chat"
             avatar_label = "".join(part[:1] for part in display_title.split()[:2]).upper() or "GC"
-            avatar_color = "#d93348"
+            avatar_color = LEAGUE_ACCENTS.get(r.group_league_scope, LEAGUE_ACCENTS["MULTI"])
+            identity = _identity(
+                "group",
+                avatar_label,
+                avatar_color,
+                badge_label="FS" if r.group_league_scope == "MULTI" else r.group_league_scope,
+            )
         elif thread_type == "direct_chat":
             display_title = direct_other_name or "Direct Chat"
-            avatar_label = "".join(part[:1] for part in display_title.split()[:2]).upper() or "DM"
-            avatar_color = "#d93348"
+            avatar_label = _initials(display_title, "DM")
+            fav_team = favorite_teams.get(direct_other_id)
+            avatar_color = (fav_team or {}).get("primary_color") or LEAGUE_ACCENTS["MULTI"]
+            identity = _identity(
+                "user",
+                avatar_label,
+                avatar_color,
+                avatar_url=direct_other_avatar,
+                team=fav_team,
+                badge_label=(fav_team or {}).get("abbreviation", ""),
+            )
 
         threads.append({
             "id":               r.id,
@@ -2135,6 +2386,7 @@ def threads_list():
             "status":           r.status,
             "group_id":         r.group_id,
             "group_name":       r.group_name   or "",
+            "group_league_scope": r.group_league_scope or "",
             "created_by_user_id": r.created_by_user_id,
             "created_by_user_name": r.creator_user_name or "",
             "target_user_id":   r.target_user_id,
@@ -2144,6 +2396,7 @@ def threads_list():
             "team_color":       r.team_color   or "#333",
             "avatar_label":     avatar_label,
             "avatar_color":     avatar_color,
+            "identity":         identity,
             "incident_type":    r.incident_type,
             "created_at":       r.created_at.isoformat() if r.created_at else None,
             "hot_score":        r.hot_score or 0,

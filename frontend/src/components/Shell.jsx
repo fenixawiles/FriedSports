@@ -6,6 +6,7 @@ import { getNotifications } from '../api/notifications'
 import { getDashboard } from '../api/groups'
 import { getThreadsList } from '../api/threads'
 import { getFriends } from '../api/friends'
+import PullToRefresh from './PullToRefresh'
 import logo from '../logo.png'
 
 export default function Shell() {
@@ -96,6 +97,8 @@ export default function Shell() {
   return (
     <>
       {/* ── Top navbar — hidden on thread chat (focused conversation view) ── */}
+      {user && <PullToRefresh disabled={isThreadChat} />}
+
       {!isThreadChat && (
         <nav className="navbar" id="main-nav" ref={navRef}>
           <div className="nav-inner">

@@ -5,7 +5,19 @@ import { archiveGroup, deleteGroup, getDashboard, getGroup, leaveGroup, unarchiv
 import { getThread } from '../api/threads'
 import { useAuth } from '../context/AuthContext'
 import { Skeleton } from '../components/Skeleton'
+import IdentityAvatar from '../components/IdentityAvatar'
 import useLongPress from '../hooks/useLongPress'
+
+function fmtRelative(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const diff = Date.now() - d.getTime()
+  if (diff < 60_000) return 'now'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`
+  if (diff < 172_800_000) return 'Yesterday'
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
 
 function DashboardSkeleton() {
   return (
@@ -91,6 +103,16 @@ function GroupSwipeRow({ group, member, pending, onDelete, onLeave, onMenu }) {
     if (isOwner) onDelete(group)
     else onLeave(group)
   }
+  const unread = group.unread_count || 0
+  const preview = group.last_actor
+    ? `${group.last_actor}: ${group.last_preview || 'New activity'}`
+    : (group.last_preview || 'No activity yet.')
+  const identity = {
+    kind: 'group',
+    label: group.avatar_label || group.name,
+    color: group.avatar_color || group.activity_color || 'var(--accent)',
+    badge_label: group.league_scope === 'MULTI' ? 'FS' : group.league_scope,
+  }
 
   return (
     <div className={`group-swipe${offset !== 0 ? ' open' : ''}`}>
@@ -109,14 +131,21 @@ function GroupSwipeRow({ group, member, pending, onDelete, onLeave, onMenu }) {
         onContextMenu={(e) => e.preventDefault()}
         onClick={onClick}
         style={{ transform: `translateX(${offset}px)` }}>
-        <div className="group-card-left">
-          <div className="group-card-name">{group.name}</div>
+        <IdentityAvatar identity={identity} className="group-card-avatar" />
+        <div className="group-card-body">
+          <div className="group-card-top">
+            <span className="group-card-name">{group.name}</span>
+            <span className="group-card-time">{fmtRelative(group.last_activity_at)}</span>
+          </div>
+          <div className="group-card-preview">{preview}</div>
           <div className="group-card-meta">
-            <span className="badge-scope">{group.league_scope}</span>
-            <span className={`badge-role ${member.role}`}>{member.role}</span>
+            <span className={unread > 0 ? 'hot' : 'calm'}>{unread > 0 ? `${unread} unread` : 'Caught up'}</span>
+            <span>{group.member_count || 1} {(group.member_count || 1) === 1 ? 'member' : 'members'}</span>
+            <span>{group.league_scope}</span>
+            <span>{member.role}</span>
           </div>
         </div>
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>→</span>
+        {unread > 0 ? <span className="group-unread-chip">{unread}</span> : <span className="group-chevron">›</span>}
       </Link>
     </div>
   )
@@ -194,8 +223,9 @@ export default function Dashboard() {
   if (error) return <div className="empty-state"><p>Could not load dashboard.</p></div>
 
   const { groups = [], active_threads = [], msg_counts = {} } = data
-  const activeGroups   = groups.filter(g => !g.member?.archived)
-  const archivedGroups = groups.filter(g => g.member?.archived)
+  const byActivity = (a, b) => new Date(b.group?.last_activity_at || 0) - new Date(a.group?.last_activity_at || 0)
+  const activeGroups   = groups.filter(g => !g.member?.archived).sort(byActivity)
+  const archivedGroups = groups.filter(g => g.member?.archived).sort(byActivity)
 
   return (
     <div className="dashboard-container">
@@ -328,6 +358,10 @@ export default function Dashboard() {
               <div className="alert-list">
                 {active_threads.map(thread => (
                   <Link key={thread.id} to={`/threads/${thread.id}`} className="alert-banner">
+                    <IdentityAvatar
+                      identity={thread.identity}
+                      fallbackLabel={thread.avatar_label || thread.team_abbr || thread.group_name || '?'}
+                      className="alert-avatar" />
                     <div className="alert-body">
                       <div className="alert-title">{thread.title}</div>
                       <div className="alert-meta">

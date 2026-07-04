@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { archiveThread, deleteThreadLocal, getThreadsList, getThread,
          restoreThread, unarchiveThread } from '../api/threads'
 import { Skeleton } from '../components/Skeleton'
+import IdentityAvatar from '../components/IdentityAvatar'
 import useLongPress from '../hooks/useLongPress'
 
 const STATUS_FILTERS = [
@@ -137,7 +138,7 @@ function ThreadRow({ thread, last, pending, onAction, onMenu }) {
       ]
 
   return (
-    <div className="thread-swipe">
+    <div className={`thread-swipe${offset !== 0 || dragging ? ' open' : ''}`}>
       <div className="thread-swipe-actions" aria-hidden={offset === 0}>
         {actions.map(([action, label, tone]) => (
           <button
@@ -161,10 +162,7 @@ function ThreadRow({ thread, last, pending, onAction, onMenu }) {
         onContextMenu={(e) => e.preventDefault()}
         onClick={onRowClick}
         style={{ transform: `translateX(${offset}px)` }}>
-        <div className="thread-avatar-circle"
-          style={{ background: thread.avatar_color || thread.team_color || 'var(--accent)' }}>
-          <span>{thread.avatar_label || thread.team_abbr || '?'}</span>
-        </div>
+        <IdentityAvatar identity={thread.identity} fallbackLabel={thread.avatar_label || thread.team_abbr || '?'} />
         <div className="thread-preview-col">
           <div className="thread-preview-top">
             <span className="thread-preview-name">

@@ -6,8 +6,8 @@ import { getThread, sendMessage, reactToMessage, deleteMessage,
 import { useAuth } from '../context/AuthContext'
 import Loading from '../components/Loading'
 
-const REACTIONS = [['laugh','😂'],['cook','👨‍🍳'],['fraud','🚨'],['receipt','🧾']]
-const BTN_W = 52   // approximate picker button width for on-screen clamping
+const REACTIONS = [['laugh','Laugh'],['cook','Cook'],['fraud','Fraud'],['receipt','Receipt']]
+const BTN_W = 74   // approximate picker button width for on-screen clamping
 
 // iMessage-style time separator label: shown between message clusters, not
 // under every bubble.
@@ -352,12 +352,13 @@ export default function ThreadChat() {
                     <div className="message-footer">
                       <div className="reaction-chips">
                         {chips.map(([rtype, count]) => {
-                          const emoji  = REACTIONS.find(([r]) => r === rtype)?.[1] ?? rtype
+                          const label  = REACTIONS.find(([r]) => r === rtype)?.[1] ?? rtype
                           const reacted = msg.user_reactions?.includes(rtype)
                           return (
                             <span key={rtype}
                               className={`reaction-chip${reacted ? ' reacted' : ''}`}>
-                              {emoji} {count}
+                              <span className="reaction-chip-label">{label}</span>
+                              <span className="reaction-chip-count">{count}</span>
                             </span>
                           )
                         })}
@@ -410,14 +411,14 @@ export default function ThreadChat() {
           <div className="reaction-picker-backdrop" onPointerDown={closeMenu} />
           <div className="reaction-picker"
             style={{ top: activeMenu.top, left: activeMenu.left }}>
-            {REACTIONS.map(([rtype, emoji]) => (
+            {REACTIONS.map(([rtype, label]) => (
               <button key={rtype} className="reaction-picker-btn"
                 onPointerDown={e => {
                   e.stopPropagation()
                   reactMut.mutate({ msgId: activeMenu.id, type: rtype })
                   closeMenu()
                 }}>
-                {emoji}
+                {label}
               </button>
             ))}
             {activeMenu.can_delete && (
@@ -429,7 +430,7 @@ export default function ThreadChat() {
                     closeMenu()
                     if (window.confirm('Delete this message?')) deleteMut.mutate(activeMenu.id)
                   }}>
-                  🗑️
+                  Delete
                 </button>
               </>
             )}
