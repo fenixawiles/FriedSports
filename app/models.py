@@ -515,6 +515,7 @@ class DeviceToken(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     token = db.Column(db.String(256), unique=True, nullable=False)
     platform = db.Column(db.String(8), nullable=False, default="ios")
+    environment = db.Column(db.String(16), nullable=False, default="production", index=True)
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc)
     updated_at = db.Column(db.DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 

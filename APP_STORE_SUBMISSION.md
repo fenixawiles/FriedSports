@@ -39,6 +39,18 @@ agree on the same bundle/app identity:
   - `APNS_ENV=production` for TestFlight/App Store
 - In a signed archive, verify the app is signed with the production APNs
   entitlement. Local debug builds use the development APNs environment.
+- Admin testing:
+  - Open `/admin-tools` → **Push**.
+  - Confirm APNs config shows `Configured: Yes`, `APNs Env: production`, and at
+    least one production token after logging into the TestFlight app on a real
+    iPhone and granting notification permission.
+  - Send a test push to the target user by user ID or email. The panel returns
+    masked per-token APNs results so failures such as `BadDeviceToken`,
+    `DeviceTokenNotForTopic`, or stale tokens are visible without exposing
+    secrets.
+  - For Xcode-installed sandbox testing, run against a backend configured with
+    `APNS_ENV=sandbox` and build the native app with `VITE_APNS_ENV=sandbox`.
+    Do not mix sandbox tokens with the production Railway sender.
 
 ---
 

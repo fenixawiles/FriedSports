@@ -1616,6 +1616,101 @@ def admin_broadcast():
     return ok(sent=sent, failed=failed)
 
 
+@bp.route("/admin/push-diagnostics")
+@login_required
+def admin_push_diagnostics():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    from app.services.push_service import apns_config_status, mask_token
+
+    token_counts = dict(
+        db.session.query(DeviceToken.environment, db.func.count(DeviceToken.id))
+        .group_by(DeviceToken.environment)
+        .all()
+    )
+    tokens = (
+        DeviceToken.query
+        .options(joinedload(DeviceToken.user))
+        .order_by(DeviceToken.updated_at.desc())
+        .limit(200)
+        .all()
+    )
+
+    return ok(
+        config=apns_config_status(),
+        totals={
+            "production": token_counts.get("production", 0),
+            "sandbox": token_counts.get("sandbox", 0),
+            "all": sum(token_counts.values()),
+        },
+        tokens=[
+            {
+                "id": dt.id,
+                "user_id": dt.user_id,
+                "user_name": dt.user.shown_name if dt.user else "Deleted user",
+                "user_email": dt.user.email if dt.user else "",
+                "platform": dt.platform,
+                "environment": dt.environment or "production",
+                "token": mask_token(dt.token),
+                "created_at": _iso(dt.created_at),
+                "updated_at": _iso(dt.updated_at),
+            }
+            for dt in tokens
+        ],
+    )
+
+
+@bp.route("/admin/push-test", methods=["POST"])
+@login_required
+def admin_push_test():
+    denied = _require_admin_json()
+    if denied:
+        return denied
+
+    from app.services.push_service import normalize_environment, send_push
+
+    d = request.get_json(silent=True) or {}
+    user = None
+    if d.get("user_id"):
+        try:
+            user = db.session.get(User, int(d["user_id"]))
+        except (TypeError, ValueError):
+            user = None
+    if not user and d.get("email"):
+        user = User.query.filter_by(email=str(d["email"]).strip().lower()).first()
+    if not user:
+        return err("Choose a target user by ID or email")
+
+    title = (d.get("title") or "FriedSports test push").strip()
+    body = (d.get("body") or "If you can read this, APNs is working.").strip()
+    if not title or not body:
+        return err("Title and body are required")
+    title = title[:120]
+    body = body[:220]
+
+    link_url = (d.get("link_url") or "/notifications").strip()
+    if link_url and not link_url.startswith("/"):
+        return err("link_url must be an app path starting with /")
+
+    environment = normalize_environment(d.get("environment"))
+    result = send_push(
+        user.id,
+        title,
+        body,
+        {"link_url": link_url} if link_url else {},
+        environment=environment,
+    )
+    _admin_audit(
+        "push_test",
+        user,
+        f"{environment}: accepted {result.get('accepted_count', 0)}/{result.get('token_count', 0)}",
+    )
+    db.session.commit()
+    return ok(user=_admin_user_summary(user), result=result)
+
+
 @bp.route("/admin/audit-log")
 @login_required
 def admin_audit_log():

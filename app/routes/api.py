@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, abort
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload
+from datetime import datetime, timezone
 from app.models import db, GameThread, GameThreadMessage, MessageReaction, MessageReport, Group, GroupMember, GameEvent, GroupTrigger, DeviceToken
 from app.services.scoring import apply_reaction_points
 
@@ -254,6 +255,9 @@ def register_device_token():
     """Called by the iOS app on launch to register/refresh the APNs device token."""
     data = request.get_json(silent=True) or {}
     token = (data.get("token") or "").strip()
+    environment = (data.get("environment") or "production").strip().lower()
+    if environment not in ("production", "sandbox"):
+        environment = "production"
     if not token:
         return jsonify({"error": "token required"}), 400
 
@@ -261,14 +265,18 @@ def register_device_token():
     if existing:
         # Re-associate with current user if token moved (e.g. reinstall)
         existing.user_id = current_user.id
+        existing.environment = environment
+        existing.platform = "ios"
+        existing.updated_at = datetime.now(timezone.utc)
     else:
         db.session.add(DeviceToken(
             user_id=current_user.id,
             token=token,
             platform="ios",
+            environment=environment,
         ))
     db.session.commit()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "environment": environment})
 
 
 @api_bp.route("/groups/<int:group_id>/members")

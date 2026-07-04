@@ -1,5 +1,7 @@
 import client from '../api/client'
 
+const APNS_ENV = import.meta.env.VITE_APNS_ENV === 'sandbox' ? 'sandbox' : 'production'
+
 /**
  * APNs push registration — native shell only.
  *
@@ -25,7 +27,7 @@ export async function initPush() {
     // APNs token → backend. Fires on every register() call, including token
     // rotations, so the server row stays fresh.
     await Push.addListener('registration', ({ value }) => {
-      client.post('/device-token', { token: value }).catch(() => {})
+      client.post('/device-token', { token: value, environment: APNS_ENV }).catch(() => {})
     })
     await Push.addListener('registrationError', (err) => {
       console.warn('Push registration error', err)

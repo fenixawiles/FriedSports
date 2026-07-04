@@ -21,6 +21,8 @@ import {
   inviteAdminUser,
   promptAdminUser,
   sendAdminBroadcast,
+  getAdminPushDiagnostics,
+  sendAdminTestPush,
   updateAdminGameStats,
   updateAdminSupportTicket,
   updateAdminUser,
@@ -34,6 +36,7 @@ const TABS = [
   ['support', 'Support'],
   ['reports', 'Reports'],
   ['broadcast', 'Broadcast'],
+  ['push', 'Push'],
   ['audit', 'Audit'],
   ['lab', 'Sports Lab'],
 ]
@@ -534,6 +537,121 @@ function BroadcastPanel() {
   )
 }
 
+function PushPanel() {
+  const qc = useQueryClient()
+  const [form, setForm] = useState({
+    user_id: '',
+    email: '',
+    environment: 'production',
+    title: 'FriedSports test push',
+    body: 'If you can read this, APNs is working.',
+    link_url: '/notifications',
+  })
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
+  const [result, setResult] = useState(null)
+  const query = useQuery({ queryKey: ['admin-push-diagnostics'], queryFn: getAdminPushDiagnostics })
+  const data = query.data ?? {}
+  const config = data.config ?? {}
+  const totals = data.totals ?? {}
+  const tokens = data.tokens ?? []
+  const mut = useMutation({
+    mutationFn: () => sendAdminTestPush({
+      ...form,
+      user_id: form.user_id ? Number(form.user_id) : undefined,
+      email: form.email.trim() || undefined,
+    }),
+    onSuccess: payload => {
+      setResult(payload.result)
+      setNotice(`Accepted ${payload.result.accepted_count}/${payload.result.token_count} ${payload.result.environment} token(s)`)
+      setError('')
+      qc.invalidateQueries(['admin-push-diagnostics'])
+      qc.invalidateQueries(['admin-audit'])
+    },
+    onError: err => {
+      setResult(null)
+      setNotice('')
+      setError(err.message || 'Push test failed')
+    },
+  })
+
+  return (
+    <section className="admin-panel admin-panel-full">
+      <Notice message={notice} />
+      <Notice message={error} tone="error" />
+      <div className="admin-panel-title">Push Diagnostics</div>
+
+      <section className="admin-stat-grid" aria-label="Push configuration summary">
+        <Stat label="Configured" value={config.configured ? 'Yes' : 'No'} />
+        <Stat label="APNs Env" value={config.environment || '—'} />
+        <Stat label="Production Tokens" value={totals.production ?? 0} />
+        <Stat label="Sandbox Tokens" value={totals.sandbox ?? 0} />
+      </section>
+
+      <div className="admin-list">
+        <div className="admin-list-row static">
+          <span>
+            <strong>{config.bundle_id || 'com.friedsports.app'}</strong>
+            <small>
+              Key ID {config.key_id_configured ? 'set' : 'missing'} · Team ID {config.team_id_configured ? 'set' : 'missing'} · Key {config.key_content_configured || config.key_path_configured ? 'set' : 'missing'} · HTTP/2 {config.httpx_available ? 'ready' : 'missing'}
+            </small>
+          </span>
+          <em>{config.host || 'APNs host unknown'}</em>
+        </div>
+        {query.isLoading ? (
+          <div className="admin-empty">Loading device tokens…</div>
+        ) : tokens.length === 0 ? (
+          <div className="admin-empty">No APNs device tokens registered yet.</div>
+        ) : tokens.map(token => (
+          <div key={token.id} className="admin-list-row static">
+            <span>
+              <strong>{token.user_name} · {token.environment}</strong>
+              <small>{token.user_email} · {token.token}</small>
+            </span>
+            <em>{fmtDate(token.updated_at)}</em>
+          </div>
+        ))}
+      </div>
+
+      <div className="admin-panel-title">Send Test Push</div>
+      <div className="admin-form-grid">
+        <TextInput label="Target user ID" value={form.user_id} onChange={v => setForm(f => ({ ...f, user_id: v }))} />
+        <TextInput label="Or target email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} />
+        <SelectInput label="Environment" value={form.environment} onChange={v => setForm(f => ({ ...f, environment: v }))}>
+          <option value="production">Production / TestFlight</option>
+          <option value="sandbox">Sandbox / Xcode</option>
+        </SelectInput>
+        <TextInput label="Link URL" value={form.link_url} onChange={v => setForm(f => ({ ...f, link_url: v }))} />
+        <TextInput label="Title" value={form.title} onChange={v => setForm(f => ({ ...f, title: v }))} />
+        <label className="admin-field admin-field-wide">
+          <span>Body</span>
+          <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} />
+        </label>
+      </div>
+      <button type="button" className="btn-primary-small" disabled={mut.isPending} onClick={() => mut.mutate()}>
+        {mut.isPending ? 'Sending…' : 'Send Test Push'}
+      </button>
+
+      {result && (
+        <div className="admin-card-list">
+          <article className="admin-report-card">
+            <div>
+              <strong>{result.environment} APNs result</strong>
+              <span>{result.reason || 'APNs request completed'} · {result.bundle_id}</span>
+            </div>
+            <p>{result.accepted_count} accepted · {result.failed_count} failed · {result.stale_count} stale</p>
+            {(result.results || []).map(item => (
+              <small key={item.token_id}>
+                {item.token}: {item.accepted ? 'accepted' : 'failed'}{item.status_code ? ` (${item.status_code})` : ''}{item.reason ? ` · ${item.reason}` : ''}
+              </small>
+            ))}
+          </article>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function AuditPanel() {
   const query = useQuery({ queryKey: ['admin-audit'], queryFn: getAdminAuditLog })
   const logs = query.data?.logs ?? []
@@ -825,6 +943,7 @@ export default function Admin() {
       {tab === 'support' && <SupportPanel />}
       {tab === 'reports' && <ReportsPanel />}
       {tab === 'broadcast' && <BroadcastPanel />}
+      {tab === 'push' && <PushPanel />}
       {tab === 'audit' && <AuditPanel />}
       {tab === 'lab' && <SportsLabPanel />}
     </div>
