@@ -593,7 +593,7 @@ function PushPanel() {
           <span>
             <strong>{config.bundle_id || 'com.friedsports.app'}</strong>
             <small>
-              Key ID {config.key_id_configured ? 'set' : 'missing'} · Team ID {config.team_id_configured ? 'set' : 'missing'} · Key {config.key_content_configured || config.key_path_configured ? 'set' : 'missing'} · HTTP/2 {config.httpx_available ? 'ready' : 'missing'}
+              Key ID {config.key_id_configured ? 'set' : 'missing'} · Team ID {config.team_id_configured ? 'set' : 'missing'} · Key {config.key_content_configured || config.key_path_configured ? 'set' : 'missing'} · ES256 {config.es256_available ? 'ready' : 'missing'} · HTTP/2 {config.httpx_available ? 'ready' : 'missing'}
             </small>
           </span>
           <em>{config.host || 'APNs host unknown'}</em>

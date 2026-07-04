@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 _APNS_HOST_SANDBOX = "api.sandbox.push.apple.com"
 _APNS_HOST_PROD = "api.push.apple.com"
+
+
 def normalize_environment(environment=None):
     env = (environment or os.environ.get("APNS_ENV", "sandbox")).strip().lower()
     if env in ("prod", "production"):
@@ -40,19 +42,33 @@ def mask_token(token):
     return f"{token[:8]}…{token[-8:]}"
 
 
+def _has_es256_support():
+    try:
+        import jwt
+        return "ES256" in jwt.algorithms.get_default_algorithms()
+    except Exception:
+        return False
+
+
 def apns_config_status(environment=None):
     key_path = os.environ.get("APNS_KEY_PATH", "")
     has_key_path = bool(key_path and os.path.exists(key_path))
     pyjwt_available = True
+    cryptography_available = True
     httpx_available = True
     try:
         import jwt  # noqa: F401
     except ImportError:
         pyjwt_available = False
     try:
+        import cryptography  # noqa: F401
+    except ImportError:
+        cryptography_available = False
+    try:
         import httpx  # noqa: F401
     except ImportError:
         httpx_available = False
+    es256_available = pyjwt_available and _has_es256_support()
 
     env = normalize_environment(environment)
     has_key_content = bool(os.environ.get("APNS_KEY_CONTENT", ""))
@@ -65,6 +81,8 @@ def apns_config_status(environment=None):
         bool(has_key_content or has_key_path),
         bool(bundle_id),
         pyjwt_available,
+        cryptography_available,
+        es256_available,
         httpx_available,
     ])
     return {
@@ -77,6 +95,8 @@ def apns_config_status(environment=None):
         "key_content_configured": has_key_content,
         "key_path_configured": has_key_path,
         "pyjwt_available": pyjwt_available,
+        "cryptography_available": cryptography_available,
+        "es256_available": es256_available,
         "httpx_available": httpx_available,
     }
 
