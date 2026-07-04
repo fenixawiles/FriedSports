@@ -127,7 +127,19 @@ export default function Dashboard() {
   const qc = useQueryClient()
   const [groupActionError, setGroupActionError] = useState('')
   const [menuFor, setMenuFor] = useState(null)          // { group, member } — long-press sheet
+  const [sheetArmed, setSheetArmed] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
+
+  // The sheet opens while the finger is still down (long-press fires at
+  // 450ms). Without this, releasing the finger lands a click on the freshly
+  // rendered backdrop and instantly dismisses it. Ignore all input until the
+  // press has certainly ended.
+  useEffect(() => {
+    if (!menuFor) return
+    setSheetArmed(false)
+    const t = setTimeout(() => setSheetArmed(true), 350)
+    return () => clearTimeout(t)
+  }, [menuFor])
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
@@ -273,7 +285,8 @@ export default function Dashboard() {
 
           {/* Long-press group action sheet */}
           {menuFor && (
-            <div className="pw-sheet" onClick={(e) => { if (e.target === e.currentTarget) setMenuFor(null) }}>
+            <div className="pw-sheet" style={{ pointerEvents: sheetArmed ? 'auto' : 'none' }}
+              onClick={(e) => { if (e.target === e.currentTarget) setMenuFor(null) }}>
               <div className="pw-sheet-backdrop" onClick={() => setMenuFor(null)} />
               <div className="pw-sheet-card" role="dialog" aria-modal="true">
                 <div className="pw-sheet-head">

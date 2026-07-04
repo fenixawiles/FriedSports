@@ -9,6 +9,31 @@ import Loading from '../components/Loading'
 const REACTIONS = [['laugh','😂'],['cook','👨‍🍳'],['fraud','🚨'],['receipt','🧾']]
 const BTN_W = 52   // approximate picker button width for on-screen clamping
 
+// iMessage-style time separator label: shown between message clusters, not
+// under every bubble.
+function fmtTimeSep(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  if (day.getTime() === today.getTime()) return `Today ${time}`
+  const yest = new Date(today); yest.setDate(today.getDate() - 1)
+  if (day.getTime() === yest.getTime()) return `Yesterday ${time}`
+  if ((today - day) / 86400000 < 7) {
+    return `${d.toLocaleDateString('en-US', { weekday: 'long' })} ${time}`
+  }
+  return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
+}
+
+// New cluster when >45 min passed since the previous message.
+function needsTimeSep(msg, prev) {
+  if (!msg.created_at) return false
+  if (!prev?.created_at) return true
+  return new Date(msg.created_at) - new Date(prev.created_at) > 45 * 60 * 1000
+}
+
 export default function ThreadChat() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -22,6 +47,11 @@ export default function ThreadChat() {
 
   const [body, setBody]       = useState('')
   const [sending, setSending] = useState(false)
+  // Optimistic outbox: messages appear instantly with a "sending" state and
+  // resolve to "sent" — they never vanish while the server round-trip runs.
+  // [{ tempId, body, status: 'sending' | 'sent', serverId? }]
+  const [outbox, setOutbox]   = useState([])
+  const tempSeq               = useRef(0)
   // activeMenu: { id, can_delete, top, left } | null
   const [activeMenu, setActiveMenu] = useState(null)
 
@@ -47,12 +77,20 @@ export default function ThreadChat() {
   const member   = data?.member
   const ir       = data?.incident_report
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages — server-confirmed AND optimistic
   const scrollToBottom = useCallback(() => {
     const el = chatWindowRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [])
-  useEffect(() => { scrollToBottom() }, [messages.length, scrollToBottom])
+  useEffect(() => { scrollToBottom() }, [messages.length, outbox.length, scrollToBottom])
+
+  // Once the server list contains a confirmed message, drop its outbox ghost
+  // so it isn't rendered twice.
+  useEffect(() => {
+    if (!outbox.length) return
+    const ids = new Set(messages.map(m => m.id))
+    setOutbox(o => o.filter(m => !(m.serverId && ids.has(m.serverId))))
+  }, [messages]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Textarea auto-grow
   function handleInput(e) {
@@ -61,18 +99,26 @@ export default function ThreadChat() {
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
   }
 
-  // Submit
+  // Submit — optimistic: the bubble renders immediately in a "sending" state,
+  // flips to "sent" on the server ack, and is swapped for the confirmed
+  // message on the next refetch. On failure the text returns to the input.
   async function handleSend(e) {
     e?.preventDefault()
     const trimmed = body.trim()
     if (!trimmed || sending) return
     setBody('')
     if (inputRef.current) { inputRef.current.style.height = '' }
+    const tempId = `t${++tempSeq.current}`
+    setOutbox(o => [...o, { tempId, body: trimmed, status: 'sending' }])
     setSending(true)
     try {
-      await sendMessage(id, trimmed)
+      const res = await sendMessage(id, trimmed)
+      setOutbox(o => o.map(m => m.tempId === tempId
+        ? { ...m, status: 'sent', serverId: res.id }
+        : m))
       qc.invalidateQueries(['thread', id])
     } catch {
+      setOutbox(o => o.filter(m => m.tempId !== tempId))
       setBody(trimmed) // restore on failure
     } finally {
       setSending(false)
@@ -241,12 +287,20 @@ export default function ThreadChat() {
         )}
 
         {/* Messages */}
-        {messages.map(msg => {
+        {messages.map((msg, i) => {
           const mine  = msg.is_mine
+          // Centered time separator at the start of each message cluster —
+          // replaces the old per-bubble timestamps.
+          const timeSep = needsTimeSep(msg, messages[i - 1]) && (
+            <div className="message-time-sep">{fmtTimeSep(msg.created_at)}</div>
+          )
           if (msg.message_type === 'system') {
             return (
-              <div key={msg.id} className="message message-system" data-id={msg.id}>
-                <div className="message-system-body">{msg.body}</div>
+              <div key={msg.id}>
+                {timeSep}
+                <div className="message message-system" data-id={msg.id}>
+                  <div className="message-system-body">{msg.body}</div>
+                </div>
               </div>
             )
           }
@@ -274,51 +328,79 @@ export default function ThreadChat() {
           )
 
           return (
-            <div key={msg.id} data-id={msg.id}
-              className={`message message-user ${mine ? 'message-mine' : 'message-theirs'}`}>
+            <div key={msg.id}>
+              {timeSep}
+              <div data-id={msg.id}
+                className={`message message-user ${mine ? 'message-mine' : 'message-theirs'}`}>
 
-              {/* Desktop react trigger — left of bubble for "mine" */}
-              {mine && reactBtn}
+                {/* Desktop react trigger — left of bubble for "mine" */}
+                {mine && reactBtn}
 
-              {/* Long-press target for mobile */}
-              <div className="message-bubble"
-                onPointerDown={e => startPress(e, msg)}
-                onPointerUp={cancelPress}
-                onPointerMove={cancelPress}
-                onPointerCancel={cancelPress}
-                style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-                {!mine && <div className="message-author">{msg.author}</div>}
-                <div className="message-text">{msg.body}</div>
+                {/* Long-press target for mobile */}
+                <div className="message-bubble"
+                  onPointerDown={e => startPress(e, msg)}
+                  onPointerUp={cancelPress}
+                  onPointerMove={cancelPress}
+                  onPointerCancel={cancelPress}
+                  style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
+                  {!mine && <div className="message-author">{msg.author}</div>}
+                  <div className="message-text">{msg.body}</div>
 
-                {/* Footer: passive reaction chips + timestamp */}
-                <div className="message-footer">
+                  {/* Footer: passive reaction chips (timestamps live in the
+                      cluster separators now, not under every bubble) */}
                   {chips.length > 0 && (
-                    <div className="reaction-chips">
-                      {chips.map(([rtype, count]) => {
-                        const emoji  = REACTIONS.find(([r]) => r === rtype)?.[1] ?? rtype
-                        const reacted = msg.user_reactions?.includes(rtype)
-                        return (
-                          <span key={rtype}
-                            className={`reaction-chip${reacted ? ' reacted' : ''}`}>
-                            {emoji} {count}
-                          </span>
-                        )
-                      })}
+                    <div className="message-footer">
+                      <div className="reaction-chips">
+                        {chips.map(([rtype, count]) => {
+                          const emoji  = REACTIONS.find(([r]) => r === rtype)?.[1] ?? rtype
+                          const reacted = msg.user_reactions?.includes(rtype)
+                          return (
+                            <span key={rtype}
+                              className={`reaction-chip${reacted ? ' reacted' : ''}`}>
+                              {emoji} {count}
+                            </span>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
-                  <span className="message-time">
-                    {msg.created_at
-                      ? new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-                      : ''}
-                  </span>
                 </div>
-              </div>
 
-              {/* Desktop react trigger — right of bubble for "theirs" */}
-              {!mine && reactBtn}
+                {/* Desktop react trigger — right of bubble for "theirs" */}
+                {!mine && reactBtn}
+              </div>
             </div>
           )
         })}
+
+        {/* Optimistic outbox — sent messages render here until the server
+            confirms them, so they never blink out of existence. */}
+        {outbox.map(m => (
+          <div key={m.tempId} className="message message-user message-mine message-pending">
+            <div className="message-bubble">
+              <div className="message-text">{m.body}</div>
+            </div>
+          </div>
+        ))}
+
+        {/* Delivery status under the newest own message */}
+        {(() => {
+          const lastOut = outbox[outbox.length - 1]
+          const lastMsg = messages[messages.length - 1]
+          if (lastOut) {
+            return (
+              <div className="message-status">
+                {lastOut.status === 'sending'
+                  ? <>Sending<span className="message-sending-dot" /></>
+                  : 'Sent'}
+              </div>
+            )
+          }
+          if (lastMsg?.is_mine && lastMsg.message_type !== 'system') {
+            return <div className="message-status">Sent</div>
+          }
+          return null
+        })()}
       </div>
 
       {/* ── Floating reaction picker ── */}

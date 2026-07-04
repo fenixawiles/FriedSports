@@ -874,6 +874,10 @@ body.keyboard-open .thread-main .chat-input-area {
   display: flex; flex-direction: column; gap: 0.35rem;
   margin-bottom: 0;
   scroll-behavior: smooth;
+  /* Long-press = reactions; scrolling must never start a text selection */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .chat-window::-webkit-scrollbar { width: 4px; }
 .chat-window::-webkit-scrollbar-track { background: transparent; }
@@ -977,11 +981,42 @@ body.keyboard-open .thread-main .chat-input-area {
 .istrip-action-danger { color: var(--accent) !important; border-color: rgba(217,51,72,0.4) !important; }
 .istrip-action-danger:hover { background: rgba(217,51,72,0.1) !important; }
 
+/* ── Liquid Glass chat bubbles ─────────────────────────────────────────────
+   Translucent on-theme fills with a lit top edge. NO backdrop-filter here on
+   purpose: bubbles are content, and blurring hundreds of them wrecks scroll
+   perf — translucent color + hairline reads as glass at a fraction of the
+   cost (matches the chrome-glass / content-opaque rule). */
 .message-bubble {
-  max-width: 88%;
-  background: none !important; border: none !important;
-  border-radius: 0 !important; box-shadow: none !important;
-  padding: 0.1rem 0 !important;
+  max-width: 82%;
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 18px !important;
+  box-shadow: inset 0 1px 0 var(--glass-hairline) !important;
+  padding: 0.5rem 0.8rem !important;
+}
+/* Mine: accent-tinted translucent glass, iMessage tail corner */
+.message-mine .message-bubble {
+  background: color-mix(in srgb, var(--accent) 20%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent) !important;
+  border-bottom-right-radius: 6px !important;
+}
+.message-theirs .message-bubble {
+  border-bottom-left-radius: 6px !important;
+}
+
+/* Centered cluster time separator — replaces per-bubble timestamps */
+.message-time-sep {
+  text-align: center;
+  font-size: 0.7rem; font-weight: 600; color: var(--text-muted);
+  margin: 0.9rem 0 0.4rem;
+}
+
+/* Delivery status caption under the newest own message */
+.message-status {
+  text-align: right;
+  font-size: 0.68rem; font-weight: 600; color: var(--text-muted);
+  padding: 0 0.95rem;
+  margin-top: -0.45rem;
 }
 .message-author {
   font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);
@@ -3095,6 +3130,17 @@ body.receipt-page {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* ── Native-feel pressed states: engage only after a 140ms beat.
+   WebKit sets :active the instant a touch lands, so scrolling used to flash
+   every row it passed over. Transitions read from the TARGET state, so the
+   delay here applies on the way IN; releasing falls back to each rule's own
+   (immediate) transition. A real press still highlights — just like UIKit. ── */
+.thread-row-item:active, .group-card:active, .alert-banner:active,
+.more-row:active, .notif-item:active, .thread-card:active,
+.admin-list-row:active, .admin-tool-link:active, .admin-recent-row:active {
+  transition: background 0.01s linear 140ms, transform 0.15s var(--ease-spring) 140ms;
 }
 
 /* ── Dashboard: collapsible Archived groups section ── */

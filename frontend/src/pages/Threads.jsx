@@ -210,6 +210,16 @@ export default function Threads() {
   const [typeFilter, setTypeFilter]         = useState('all')
   const [actionError, setActionError]       = useState('')
   const [menuThread, setMenuThread]         = useState(null)  // long-press sheet
+  const [sheetArmed, setSheetArmed]         = useState(false)
+
+  // The sheet opens mid-press; swallow input until the finger has lifted so
+  // the release-click can't land on the backdrop and dismiss it instantly.
+  useEffect(() => {
+    if (!menuThread) return
+    setSheetArmed(false)
+    const t = setTimeout(() => setSheetArmed(true), 350)
+    return () => clearTimeout(t)
+  }, [menuThread])
 
   const threads   = data?.threads    ?? []
   const lastMsgs  = data?.last_msgs  ?? {}
@@ -310,7 +320,8 @@ export default function Threads() {
         const isDeleted = category === 'deleted'
         const run = (action) => { setMenuThread(null); actionMut.mutate({ id: menuThread.id, action }) }
         return (
-          <div className="pw-sheet" onClick={(e) => { if (e.target === e.currentTarget) setMenuThread(null) }}>
+          <div className="pw-sheet" style={{ pointerEvents: sheetArmed ? 'auto' : 'none' }}
+            onClick={(e) => { if (e.target === e.currentTarget) setMenuThread(null) }}>
             <div className="pw-sheet-backdrop" onClick={() => setMenuThread(null)} />
             <div className="pw-sheet-card" role="dialog" aria-modal="true">
               <div className="pw-sheet-head">
