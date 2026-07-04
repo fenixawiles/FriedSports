@@ -114,18 +114,7 @@ def create_app(config=None):
         os.path.dirname(os.path.dirname(__file__)), "frontend", "dist"
     )
 
-    @app.route("/app/", defaults={"path": ""})
-    @app.route("/app/<path:path>")
-    @app.route("/admin-tools", defaults={"path": ""})
-    @app.route("/", defaults={"path": ""})
-    def serve_react(path):
-        """Serve React SPA — root entry point + /app/* catch-all.
-
-        The root "/" route is the Capacitor entry point.  Every subsequent
-        navigation is handled client-side by React Router, so the server only
-        needs to return index.html for the initial load.  Static build assets
-        (JS/CSS chunks) are served by path when they exist on disk.
-        """
+    def _serve_react_asset(path=""):
         if not os.path.exists(_react_build):
             # Build not present (local dev without a Vite build).
             # Let Flask fall through to its own 404 handler; the dev server
@@ -136,6 +125,22 @@ def create_app(config=None):
         if path and os.path.exists(full) and not os.path.isdir(full):
             return send_from_directory(_react_build, path)
         return send_from_directory(_react_build, "index.html")
+
+    @app.route("/")
+    def serve_react_root():
+        """Serve the React SPA root."""
+        return _serve_react_asset("")
+
+    @app.route("/app/", defaults={"path": ""})
+    @app.route("/app/<path:path>")
+    def serve_react_app(path):
+        """Serve React SPA app/static build assets under /app/*."""
+        return _serve_react_asset(path)
+
+    @app.route("/admin-tools")
+    def serve_react_admin_tools():
+        """Serve the React admin entry without canonicalizing back to /."""
+        return _serve_react_asset("")
 
     # time_ago available in every template
     from app.utils import time_ago
