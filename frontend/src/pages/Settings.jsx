@@ -1,21 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { getSettings, updateSettings, deleteAccount } from '../api/user'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getSettings, updateSettings, deleteAccount, uploadAvatar, removeAvatar } from '../api/user'
 import { useAuth } from '../context/AuthContext'
 import BackButton from '../components/BackButton'
+import IdentityAvatar from '../components/IdentityAvatar'
 import Loading from '../components/Loading'
+import { fileToSquareDataUrl } from '../utils/imageCrop'
+import { haptic } from '../native/haptics'
 
 export default function Settings() {
   const navigate = useNavigate()
   const { logout } = useAuth()
   const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: getSettings })
 
+  const qc = useQueryClient()
   const [form, setForm] = useState({
     first_name: '', last_name: '', display_name: '',
-    display_preference: 'username', avatar_url: '',
+    display_preference: 'username',
     current_password: '', new_password: '', confirm_password: '',
   })
+  // Photo lives OUTSIDE the form: upload/remove hit dedicated endpoints so a
+  // later "Save Changes" can never clobber a fresh upload with a stale URL.
+  const [avatarUrl, setAvatarUrl] = useState('')
+  const [avatarBusy, setAvatarBusy] = useState(false)
+  const fileRef = useRef(null)
   const [teamSelections, setTeamSelections] = useState({})
   const [error, setError]   = useState('')
   const [success, setSuccess] = useState('')
@@ -31,8 +40,8 @@ export default function Settings() {
       last_name: u.last_name || '',
       display_name: u.display_name || '',
       display_preference: u.display_preference || 'username',
-      avatar_url: u.avatar_url || '',
     }))
+    setAvatarUrl(u.avatar_url || '')
     if (data.fav_teams) {
       const sel = {}
       Object.entries(data.fav_teams).forEach(([league, t]) => {
@@ -68,6 +77,42 @@ export default function Settings() {
     onSuccess: async () => { await logout(); navigate('/') },
     onError: (err) => setError(err.message || 'Delete failed'),
   })
+
+  async function handlePhotoPick(e) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-picking the same file
+    if (!file) return
+    setError('')
+    setAvatarBusy(true)
+    try {
+      const dataUrl = await fileToSquareDataUrl(file)
+      const res = await uploadAvatar(dataUrl)
+      setAvatarUrl(res.avatar_url || dataUrl)
+      haptic('success')
+      // Every list that shows the user's face refreshes on next fetch.
+      qc.invalidateQueries(['settings'])
+      qc.invalidateQueries(['friends'])
+      qc.invalidateQueries(['feed'])
+    } catch (err) {
+      setError(err.message || 'Could not upload that photo')
+    } finally {
+      setAvatarBusy(false)
+    }
+  }
+
+  async function handlePhotoRemove() {
+    setError('')
+    setAvatarBusy(true)
+    try {
+      await removeAvatar()
+      setAvatarUrl('')
+      qc.invalidateQueries(['settings'])
+    } catch (err) {
+      setError(err.message || 'Could not remove photo')
+    } finally {
+      setAvatarBusy(false)
+    }
+  }
 
   if (isLoading) return <Loading full />
 
@@ -114,10 +159,24 @@ export default function Settings() {
               ))}
             </div>
           </div>
-          <div className="settings-row">
-            <label htmlFor="avatar_url">Profile photo URL</label>
-            <input id="avatar_url" type="url" maxLength={256}
-              value={form.avatar_url} onChange={set('avatar_url')} placeholder="https://..." />
+          <div className="settings-row settings-photo-row">
+            <label>Photo</label>
+            <div className="settings-photo-controls">
+              <IdentityAvatar
+                identity={{ kind: 'user', label: form.display_name || '?', avatar_url: avatarUrl }}
+                className="settings-photo-preview" />
+              <input ref={fileRef} type="file" accept="image/*" hidden onChange={handlePhotoPick} />
+              <button type="button" className="btn-secondary-small" disabled={avatarBusy}
+                onClick={() => fileRef.current?.click()}>
+                {avatarBusy ? 'Working…' : (avatarUrl ? 'Change' : 'Upload')}
+              </button>
+              {avatarUrl && (
+                <button type="button" className="btn-danger-small" disabled={avatarBusy}
+                  onClick={handlePhotoRemove}>
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
         </div>
         {data?.user?.uid && (

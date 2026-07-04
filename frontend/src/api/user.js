@@ -2,6 +2,8 @@ import client from './client'
 
 export const getSettings      = ()     => client.get('/settings').then(r => r.data)
 export const updateSettings   = (data) => client.post('/settings', data).then(r => r.data)
+export const uploadAvatar     = (data_url) => client.post('/settings/avatar', { data_url }).then(r => r.data)
+export const removeAvatar     = ()     => client.delete('/settings/avatar').then(r => r.data)
 export const completeProfile  = (data) => client.post('/profile/complete', data).then(r => r.data)
 export const deleteAccount    = (data) => client.post('/settings/delete-account', data).then(r => r.data)
 export const getOnboarding    = ()     => client.get('/onboarding').then(r => r.data)

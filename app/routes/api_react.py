@@ -15,6 +15,7 @@ from ..models import (
     MessageReaction, MessageReport, IncidentReport, GameEvent, GroupTrigger, Team,
     UserFavoriteTeam, Notification, FriendRequest, SupportTicket,
     Receipt, DeviceToken, ThreadUserState, BlockedUser, AdminAuditLog,
+    ActivityEvent,
 )
 
 bp = Blueprint("api_react", __name__, url_prefix="/api")
@@ -655,6 +656,139 @@ def dashboard():
     )
 
 
+@bp.route("/feed")
+@login_required
+def activity_feed():
+    """Home heartbeat — one merged stream of everything happening around the
+    user: group activity (reports, pile-ons, verdicts, joins), receipts
+    dropping, and new friendships. FS-voice verb lines; is_you flags moments
+    where the user is the one getting cooked."""
+    uid = current_user.id
+    memberships = (
+        GroupMember.query
+        .filter_by(user_id=uid, archived=False)
+        .options(joinedload(GroupMember.group))
+        .all()
+    )
+    group_ids = [m.group_id for m in memberships]
+    group_names = {m.group_id: m.group.name for m in memberships if m.group}
+
+    events, receipts = [], []
+    if group_ids:
+        events = (
+            ActivityEvent.query
+            .filter(ActivityEvent.group_id.in_(group_ids))
+            .filter(db.or_(ActivityEvent.actor_id != uid, ActivityEvent.actor_id.is_(None)))
+            .order_by(ActivityEvent.created_at.desc())
+            .limit(40)
+            .all()
+        )
+        receipts = (
+            Receipt.query
+            .filter(Receipt.group_id.in_(group_ids))
+            .order_by(Receipt.created_at.desc())
+            .limit(10)
+            .all()
+        )
+
+    friendships = (
+        FriendRequest.query
+        .filter(FriendRequest.status == "accepted")
+        .filter(db.or_(FriendRequest.from_user_id == uid, FriendRequest.to_user_id == uid))
+        .order_by(FriendRequest.updated_at.desc())
+        .limit(8)
+        .all()
+    )
+
+    # Batch-load every referenced user, thread, and team in three queries.
+    thread_ids = {e.entity_id for e in events
+                  if e.entity_id and e.event_type in ("thread_started", "reply", "vote")}
+    thread_ids |= {r.thread_id for r in receipts}
+    threads = {t.id: t for t in GameThread.query.filter(GameThread.id.in_(thread_ids)).all()} if thread_ids else {}
+
+    user_ids = {e.actor_id for e in events if e.actor_id}
+    user_ids |= {r.target_user_id for r in receipts}
+    user_ids |= {fr.from_user_id if fr.to_user_id == uid else fr.to_user_id for fr in friendships}
+    users = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+    fav_teams = _favorite_team_map(list(user_ids))
+
+    def actor_identity(user_id):
+        u = users.get(user_id)
+        if not u:
+            return _identity("group", "FS")
+        return _identity("user", u.initials if hasattr(u, "initials") else (u.shown_name or "?")[:2].upper(),
+                         avatar_url=u.avatar_url or "", team=fav_teams.get(user_id))
+
+    def thread_title(tid):
+        t = threads.get(tid)
+        return (t.title or "a thread") if t else "a thread"
+
+    items = []
+    for e in events:
+        gname = group_names.get(e.group_id, "a group")
+        actor = users.get(e.actor_id)
+        name = actor.shown_name if actor else None
+        t = threads.get(e.entity_id) if e.entity_id else None
+        is_you = bool(t and t.target_user_id == uid)
+        if e.event_type == "thread_started":
+            line = (f"{name} put you on trial in {gname}" if is_you and name
+                    else f"{name} filed a report in {gname}" if name
+                    else f"A thread ignited in {gname}")
+        elif e.event_type == "reply":
+            line = f"{name or 'Someone'} piled on in “{thread_title(e.entity_id)}”"
+        elif e.event_type == "vote":
+            line = f"{name or 'Someone'} cast a verdict in “{thread_title(e.entity_id)}”"
+        elif e.event_type == "member_joined":
+            line = f"{name or 'Someone'} pulled up to {gname}"
+        else:
+            continue
+        items.append({
+            "id": f"ev-{e.id}",
+            "kind": e.event_type,
+            "actor": actor_identity(e.actor_id),
+            "line": line,
+            "context": gname,
+            "link": f"/threads/{e.entity_id}" if t else f"/groups/{e.group_id}",
+            "created_at": _iso(_aware_dt(e.created_at)),
+            "is_you": is_you,
+        })
+
+    for r in receipts:
+        target = users.get(r.target_user_id)
+        tname = target.shown_name if target else "someone"
+        is_you = r.target_user_id == uid
+        items.append({
+            "id": f"rc-{r.id}",
+            "kind": "receipt",
+            "actor": actor_identity(r.target_user_id),
+            "line": ("A receipt just dropped on you" if is_you
+                     else f"A receipt dropped on {tname}"),
+            "context": r.title or group_names.get(r.group_id, ""),
+            "link": f"/threads/{r.thread_id}",
+            "created_at": _iso(_aware_dt(r.created_at)),
+            "is_you": is_you,
+        })
+
+    for fr in friendships:
+        other_id = fr.from_user_id if fr.to_user_id == uid else fr.to_user_id
+        other = users.get(other_id)
+        if not other:
+            continue
+        items.append({
+            "id": f"fr-{fr.id}",
+            "kind": "friend",
+            "actor": actor_identity(other_id),
+            "line": f"You and {other.shown_name} are now friends",
+            "context": "Friends",
+            "link": "/friends",
+            "created_at": _iso(_aware_dt(fr.updated_at)),
+            "is_you": False,
+        })
+
+    items.sort(key=lambda i: i["created_at"] or "", reverse=True)
+    return ok(items=items[:30])
+
+
 @bp.route("/onboarding")
 @login_required
 def onboarding_get():
@@ -736,6 +870,63 @@ def settings_get():
         league_labels=league_labels,
         fav_teams=fav_teams,
     )
+
+
+@bp.route("/settings/avatar", methods=["POST"])
+@login_required
+def upload_avatar():
+    """Real profile photo upload. The client crops square + resizes to ~384px
+    JPEG before sending, so payloads land around 30-50KB."""
+    import re as _re
+    import base64 as _b64
+    import time as _time
+    d = request.get_json(silent=True) or {}
+    data_url = (d.get("data_url") or "").strip()
+    m = _re.match(r"^data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/=\s]+)$", data_url)
+    if not m:
+        return err("Send a base64 image data URL")
+    try:
+        raw = _b64.b64decode(m.group(2), validate=False)
+    except Exception:
+        return err("Invalid image data")
+    if len(raw) > 400_000:
+        return err("Image too large — try a smaller photo")
+    current_user.avatar_data = data_url
+    # Cache-busting version so a re-upload shows immediately everywhere.
+    current_user.avatar_url = f"/api/users/{current_user.id}/avatar?v={int(_time.time())}"
+    db.session.commit()
+    return ok(avatar_url=current_user.avatar_url)
+
+
+@bp.route("/settings/avatar", methods=["DELETE"])
+@login_required
+def remove_avatar():
+    current_user.avatar_data = None
+    current_user.avatar_url = None
+    db.session.commit()
+    return ok()
+
+
+@bp.route("/users/<int:user_id>/avatar")
+def user_avatar(user_id):
+    """Serve the stored profile photo. Public like any social avatar CDN URL;
+    long cache + the ?v= buster keeps it fresh after re-uploads."""
+    import re as _re
+    import base64 as _b64
+    from flask import Response
+    u = db.session.get(User, user_id)
+    if not u or not u.avatar_data:
+        return err("No avatar", 404)
+    m = _re.match(r"^data:image/(jpeg|png|webp);base64,(.+)$", u.avatar_data, _re.DOTALL)
+    if not m:
+        return err("No avatar", 404)
+    try:
+        raw = _b64.b64decode(m.group(2), validate=False)
+    except Exception:
+        return err("No avatar", 404)
+    return Response(raw, mimetype=f"image/{m.group(1)}", headers={
+        "Cache-Control": "public, max-age=604800, immutable",
+    })
 
 
 @bp.route("/settings", methods=["POST"])
@@ -1779,8 +1970,15 @@ def notifications():
         .options(joinedload(FriendRequest.from_user))
         .all()
     )
+    fr_teams = _favorite_team_map([fr.from_user_id for fr in pending_fr])
     fr_list = [
-        {"id": fr.id, "from_user": {"id": fr.from_user.id, "name": fr.from_user.shown_name, "uid": fr.from_user.uid}}
+        {"id": fr.id,
+         "from_user": {
+             "id": fr.from_user.id, "name": fr.from_user.shown_name, "uid": fr.from_user.uid,
+             "identity": _identity("user", fr.from_user.initials,
+                                   avatar_url=fr.from_user.avatar_url or "",
+                                   team=fr_teams.get(fr.from_user_id)),
+         }}
         for fr in pending_fr
     ]
 
@@ -2706,6 +2904,7 @@ def friends_list():
             )
             shared_counts = {uid_: cnt for uid_, cnt in rows}
 
+    fav_teams = _favorite_team_map([o.id for o in others])
     friends = []
     for other in others:
         friends.append({
@@ -2714,6 +2913,11 @@ def friends_list():
             "uid":  other.uid,
             "shared_group_count": shared_counts.get(other.id, 0),
             "last_active_at": other.last_active_at.isoformat() if other.last_active_at else None,
+            "identity": _identity(
+                "user", other.initials,
+                avatar_url=other.avatar_url or "",
+                team=fav_teams.get(other.id),
+            ),
         })
 
     return ok(friends=friends)

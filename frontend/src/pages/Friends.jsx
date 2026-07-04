@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getFriends, searchUsers, sendRequest, removeFriend, blockUser, reportUser } from '../api/friends'
 import { Skeleton } from '../components/Skeleton'
+import IdentityAvatar from '../components/IdentityAvatar'
 
 export default function Friends() {
   const qc = useQueryClient()
@@ -128,26 +129,24 @@ export default function Friends() {
           </div>
         ) : friends.length === 0 ? (
           <div className="empty-state">
-            <p>No friends yet. Search above to add someone.</p>
+            <p>Trash talk hits different with witnesses. Search above and add your first rival.</p>
           </div>
         ) : (
-          <div className="member-table">
-            <div className="member-row member-header" style={{ gridTemplateColumns: '1fr auto auto' }}>
-              <span>Name</span><span>UID</span><span />
-            </div>
+          <div className="friend-list">
             {friends.map(f => (
-              <div key={f.id} className="member-row" style={{ gridTemplateColumns: '1fr auto auto' }}>
-                <span className="member-name">{f.name}</span>
-                <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{f.uid}</span>
-                <span>
-                  <button className="friend-menu-btn" aria-label="Friend options"
-                    onClick={() => setMenuFriend(f)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                      fill="currentColor" aria-hidden="true">
-                      <circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>
-                    </svg>
-                  </button>
-                </span>
+              <div key={f.id} className="friend-list-row">
+                <IdentityAvatar identity={f.identity} fallbackLabel={f.name} className="friend-list-avatar" />
+                <div className="friend-list-info">
+                  <span className="member-name">{f.name}</span>
+                  <span className="friend-list-uid">{f.uid}</span>
+                </div>
+                <button className="friend-menu-btn" aria-label="Friend options"
+                  onClick={() => setMenuFriend(f)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                    fill="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>
+                  </svg>
+                </button>
               </div>
             ))}
           </div>

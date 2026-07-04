@@ -6,7 +6,13 @@ import { getThread, sendMessage, reactToMessage, deleteMessage,
 import { useAuth } from '../context/AuthContext'
 import Loading from '../components/Loading'
 
-const REACTIONS = [['laugh','Laugh'],['cook','Cook'],['fraud','Fraud'],['receipt','Receipt']]
+// The FS reaction language — four branded verdicts, not random emoji.
+const REACTIONS = [
+  ['laugh',   'Laugh',   '😂'],
+  ['cook',    'Cook',    '🔥'],
+  ['fraud',   'Fraud',   '🚨'],
+  ['receipt', 'Receipt', '🧾'],
+]
 const BTN_W = 74   // approximate picker button width for on-screen clamping
 
 // iMessage-style time separator label: shown between message clusters, not
@@ -109,6 +115,7 @@ export default function ThreadChat() {
     setBody('')
     if (inputRef.current) { inputRef.current.style.height = '' }
     const tempId = `t${++tempSeq.current}`
+    haptic('light') // the message left your hands
     setOutbox(o => [...o, { tempId, body: trimmed, status: 'sending' }])
     setSending(true)
     try {
@@ -352,11 +359,16 @@ export default function ThreadChat() {
                     <div className="message-footer">
                       <div className="reaction-chips">
                         {chips.map(([rtype, count]) => {
-                          const label  = REACTIONS.find(([r]) => r === rtype)?.[1] ?? rtype
+                          const def = REACTIONS.find(([r]) => r === rtype)
+                          const label = def?.[1] ?? rtype
+                          const icon = def?.[2] ?? ''
                           const reacted = msg.user_reactions?.includes(rtype)
                           return (
-                            <span key={rtype}
+                            // key includes count → chip remounts on change and
+                            // the pop animation fires; counts feel alive.
+                            <span key={`${rtype}-${count}`}
                               className={`reaction-chip${reacted ? ' reacted' : ''}`}>
+                              {icon && <span className="reaction-chip-icon">{icon}</span>}
                               <span className="reaction-chip-label">{label}</span>
                               <span className="reaction-chip-count">{count}</span>
                             </span>
@@ -411,14 +423,16 @@ export default function ThreadChat() {
           <div className="reaction-picker-backdrop" onPointerDown={closeMenu} />
           <div className="reaction-picker"
             style={{ top: activeMenu.top, left: activeMenu.left }}>
-            {REACTIONS.map(([rtype, label]) => (
+            {REACTIONS.map(([rtype, label, icon]) => (
               <button key={rtype} className="reaction-picker-btn"
                 onPointerDown={e => {
                   e.stopPropagation()
+                  haptic('light')
                   reactMut.mutate({ msgId: activeMenu.id, type: rtype })
                   closeMenu()
                 }}>
-                {label}
+                <span className="reaction-picker-icon">{icon}</span>
+                <span className="reaction-picker-label">{label}</span>
               </button>
             ))}
             {activeMenu.can_delete && (

@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { haptic } from '../native/haptics'
 
 /**
  * Press-and-hold detector that composes with existing pointer/swipe handlers.
@@ -19,8 +20,7 @@ export default function useLongPress(onLongPress, { ms = 450, slop = 10 } = {}) 
     clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       fired.current = true
-      // Light haptic tick on devices that support it
-      try { navigator.vibrate?.(10) } catch { /* no-op */ }
+      haptic('medium') // the "menu is opening" thunk
       onLongPress()
     }, ms)
   }

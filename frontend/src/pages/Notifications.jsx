@@ -5,6 +5,8 @@ import { getNotifications, markAllRead, markOneRead } from '../api/notifications
 import { acceptRequest, declineRequest } from '../api/friends'
 import { joinGroup } from '../api/groups'
 import Loading from '../components/Loading'
+import IdentityAvatar from '../components/IdentityAvatar'
+import { haptic } from '../native/haptics'
 
 export default function Notifications() {
   const qc = useQueryClient()
@@ -45,6 +47,7 @@ export default function Notifications() {
       return joinGroup(code)
     },
     onSuccess: (res) => {
+      haptic('success')
       qc.invalidateQueries(['notifications'])
       qc.invalidateQueries(['dashboard'])
       navigate(`/groups/${res.group_id}`)
@@ -53,7 +56,7 @@ export default function Notifications() {
   })
   const accept = useMutation({
     mutationFn: (id) => acceptRequest(id),
-    onSuccess: () => qc.invalidateQueries(['notifications']),
+    onSuccess: () => { haptic('success'); qc.invalidateQueries(['notifications']) },
   })
   const decline = useMutation({
     mutationFn: (id) => declineRequest(id),
@@ -86,6 +89,8 @@ export default function Notifications() {
           </div>
           {pending_fr.map(fr => (
             <div key={fr.id} className="notif-fr-row">
+              <IdentityAvatar identity={fr.from_user.identity} fallbackLabel={fr.from_user.name}
+                className="notif-fr-avatar" />
               <div className="notif-fr-info">
                 <span className="notif-fr-name">{fr.from_user.name}</span>
                 <span className="notif-fr-uid">{fr.from_user.uid}</span>
@@ -115,7 +120,7 @@ export default function Notifications() {
       {tab === 'messages' && (
         <section className="notif-panel group-section" style={{ borderTop: 'none', paddingTop: 0 }}>
           {messages.length === 0 ? (
-            <div className="empty-state"><p>No messages yet.</p></div>
+            <div className="empty-state"><p>All quiet. Suspiciously quiet. Go start something.</p></div>
           ) : (
             <div className="notif-list">
               {messages.map(n => (
@@ -144,7 +149,7 @@ export default function Notifications() {
         <section className="notif-panel group-section" style={{ borderTop: 'none', paddingTop: 0 }}>
           {inviteErr && <div className="flash flash-error" style={{ marginBottom: '0.6rem' }}>{inviteErr}</div>}
           {invites.length === 0 ? (
-            <div className="empty-state"><p>No invites right now.</p></div>
+            <div className="empty-state"><p>No pending summons. Get a friend to drag you into their group.</p></div>
           ) : (
             <div className="notif-list">
               {invites.map(n => (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { archiveGroup, deleteGroup, getDashboard, getGroup, leaveGroup, unarchiveGroup } from '../api/groups'
+import { getFeed } from '../api/feed'
 import { getThread } from '../api/threads'
 import { useAuth } from '../context/AuthContext'
 import { Skeleton } from '../components/Skeleton'
@@ -173,6 +174,13 @@ export default function Dashboard() {
     queryKey: ['dashboard'],
     queryFn: getDashboard,
   })
+  // The Wire — home heartbeat. Refetches alongside the dashboard.
+  const { data: feedData } = useQuery({
+    queryKey: ['feed'],
+    queryFn: getFeed,
+    refetchInterval: 45_000,
+  })
+  const feedItems = feedData?.items ?? []
   const groupActionMut = useMutation({
     mutationFn: ({ group, action }) => {
       if (action === 'delete') return deleteGroup(group.id)
@@ -236,14 +244,43 @@ export default function Dashboard() {
 
       {groups.length === 0 ? (
         <div className="dashboard-no-groups">
-          <p className="no-groups-sub">You're not in any groups yet. Create one or join with an invite code.</p>
+          <p className="no-groups-sub">
+            No groups, no accountability. Start one and put your friends' teams on the record.
+          </p>
           <div className="no-groups-actions">
-            <Link to="/groups/new" className="btn-primary btn-large">Create a Group</Link>
-            <Link to="/groups/join" className="btn-secondary">Join with Invite Code</Link>
+            <Link to="/groups/new" className="btn-primary btn-large">Start a Group</Link>
+            <Link to="/groups/join" className="btn-secondary">I Have an Invite Code</Link>
           </div>
         </div>
       ) : (
         <>
+          {/* ── The Wire — live feed of everything happening around you ── */}
+          {feedItems.length > 0 && (
+            <section className="dashboard-section">
+              <div className="section-header">
+                <div>
+                  <span className="section-title">The Wire</span>
+                  <span className="section-sub">What just happened, and who's getting cooked</span>
+                </div>
+              </div>
+              <div className="wire-list">
+                {feedItems.slice(0, 8).map(item => (
+                  <Link key={item.id} to={item.link || '/dashboard'}
+                    className={`wire-item${item.is_you ? ' wire-you' : ''}`}>
+                    <IdentityAvatar identity={item.actor} className="wire-avatar" />
+                    <div className="wire-body">
+                      <span className="wire-line">
+                        {item.is_you && <span className="wire-you-tag">YOU</span>}
+                        {item.line}
+                      </span>
+                      <span className="wire-meta">{item.context} · {fmtRelative(item.created_at)}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="dashboard-section">
             <div className="section-header">
               <div>

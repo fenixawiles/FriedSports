@@ -6,6 +6,7 @@ import { archiveThread, deleteThreadLocal, getThreadsList, getThread,
 import { Skeleton } from '../components/Skeleton'
 import IdentityAvatar from '../components/IdentityAvatar'
 import useLongPress from '../hooks/useLongPress'
+import { haptic } from '../native/haptics'
 
 const STATUS_FILTERS = [
   ['active', 'Threads'],
@@ -232,6 +233,7 @@ export default function Threads() {
       throw new Error('Unknown action')
     },
     onSuccess: () => {
+      haptic('medium')
       setActionError('')
       qc.invalidateQueries(['threads'])
     },
@@ -249,9 +251,9 @@ export default function Threads() {
   }, [threads, statusFilter, typeFilter])
 
   const emptyCopy = {
-    active: 'No active chats yet.',
-    archived: 'Nothing archived.',
-    deleted: 'Nothing in Recently Deleted.',
+    active: 'Dead silence. Someone\'s team deserves a conversation — start one.',
+    archived: 'Nothing tucked away. The drama is all still live.',
+    deleted: 'Recently Deleted is empty. No evidence destroyed... yet.',
   }[statusFilter]
 
   return (

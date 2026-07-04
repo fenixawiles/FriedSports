@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getThreadsList, createChatThread } from '../api/threads'
 import { getFriends } from '../api/friends'
 import Loading from '../components/Loading'
+import IdentityAvatar from '../components/IdentityAvatar'
+import { haptic } from '../native/haptics'
 
 function initials(name, fallback = '?') {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean)
@@ -44,6 +46,7 @@ export default function NewThread() {
   const createMut = useMutation({
     mutationFn: createChatThread,
     onSuccess: (res) => {
+      haptic('light')
       qc.invalidateQueries(['threads'])
       navigate(`/threads/${res.thread_id}`)
     },
@@ -67,8 +70,8 @@ export default function NewThread() {
 
   const loading = mode === 'groups' ? groupsLoading : friendsLoading
   const emptyCopy = mode === 'groups'
-    ? 'No groups yet.'
-    : 'No friends yet.'
+    ? 'No rooms to stir up yet. Join a group and come back swinging.'
+    : 'Nobody to talk to yet — that\'s a you problem. Go add some rivals.'
 
   return (
     <div className="new-thread-page">
@@ -132,13 +135,22 @@ export default function NewThread() {
                 className="new-thread-row"
                 disabled={createMut.isPending}
                 onClick={() => mode === 'groups' ? startGroup(item.id) : startFriend(item.id)}>
-                <span className="new-thread-avatar">{initials(item.name, mode === 'groups' ? 'G' : 'F')}</span>
+                <IdentityAvatar
+                  identity={item.identity || {
+                    kind: mode === 'groups' ? 'group' : 'user',
+                    label: initials(item.name, mode === 'groups' ? 'G' : 'F'),
+                    color: item.avatar_color,
+                  }}
+                  fallbackLabel={item.name}
+                  className="new-thread-identity" />
                 <span className="new-thread-copy">
                   <span className="new-thread-name">{item.name}</span>
                   <span className="new-thread-meta">
                     {mode === 'groups'
                       ? 'Group thread'
-                      : (item.uid || `${item.shared_group_count || 0} shared groups`)}
+                      : (item.shared_group_count
+                          ? `${item.shared_group_count} shared group${item.shared_group_count !== 1 ? 's' : ''}`
+                          : item.uid)}
                   </span>
                 </span>
                 <span className="new-thread-chevron">{isPending ? 'Starting' : '›'}</span>

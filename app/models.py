@@ -36,6 +36,9 @@ class User(UserMixin, db.Model):
     # so shipping this never force-logs-out existing users.
     session_token = db.Column(db.String(32), nullable=True)
     avatar_url = db.Column(db.String(256))
+    # Uploaded profile photo (client-side cropped/resized JPEG as a data URL).
+    # Served through /api/users/<id>/avatar; avatar_url points there when set.
+    avatar_data = db.Column(db.Text, nullable=True)
     role = db.Column(db.String(16), nullable=False, default="user")  # "user", "admin"
     last_active_at = db.Column(db.DateTime(timezone=True), nullable=True)
     # Timestamp the user agreed to the Terms / community guidelines (EULA).
