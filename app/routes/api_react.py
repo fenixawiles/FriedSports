@@ -32,7 +32,8 @@ def err(msg, status=400):
 def _notify_once(user_id, type, message, link_url):
     """Add a Notification unless an identical unread one already exists.
     Guards every double-fire path (double-taps, retried requests) at the source
-    so duplicates can't reach the bell no matter which UI triggered them."""
+    so duplicates can't reach the bell no matter which UI triggered them.
+    Returns True when a new notification was actually created."""
     exists = Notification.query.filter_by(
         user_id=user_id, type=type, message=message, is_read=False
     ).first()
@@ -40,6 +41,82 @@ def _notify_once(user_id, type, message, link_url):
         db.session.add(Notification(
             user_id=user_id, type=type, message=message, link_url=link_url,
         ))
+    return not exists
+
+
+def _apns_configured():
+    import os
+    return bool(os.environ.get("APNS_KEY_ID"))
+
+
+def _push_bg(user_id, title, body, data=None):
+    """Fire an APNs push in a background thread — never blocks the request.
+    push_service no-ops silently until the APNS_* env vars are configured."""
+    import threading
+    if not _apns_configured():
+        return
+    app = current_app._get_current_object()
+
+    def _run():
+        with app.app_context():
+            from app.services.push_service import send_push
+            send_push(user_id=user_id, title=title, body=body, data=data or {})
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def _push_message_fanout(thread_id, sender_id, sender_name, body):
+    """Push a new chat message to everyone who should hear about it.
+    Runs entirely in a background thread: recipients = the other direct-chat
+    participant, or unmuted group members — minus anyone in a block pair with
+    the sender. Fails silently until APNs is configured."""
+    import threading
+    if not _apns_configured():
+        return  # skip the recipient queries entirely when push can't send
+    app = current_app._get_current_object()
+    preview = body if len(body) <= 120 else body[:117] + "…"
+
+    def _run():
+        with app.app_context():
+            from app.models import BlockedUser as _BU
+            from app.services.push_service import send_push
+            thread = db.session.get(GameThread, thread_id)
+            if not thread:
+                return
+            # Users in a block pair with the sender never get pushes from them.
+            blocked_pairs = _BU.query.filter(db.or_(
+                _BU.blocker_id == sender_id, _BU.blocked_id == sender_id,
+            )).all()
+            excluded = {p.blocker_id for p in blocked_pairs} | {p.blocked_id for p in blocked_pairs}
+
+            if thread.thread_type == "direct_chat":
+                other = (thread.target_user_id
+                         if thread.created_by_user_id == sender_id
+                         else thread.created_by_user_id)
+                if not other or other in excluded:
+                    return
+                send_push(user_id=other, title=sender_name, body=preview,
+                          data={"link_url": f"/threads/{thread_id}"})
+                return
+
+            if not thread.group_id:
+                return
+            group = db.session.get(Group, thread.group_id)
+            title = group.name if group else "New message"
+            members = GroupMember.query.filter(
+                GroupMember.group_id == thread.group_id,
+                GroupMember.user_id != sender_id,
+                db.or_(GroupMember.mute_notifications.is_(False),
+                       GroupMember.mute_notifications.is_(None)),
+            ).all()
+            for m in members:
+                if m.user_id in excluded:
+                    continue
+                send_push(user_id=m.user_id, title=title,
+                          body=f"{sender_name}: {preview}",
+                          data={"link_url": f"/threads/{thread_id}"})
+
+    threading.Thread(target=_run, daemon=True).start()
 
 def _serialize_user(u):
     return {
@@ -1661,6 +1738,9 @@ def group_invite_email(group_id):
             link_url=f"/groups/join/{g.invite_code}",
         ))
         db.session.commit()
+        _push_bg(existing.id, "Group invite",
+                 f"{current_user.shown_name} invited you to join {g.name}",
+                 {"link_url": "/notifications"})
 
     return ok(sent=bool(sent))
 
@@ -1707,6 +1787,9 @@ def group_invite_user(group_id):
             link_url=link,
         ))
         db.session.commit()
+        _push_bg(target.id, "Group invite",
+                 f"{current_user.shown_name} invited you to join {g.name}",
+                 {"link_url": "/notifications"})
     return ok(invited=True, name=target.shown_name)
 
 
@@ -2278,6 +2361,7 @@ def post_message(thread_id):
         record_event(thread.group_id, current_user.id, "reply", thread_id)
     mark_thread_read(current_user.id, thread_id)
     db.session.commit()
+    _push_message_fanout(thread_id, current_user.id, current_user.shown_name, body)
     return ok(id=msg.id, created_at=msg.created_at.isoformat() if msg.created_at else None)
 
 
@@ -2443,13 +2527,17 @@ def send_friend_request(user_id):
     fr = FriendRequest(from_user_id=current_user.id, to_user_id=user_id)
     db.session.add(fr)
     db.session.flush()
-    _notify_once(
+    created = _notify_once(
         user_id=user_id,
         type="friend_request",
         message=f"{current_user.shown_name} sent you a friend request",
         link_url="/notifications",
     )
     db.session.commit()
+    if created:
+        _push_bg(user_id, "Friend request",
+                 f"{current_user.shown_name} sent you a friend request",
+                 {"link_url": "/notifications"})
     try:
         from ..services.email_service import send_friend_request_email
         send_friend_request_email(current_user, target)
@@ -2469,13 +2557,17 @@ def accept_friend_request(request_id):
     if fr.status == "accepted":
         return ok(name=fr.from_user.shown_name if fr.from_user else "")
     fr.status = "accepted"
-    _notify_once(
+    created = _notify_once(
         user_id=fr.from_user_id,
         type="friend_accepted",
         message=f"{current_user.shown_name} accepted your friend request",
         link_url="/friends",
     )
     db.session.commit()
+    if created:
+        _push_bg(fr.from_user_id, "Friend request accepted",
+                 f"{current_user.shown_name} accepted your friend request",
+                 {"link_url": "/friends"})
     return ok(name=fr.from_user.shown_name if fr.from_user else "")
 
 

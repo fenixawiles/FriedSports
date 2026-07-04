@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { getMe, logout as apiLogout } from '../api/auth'
+import { initPush } from '../native/push'
 
 const AuthContext = createContext(null)
 const AUTH_USER_KEY = 'FRIEDSPORTS_AUTH_USER'
@@ -47,6 +48,12 @@ export function AuthProvider({ children }) {
   }, [setUser])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // Register for APNs push once we know who the user is (native shell only;
+  // initPush self-guards against web, denial, and double-wiring).
+  useEffect(() => {
+    if (userState?.id) initPush()
+  }, [userState?.id])
 
   const logout = useCallback(async () => {
     try { await apiLogout() } catch {}

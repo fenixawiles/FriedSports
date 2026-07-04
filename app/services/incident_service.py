@@ -114,7 +114,8 @@ def create_incident_thread(report):
                             user_id=r.target_user_id,
                             title="🚨 Thread Started",
                             body=f"{r.reporter.shown_name} started a thread on your {r.target_team.name}.",
-                            data={"thread_id": thread_id, "group_id": r.group_id},
+                            data={"thread_id": thread_id, "group_id": r.group_id,
+                                  "link_url": f"/threads/{thread_id}"},
                         )
                     except Exception as e:
                         app.logger.warning(f"Push notification failed: {e}")
