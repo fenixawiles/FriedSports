@@ -551,7 +551,7 @@
       </div>
       <span class="push-panel-meta">Target by user ID or email</span>
     </div>
-    <form method="post" action="{{ url_for('admin.push_tools') }}">
+    <form method="post" action="{{ url_for('admin.push_tools') }}" data-turbo="false">
       <div class="push-form-grid">
         <div class="push-field">
           <label for="push-user-id">Target User ID</label>

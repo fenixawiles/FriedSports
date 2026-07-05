@@ -5,7 +5,7 @@ All routes require User.role == "admin" via @admin_required.
 URL prefix: /admin
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app, session
 from flask_login import login_required, current_user
 from app.utils import admin_required
 from app.models import (db, Team, User, UserFavoriteTeam, GroupMember, AdminAuditLog,
@@ -684,14 +684,19 @@ def push_tools():
             target_user = User.query.filter_by(email=form["email"]).first()
         if not target_user:
             flash("Choose a target user by ID or email.", "error")
-            return render_template("admin/push.html", **_push_tools_context(form=form))
+            session["admin_push_form"] = form
+            return redirect(url_for("admin.push_tools"), code=303)
 
         if not form["title"] or not form["body"]:
             flash("Title and body are required.", "error")
-            return render_template("admin/push.html", **_push_tools_context(form=form, target_user=target_user))
+            session["admin_push_form"] = form
+            session["admin_push_target_user_id"] = target_user.id
+            return redirect(url_for("admin.push_tools"), code=303)
         if form["link_url"] and not form["link_url"].startswith("/"):
             flash("Link URL must be an app path starting with /.", "error")
-            return render_template("admin/push.html", **_push_tools_context(form=form, target_user=target_user))
+            session["admin_push_form"] = form
+            session["admin_push_target_user_id"] = target_user.id
+            return redirect(url_for("admin.push_tools"), code=303)
 
         environment = normalize_environment(form["environment"])
         result = send_push(
@@ -711,12 +716,16 @@ def push_tools():
             f"Push test complete: accepted {result.get('accepted_count', 0)}/{result.get('token_count', 0)} {environment} token(s).",
             "success" if result.get("accepted_count", 0) else "warning",
         )
-        return render_template(
-            "admin/push.html",
-            **_push_tools_context(result=result, form=form, target_user=target_user),
-        )
+        session["admin_push_result"] = result
+        session["admin_push_form"] = form
+        session["admin_push_target_user_id"] = target_user.id
+        return redirect(url_for("admin.push_tools"), code=303)
 
-    return render_template("admin/push.html", **_push_tools_context())
+    result = session.pop("admin_push_result", None)
+    form = session.pop("admin_push_form", None)
+    target_user_id = session.pop("admin_push_target_user_id", None)
+    target_user = db.session.get(User, target_user_id) if target_user_id else None
+    return render_template("admin/push.html", **_push_tools_context(result=result, form=form, target_user=target_user))
 
 
 # ── Admin email action routes ─────────────────────────────────────────────────
